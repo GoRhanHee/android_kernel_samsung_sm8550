@@ -1,8 +1,0 @@
-#
-# samsung panel notifier
-#
-
-config SEC_PANEL_NOTIFIER
-	tristate "samsung panel notifier"
-	help
-	  Samsung panel notifier.

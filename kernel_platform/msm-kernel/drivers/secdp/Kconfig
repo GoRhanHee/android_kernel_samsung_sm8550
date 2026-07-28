@@ -1,5 +1,0 @@
-config SEC_DISPLAYPORT
-	tristate "SEC DISPLAYPORT feature"
-	default n
-	help
-	   Samsung specific displayport changes.
