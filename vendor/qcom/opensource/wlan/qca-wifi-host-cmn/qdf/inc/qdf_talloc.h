@@ -158,7 +158,7 @@ static inline void *__qdf_talloc_fl(const void *parent, const size_t size,
 static inline void
 __qdf_tfree_fl(void *ptr, const char *func, const uint16_t line)
 {
-	__free(ptr);
+	__qdf_talloc_free(ptr);
 }
 
 static inline void

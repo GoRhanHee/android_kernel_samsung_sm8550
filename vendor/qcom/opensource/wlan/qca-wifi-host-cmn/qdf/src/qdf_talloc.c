@@ -90,7 +90,7 @@ static void __qdf_free(const void *ptr)
 {
 	qdf_mem_kmalloc_dec(__qdf_alloc_size(ptr));
 
-	__free(ptr);
+	__qdf_talloc_free(ptr);
 }
 
 static qdf_ht_declare(__qdf_talloc_meta_ht, QDF_TALLOC_HT_BITS);
@@ -128,7 +128,7 @@ static void qdf_talloc_parent_meta_free(struct qdf_talloc_parent_meta *pmeta)
 {
 	qdf_ht_remove(&pmeta->entry);
 	qdf_list_destroy(&pmeta->children);
-	__free(pmeta);
+	__qdf_talloc_free(pmeta);
 }
 
 static struct qdf_talloc_parent_meta *
@@ -428,4 +428,3 @@ void qdf_talloc_assert_no_children_fl(const void *parent,
 qdf_export_symbol(qdf_talloc_assert_no_children_fl);
 
 #endif /* WLAN_TALLOC_DEBUG */
-
