@@ -39,7 +39,6 @@
 #ifdef CONFIG_UML
 #include "kunit_test/dp_kunit_macro.h"
 #endif
-#include <kunit/mock.h>
 
 #if defined(CONFIG_SECDP)
 #include <linux/string.h>
