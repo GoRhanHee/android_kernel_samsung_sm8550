@@ -17,6 +17,7 @@ STRIP_TOOL="${REPO_ROOT}/kernel_platform/prebuilts/clang/host/linux-x86/clang-r4
 OBJCOPY_TOOL="${REPO_ROOT}/kernel_platform/prebuilts/clang/host/linux-x86/clang-r450784e/bin/llvm-objcopy"
 REPACK_CONFIG="${AIT_DIR}/CONFIGS/vendor_dlkm_repack.conf"
 REPACKED_IMAGE="${AIT_DIR}/REPACKED_IMAGES/vendor_dlkm_repacked.img"
+ROOTLESS_EXTRACT_MARKER="${AIT_DIR}/.rootless-erofs-extract"
 
 run_privileged() {
     if (( EUID == 0 )); then
@@ -83,10 +84,20 @@ CREATE_SPARSE_IMAGE=false
 COMPRESSION_MODE=lz4
 EOF
 
-(
-    cd "${AIT_DIR}"
-    run_privileged ./android_image_tools.sh \
-        --conf="${REPACK_CONFIG}" --quiet
-)
+if [[ -f "${ROOTLESS_EXTRACT_MARKER}" ]]; then
+    command -v mkfs.erofs >/dev/null 2>&1 || {
+        echo "mkfs.erofs not found" >&2
+        exit 1
+    }
+    mkdir -p "$(dirname "${REPACKED_IMAGE}")"
+    rm -f "${REPACKED_IMAGE}"
+    mkfs.erofs -zlz4 --all-root "${REPACKED_IMAGE}" "${OUTPUT_DIR}"
+else
+    (
+        cd "${AIT_DIR}"
+        run_privileged ./android_image_tools.sh \
+            --conf="${REPACK_CONFIG}" --quiet
+    )
+fi
 
 cp "${REPACKED_IMAGE}" "${REPO_ROOT}/vendor_dlkm.img"

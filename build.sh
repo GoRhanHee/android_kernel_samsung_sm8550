@@ -307,6 +307,8 @@ unpack_vendor_dlkm() {
     local image_tools_dir="${SOURCE_DIR}/prebuilts/vendor_dlkm_unpack"
     local vdlkm_img
     local modules_dir
+    local output_dir="${image_tools_dir}/EXTRACTED_IMAGES/extracted_vendor_dlkm"
+    local rootless_marker="${image_tools_dir}/.rootless-erofs-extract"
     local config_file="${image_tools_dir}/CONFIGS/vendor_dlkm_unpack.conf"
 
     wget -q --show-progress \
@@ -327,16 +329,31 @@ unpack_vendor_dlkm() {
         'EXTRACT_DIR=extracted_vendor_dlkm' \
         > "${config_file}"
 
-    (
-        cd "${image_tools_dir}"
-        run_privileged ./android_image_tools.sh \
-            --conf="${config_file}" --quiet
-    )
-    if (( EUID != 0 )) && sudo -n true 2>/dev/null; then
-        sudo chown -R "$(id -u):$(id -g)" "${image_tools_dir}"
+    rm -f "${rootless_marker}"
+    if (( EUID == 0 )) || sudo -n true 2>/dev/null || \
+        command -v erofsfuse >/dev/null 2>&1; then
+        (
+            cd "${image_tools_dir}"
+            run_privileged ./android_image_tools.sh \
+                --conf="${config_file}" --quiet
+        )
+        if (( EUID != 0 )) && sudo -n true 2>/dev/null; then
+            sudo chown -R "$(id -u):$(id -g)" "${image_tools_dir}"
+        fi
+    else
+        require_packaging_command fsck.erofs
+        echo "[packaging] Extracting vendor_dlkm with fsck.erofs"
+        rm -rf "${output_dir}"
+        mkdir -p "${output_dir}" "${image_tools_dir}/REPACKED_IMAGES"
+        fsck.erofs \
+            --extract="${output_dir}" \
+            --no-preserve-owner \
+            --no-preserve-perms \
+            "${image_tools_dir}/INPUT_IMAGES/vendor_dlkm.img"
+        touch "${rootless_marker}"
     fi
 
-    modules_dir="${image_tools_dir}/EXTRACTED_IMAGES/extracted_vendor_dlkm/lib/modules"
+    modules_dir="${output_dir}/lib/modules"
     write_module_metadata \
         "${modules_dir}" \
         "${SOURCE_DIR}/prebuilts/LKM_Tools/vendor_dlkm"
