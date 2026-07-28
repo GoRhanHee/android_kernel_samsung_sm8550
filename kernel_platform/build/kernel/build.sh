@@ -997,6 +997,13 @@ if [[ -z "${SKIP_EXT_MODULES}" ]] && [[ -n "${EXT_MODULES}" ]]; then
   echo " Building external modules and installing them into staging directory"
 
   for EXT_MOD in ${EXT_MODULES}; do
+    EXT_MOD_KBUILD_EXTRA_SYMBOLS=
+    for SYMVERS in ${KBUILD_EXTRA_SYMBOLS:-}; do
+      if [[ -f "${SYMVERS}" ]]; then
+        EXT_MOD_KBUILD_EXTRA_SYMBOLS+="${SYMVERS} "
+      fi
+    done
+
     # The path that we pass in via the variable M needs to be a relative path
     # relative to the kernel source directory. The source files will then be
     # looked for in ${KERNEL_DIR}/${EXT_MOD_REL} and the object files (i.e. .o
@@ -1009,9 +1016,12 @@ if [[ -z "${SKIP_EXT_MODULES}" ]] && [[ -n "${EXT_MODULES}" ]]; then
     mkdir -p ${OUT_DIR}/${EXT_MOD_REL}
     set -x
     make -C ${EXT_MOD} M=${EXT_MOD_REL} KERNEL_SRC=${ROOT_DIR}/${KERNEL_DIR}  \
-                       O=${OUT_DIR} ${TOOL_ARGS} "${MAKE_ARGS[@]}"
+                       O=${OUT_DIR} ${TOOL_ARGS}                             \
+                       KBUILD_EXTRA_SYMBOLS="${EXT_MOD_KBUILD_EXTRA_SYMBOLS}" \
+                       "${MAKE_ARGS[@]}"
     make -C ${EXT_MOD} M=${EXT_MOD_REL} KERNEL_SRC=${ROOT_DIR}/${KERNEL_DIR}  \
                        O=${OUT_DIR} ${TOOL_ARGS} ${MODULE_STRIP_FLAG}         \
+                       KBUILD_EXTRA_SYMBOLS="${EXT_MOD_KBUILD_EXTRA_SYMBOLS}" \
                        INSTALL_MOD_PATH=${MODULES_STAGING_DIR}                \
                        INSTALL_MOD_DIR="extra/${EXT_MOD}"                     \
                        INSTALL_HDR_PATH="${KERNEL_UAPI_HEADERS_DIR}/usr"      \

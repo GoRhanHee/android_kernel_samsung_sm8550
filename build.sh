@@ -186,6 +186,8 @@ build_full() {
     echo "[full] BUILD_TARGET=${BUILD_TARGET}"
     echo "[full] OUT_DIR=${OUT_DIR}"
 
+    mkdir -p "${ANDROID_PRODUCT_OUT}"
+
     (
         cd "${SOURCE_DIR}"
         RECOMPILE_KERNEL=1 \

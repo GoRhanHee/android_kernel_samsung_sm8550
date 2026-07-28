@@ -290,7 +290,7 @@ function check_defconfig() {
 
     # SS FIXME : check diffconfig to remove re-arranged items
     if [ ${RES} -ne 0 ]; then
-      echo WARN: savedefconfig does not match ${KERNEL_DIR}/arch/${ARCH}/configs/${DEFCONFIG} check diffconfig to remove re-arranged items >&2
+      echo "INFO: savedefconfig does not match ${KERNEL_DIR}/arch/${ARCH}/configs/${DEFCONFIG}; checking diffconfig for re-arranged items" >&2
       RES=0
       if [[ -f ${KERNEL_DIR}/arch/${ARCH}/configs/${DEFCONFIG} ]]; then
         ${KERNEL_DIR}/scripts/diffconfig ${KERNEL_DIR}/arch/${ARCH}/configs/${DEFCONFIG} ${OUT_DIR}/defconfig >&2 ||
