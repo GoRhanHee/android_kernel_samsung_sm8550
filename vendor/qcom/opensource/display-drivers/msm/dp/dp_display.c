@@ -40,6 +40,14 @@
 #include "kunit_test/dp_kunit_macro.h"
 #endif
 
+#ifndef __visible_for_testing
+#if IS_ENABLED(CONFIG_KUNIT)
+#define __visible_for_testing
+#else
+#define __visible_for_testing static
+#endif
+#endif
+
 #if defined(CONFIG_SECDP)
 #include <linux/string.h>
 #include <linux/reboot.h>
