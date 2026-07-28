@@ -27,6 +27,7 @@
 #include <linux/firmware.h>
 #include <linux/qcom_scm.h>
 #include <linux/freezer.h>
+#include <linux/overflow.h>
 #include <asm/cacheflush.h>
 #include <soc/qcom/qseecomi.h>
 #include <linux/qtee_shmbridge.h>
@@ -966,15 +967,6 @@ static struct smcinvoke_cb_txn *find_cbtxn_locked(
 		}
 	}
 	return NULL;
-}
-
-/*
- * size_add saturates at SIZE_MAX. If integer overflow is detected,
- * this function would return SIZE_MAX otherwise normal a+b is returned.
- */
-static inline size_t size_add(size_t a, size_t b)
-{
-	return (b > (SIZE_MAX - a)) ? SIZE_MAX : a + b;
 }
 
 /*
@@ -2840,7 +2832,7 @@ static int smcinvoke_probe(struct platform_device *pdev)
 	unsigned int count = 1;
 	int rc = 0;
 
-	rc = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
+	rc = dma_set_mask_and_coherent(&pdev->dev, ~0ULL);
 	if (rc) {
 		pr_err("dma_set_mask_and_coherent failed %d\n", rc);
 		return rc;
