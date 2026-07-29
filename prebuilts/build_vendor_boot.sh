@@ -13,10 +13,12 @@ OUTPUT_DIR="${BOOT_EDITOR_DIR}/build/unzip_boot/root.1/lib/modules"
 SYSTEM_MAP="${KBUILD_PATH}/System.map"
 STRIP_TOOL="${REPO_ROOT}/kernel_platform/prebuilts/clang/host/linux-x86/clang-r450784e/bin/llvm-strip"
 FSTAB_FILE="${BOOT_EDITOR_DIR}/build/unzip_boot/root.1/first_stage_ramdisk/fstab.qcom"
+FSTAB_PATCHER="${REPO_ROOT}/prebuilts/patch_vendor_dlkm_fstab.sh"
 
 [[ -x "${PKG_VENDOR_BOOT}" ]] || chmod +x "${PKG_VENDOR_BOOT}"
 [[ -f "${MODULES_LIST}" ]] || { echo "vendor_boot modules list not found: ${MODULES_LIST}" >&2; exit 1; }
 [[ -f "${OEM_LOAD_FILE}" ]] || { echo "vendor_boot modules.load not found: ${OEM_LOAD_FILE}" >&2; exit 1; }
+[[ -x "${FSTAB_PATCHER}" ]] || { echo "fstab patcher not found: ${FSTAB_PATCHER}" >&2; exit 1; }
 
 STOCK_MODULES_DIR="$(mktemp -d)"
 trap 'rm -rf "${STOCK_MODULES_DIR}"' EXIT
@@ -50,15 +52,7 @@ while IFS= read -r stock_file; do
 done < <(find "${STOCK_MODULES_DIR}" -maxdepth 1 -type f ! -name '*.ko')
 
 [[ -f "${FSTAB_FILE}" ]] || { echo "fstab not found: ${FSTAB_FILE}" >&2; exit 1; }
-sed -i \
-    -e "s#avb=vbmeta_system,wait,logical,first_stage_mount,avb_keys=[^[:space:]]*#wait,logical,first_stage_mount#" \
-    -e "s#avb,wait,logical,first_stage_mount#wait,logical,first_stage_mount#" \
-    -e "s#avb,nofail,first_stage_mount#nofail,first_stage_mount#" \
-    "${FSTAB_FILE}"
-if grep -Eq "(^|[[:space:],])avb(=|,|[[:space:]]|$)|avb_keys=" "${FSTAB_FILE}"; then
-    echo "AVB flags remain in ${FSTAB_FILE}" >&2
-    exit 1
-fi
+"${FSTAB_PATCHER}" "${FSTAB_FILE}"
 
 (
     cd "${BOOT_EDITOR_DIR}"

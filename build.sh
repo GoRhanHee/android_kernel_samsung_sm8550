@@ -50,9 +50,14 @@ update_submodules() {
     [[ -f "${SOURCE_DIR}/.gitmodules" ]] || return
 
     require_command git
-    echo "[submodule] Syncing and updating submodules"
+    echo "[submodule] Syncing and updating tracked remote branches"
     git -C "${SOURCE_DIR}" submodule sync --recursive
-    git -C "${SOURCE_DIR}" submodule update --init --recursive
+    git -C "${SOURCE_DIR}" submodule update \
+        --init \
+        --recursive \
+        --remote \
+        --force
+    git -C "${SOURCE_DIR}" submodule status --recursive
 }
 
 import_kernelsu_next() {
@@ -347,6 +352,7 @@ unpack_vendor_dlkm() {
         mkdir -p "${output_dir}" "${image_tools_dir}/REPACKED_IMAGES"
         fsck.erofs \
             --extract="${output_dir}" \
+            --xattrs \
             --no-preserve-owner \
             --no-preserve-perms \
             "${image_tools_dir}/INPUT_IMAGES/vendor_dlkm.img"

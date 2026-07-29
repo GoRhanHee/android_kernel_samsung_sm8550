@@ -18,6 +18,8 @@ OBJCOPY_TOOL="${REPO_ROOT}/kernel_platform/prebuilts/clang/host/linux-x86/clang-
 REPACK_CONFIG="${AIT_DIR}/CONFIGS/vendor_dlkm_repack.conf"
 REPACKED_IMAGE="${AIT_DIR}/REPACKED_IMAGES/vendor_dlkm_repacked.img"
 ROOTLESS_EXTRACT_MARKER="${AIT_DIR}/.rootless-erofs-extract"
+VENDOR_DLKM_FILE_CONTEXTS="${REPO_ROOT}/prebuilts/vendor_dlkm_file_contexts"
+STOCK_IMAGE="${AIT_DIR}/INPUT_IMAGES/vendor_dlkm.img"
 
 run_privileged() {
     if (( EUID == 0 )); then
@@ -69,11 +71,52 @@ if [[ -s "${MODULES_OUTPUT_DIR}/missing_modules.txt" ]]; then
 fi
 if (( UNRESOLVED == 0 )); then
     rm -f "${MODULES_OUTPUT_DIR}/missing_modules.txt"
+else
+    echo "vendor_dlkm modules remain unresolved" >&2
+    exit 1
 fi
 while IFS= read -r stock_file; do
     target="${MODULES_OUTPUT_DIR}/$(basename "${stock_file}")"
     [[ -e "${target}" ]] || cp "${stock_file}" "${target}"
 done < <(find "${STOCK_MODULES_DIR}" -maxdepth 1 -type f ! -name '*.ko')
+
+while IFS= read -r generated_file; do
+    [[ -e "${STOCK_MODULES_DIR}/$(basename "${generated_file}")" ]] ||
+        rm -f "${generated_file}"
+done < <(find "${MODULES_OUTPUT_DIR}" -maxdepth 1 -type f ! -name '*.ko')
+
+cp "${VENDOR_DLKM_MODULES_LOAD_FILE}" "${MODULES_OUTPUT_DIR}/modules.load"
+while IFS= read -r module_path; do
+    module="$(basename "${module_path}")"
+    if awk -F: -v module="${module}" '
+        {
+            name = $1
+            sub(/^.*\//, "", name)
+            if (name == module)
+                found = 1
+        }
+        END { exit found ? 0 : 1 }
+    ' "${MODULES_OUTPUT_DIR}/modules.dep"; then
+        continue
+    fi
+
+    stock_dep="$(awk -F: -v module="${module}" '
+        {
+            name = $1
+            sub(/^.*\//, "", name)
+            if (name == module) {
+                print
+                exit
+            }
+        }
+    ' "${STOCK_MODULES_DIR}/modules.dep")"
+    [[ -n "${stock_dep}" ]] || {
+        echo "stock dependency metadata not found for ${module}" >&2
+        exit 1
+    }
+    printf '%s\n' "${stock_dep//\/vendor\/lib\/modules\//}" \
+        >> "${MODULES_OUTPUT_DIR}/modules.dep"
+done < <(find "${MODULES_OUTPUT_DIR}" -maxdepth 1 -type f -name '*.ko' -print)
 
 cat > "${REPACK_CONFIG}" <<EOF
 ACTION=repack
@@ -89,9 +132,51 @@ if [[ -f "${ROOTLESS_EXTRACT_MARKER}" ]]; then
         echo "mkfs.erofs not found" >&2
         exit 1
     }
+    command -v fsck.erofs >/dev/null 2>&1 || {
+        echo "fsck.erofs not found" >&2
+        exit 1
+    }
+    command -v dump.erofs >/dev/null 2>&1 || {
+        echo "dump.erofs not found" >&2
+        exit 1
+    }
+    [[ -f "${VENDOR_DLKM_FILE_CONTEXTS}" ]] || {
+        echo "vendor_dlkm file contexts not found: ${VENDOR_DLKM_FILE_CONTEXTS}" >&2
+        exit 1
+    }
+    [[ -f "${STOCK_IMAGE}" ]] || {
+        echo "stock vendor_dlkm image not found: ${STOCK_IMAGE}" >&2
+        exit 1
+    }
+    STOCK_UUID="$(
+        dump.erofs -s "${STOCK_IMAGE}" |
+            awk '/Filesystem UUID:/ { print $NF; exit }'
+    )"
+    STOCK_TIMESTAMP="$(stat -c %Y "${OUTPUT_DIR}/etc/build.prop")"
+    [[ -n "${STOCK_UUID}" ]] || {
+        echo "stock vendor_dlkm UUID could not be read" >&2
+        exit 1
+    }
     mkdir -p "$(dirname "${REPACKED_IMAGE}")"
     rm -f "${REPACKED_IMAGE}"
-    mkfs.erofs -zlz4 --all-root "${REPACKED_IMAGE}" "${OUTPUT_DIR}"
+    mkfs.erofs \
+        -zlz4 \
+        -E^xattr-name-filter \
+        -T"${STOCK_TIMESTAMP}" \
+        --all-time \
+        --all-root \
+        -U"${STOCK_UUID}" \
+        --file-contexts="${VENDOR_DLKM_FILE_CONTEXTS}" \
+        "${REPACKED_IMAGE}" \
+        "${OUTPUT_DIR}"
+    fsck.erofs -p "${REPACKED_IMAGE}"
+    for path in / /etc/build.prop /lib/modules; do
+        dump.erofs --path="${path}" "${REPACKED_IMAGE}" |
+            grep -Eq 'Xattr size: [1-9][0-9]*' || {
+                echo "vendor_dlkm SELinux xattr missing from ${path}" >&2
+                exit 1
+            }
+    done
 else
     (
         cd "${AIT_DIR}"

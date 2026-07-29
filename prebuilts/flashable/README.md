@@ -18,8 +18,11 @@ Build a ZIP from an image directory:
 `dm3q-kernel-recovery-flashable.zip` next to the packaged images.
 
 The installer uses the same ARM64 Edify `update-binary` layout as the q5q
-package. It writes `boot`, `vendor_boot`, and the already-mapped dynamic
-`vendor_dlkm` partition directly from `updater-script`.
+package. On Samsung non-A/B devices it resolves existing block devices for
+`vendor_dlkm`, `vendor_boot`, and `boot`, rejects non-block targets, writes
+each image with `dd`, and verifies the exact written range with SHA-256.
+`boot` is written last so a `vendor_dlkm` or `vendor_boot` failure cannot
+silently leave only the kernel updated.
 
 Before flashing, keep a matching stock/custom set of `boot`, `vendor_boot`,
 and `vendor_dlkm` images available. Flashing a mismatched or corrupt image can

@@ -2,9 +2,28 @@ ui_print(" ");
 ui_print("Installing GoRhanHee Kernel (Galaxy S23 Ultra)...");
 ui_print(" ");
 
-package_extract_file("files/boot.img", "/dev/block/by-name/boot");
-package_extract_file("files/vendor_boot.img", "/dev/block/by-name/vendor_boot");
-package_extract_file("files/vendor_dlkm.img", "/dev/block/mapper/vendor_dlkm");
+assert(package_extract_file(
+    "META-INF/com/google/android/dm3q-flash-image.sh",
+    "/tmp/dm3q-flash-image.sh"
+));
 
-ui_print("Installation done!");
+ui_print("Preparing writable vendor_dlkm mapping...");
+run_program("/sbin/sh", "-c", "umount /vendor_dlkm >/dev/null 2>&1 || true");
+assert(unmap_partition("vendor_dlkm"));
+assert(map_partition("vendor_dlkm"));
+
+ui_print("Flashing vendor_dlkm...");
+assert(package_extract_file("files/vendor_dlkm.img", "/tmp/vendor_dlkm.img"));
+assert(run_program("/sbin/sh", "/tmp/dm3q-flash-image.sh", "vendor_dlkm", "/tmp/vendor_dlkm.img") == "0");
+unmap_partition("vendor_dlkm");
+
+ui_print("Flashing vendor_boot...");
+assert(package_extract_file("files/vendor_boot.img", "/tmp/vendor_boot.img"));
+assert(run_program("/sbin/sh", "/tmp/dm3q-flash-image.sh", "vendor_boot", "/tmp/vendor_boot.img") == "0");
+
+ui_print("Flashing boot...");
+assert(package_extract_file("files/boot.img", "/tmp/boot.img"));
+assert(run_program("/sbin/sh", "/tmp/dm3q-flash-image.sh", "boot", "/tmp/boot.img") == "0");
+
+ui_print("All images flashed and verified.");
 ui_print(" ");
