@@ -10,7 +10,7 @@ STAGE_DIR=""
 usage() {
     cat <<EOF
 Usage:
-  ${SCRIPT_NAME} OUTPUT_ZIP IMAGE_DIR
+  ${SCRIPT_NAME} OUTPUT_ZIP IMAGE_DIR DEVICE_DISPLAY_NAME
 
 IMAGE_DIR must contain:
   boot.img
@@ -18,7 +18,7 @@ IMAGE_DIR must contain:
   vendor_dlkm.img
 
 Example:
-  ${SCRIPT_NAME} out/dm3q-kernel-flashable.zip out/msm-kalama-kalama-gki/packaged
+  ${SCRIPT_NAME} out/dm3q-kernel-flashable.zip out/msm-kalama-kalama-gki/packaged "Galaxy S23 Ultra"
 EOF
 }
 
@@ -39,24 +39,28 @@ cleanup() {
 }
 
 main() {
-    [[ $# -eq 2 ]] || {
+    [[ $# -eq 3 ]] || {
         usage >&2
         exit 2
     }
 
     local output_zip="$1"
     local image_dir="$2"
+    local device_display_name="$3"
     local output_dir
     local output_name
     local stage_dir
     local archive
     local image
+    local updater_script
 
     require_command zip
 
     [[ -d "${TEMPLATE_DIR}/META-INF" ]] ||
         die "flashable template not found: ${TEMPLATE_DIR}"
     [[ -d "${image_dir}" ]] || die "image directory not found: ${image_dir}"
+    [[ "${device_display_name}" =~ ^[[:alnum:]][[:alnum:]\ .()+_-]*$ ]] ||
+        die "invalid device display name: ${device_display_name}"
 
     if [[ "${output_zip}" != /* ]]; then
         output_zip="${PWD}/${output_zip}"
@@ -75,6 +79,14 @@ main() {
 
     mkdir -p "${stage_dir}/files"
     cp -a "${TEMPLATE_DIR}/META-INF" "${stage_dir}/"
+    updater_script="${stage_dir}/META-INF/com/google/android/updater-script"
+    grep -Fq '@@DEVICE_DISPLAY_NAME@@' "${updater_script}" ||
+        die "device display name placeholder not found in updater-script"
+    sed -i \
+        "s|@@DEVICE_DISPLAY_NAME@@|${device_display_name}|g" \
+        "${updater_script}"
+    grep -Fq '@@DEVICE_DISPLAY_NAME@@' "${updater_script}" &&
+        die "unreplaced device display name placeholder in updater-script"
 
     for image in boot.img vendor_boot.img vendor_dlkm.img; do
         [[ -s "${image_dir}/${image}" ]] ||

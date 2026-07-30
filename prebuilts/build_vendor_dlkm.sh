@@ -20,6 +20,7 @@ REPACKED_IMAGE="${AIT_DIR}/REPACKED_IMAGES/vendor_dlkm_repacked.img"
 ROOTLESS_EXTRACT_MARKER="${AIT_DIR}/.rootless-erofs-extract"
 VENDOR_DLKM_FILE_CONTEXTS="${REPO_ROOT}/prebuilts/vendor_dlkm_file_contexts"
 STOCK_IMAGE="${AIT_DIR}/INPUT_IMAGES/vendor_dlkm.img"
+VENDOR_DLKM_MAX_BYTES=""
 
 run_privileged() {
     if (( EUID == 0 )); then
@@ -118,13 +119,24 @@ while IFS= read -r module_path; do
         >> "${MODULES_OUTPUT_DIR}/modules.dep"
 done < <(find "${MODULES_OUTPUT_DIR}" -maxdepth 1 -type f -name '*.ko' -print)
 
+[[ -f "${STOCK_IMAGE}" ]] || {
+    echo "stock vendor_dlkm image not found: ${STOCK_IMAGE}" >&2
+    exit 1
+}
+VENDOR_DLKM_MAX_BYTES="$(stat -c %s "${STOCK_IMAGE}")"
+[[ "${VENDOR_DLKM_MAX_BYTES}" =~ ^[1-9][0-9]*$ ]] || {
+    echo "invalid stock vendor_dlkm size: ${VENDOR_DLKM_MAX_BYTES}" >&2
+    exit 1
+}
+
 cat > "${REPACK_CONFIG}" <<EOF
 ACTION=repack
 SOURCE_DIR=${OUTPUT_DIR}
 OUTPUT_IMAGE=${REPACKED_IMAGE}
 FILESYSTEM=erofs
 CREATE_SPARSE_IMAGE=false
-COMPRESSION_MODE=lz4
+COMPRESSION_MODE=lz4hc
+COMPRESSION_LEVEL=12
 EOF
 
 if [[ -f "${ROOTLESS_EXTRACT_MARKER}" ]]; then
@@ -144,10 +156,6 @@ if [[ -f "${ROOTLESS_EXTRACT_MARKER}" ]]; then
         echo "vendor_dlkm file contexts not found: ${VENDOR_DLKM_FILE_CONTEXTS}" >&2
         exit 1
     }
-    [[ -f "${STOCK_IMAGE}" ]] || {
-        echo "stock vendor_dlkm image not found: ${STOCK_IMAGE}" >&2
-        exit 1
-    }
     STOCK_UUID="$(
         dump.erofs -s "${STOCK_IMAGE}" |
             awk '/Filesystem UUID:/ { print $NF; exit }'
@@ -160,7 +168,7 @@ if [[ -f "${ROOTLESS_EXTRACT_MARKER}" ]]; then
     mkdir -p "$(dirname "${REPACKED_IMAGE}")"
     rm -f "${REPACKED_IMAGE}"
     mkfs.erofs \
-        -zlz4 \
+        -zlz4hc,level=12 \
         -E^xattr-name-filter \
         -T"${STOCK_TIMESTAMP}" \
         --all-time \
@@ -184,5 +192,16 @@ else
             --conf="${REPACK_CONFIG}" --quiet
     )
 fi
+
+[[ -s "${REPACKED_IMAGE}" ]] || {
+    echo "rebuilt vendor_dlkm image is missing or empty: ${REPACKED_IMAGE}" >&2
+    exit 1
+}
+REPACKED_SIZE="$(stat -c %s "${REPACKED_IMAGE}")"
+if (( REPACKED_SIZE > VENDOR_DLKM_MAX_BYTES )); then
+    echo "rebuilt vendor_dlkm image exceeds stock partition capacity: ${REPACKED_SIZE} > ${VENDOR_DLKM_MAX_BYTES} bytes" >&2
+    exit 1
+fi
+echo "vendor_dlkm size: ${REPACKED_SIZE}/${VENDOR_DLKM_MAX_BYTES} bytes"
 
 cp "${REPACKED_IMAGE}" "${REPO_ROOT}/vendor_dlkm.img"

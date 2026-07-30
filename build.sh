@@ -13,6 +13,7 @@ export LTO="${LTO:-thin}"
 
 BUILD_TARGET=""
 MODEL=""
+DEVICE_DISPLAY_NAME=""
 PROJECT_NAME=""
 REGION=""
 CARRIER=""
@@ -84,12 +85,14 @@ select_device_profile() {
         dm3q)
             BUILD_TARGET="dm3q_kor_singlex"
             MODEL="dm3q"
+            DEVICE_DISPLAY_NAME="Galaxy S23 Ultra"
             STOCK_KERNEL_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZF1_KOO_OKR/S918NKSS8FZF1_kernel.tar"
             STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZF1_KOO_OKR/S918NKSS8FZF1_vendor_dlkm.zip"
             ;;
         q5q)
             BUILD_TARGET="q5q_kor_singlex"
             MODEL="q5q"
+            DEVICE_DISPLAY_NAME="Galaxy Z Fold5"
             STOCK_KERNEL_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZF2_KOO_OKR/F946NKSS6GZF2_kernel.tar"
             STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZF2_KOO_OKR/F946NKSS6GZF2_vendor_dlkm.zip"
             ;;
@@ -122,7 +125,7 @@ select_device_profile() {
     FLASHABLE_ZIP="${PACKAGE_DIR}/${MODEL}-kernel-recovery-flashable.zip"
     TMPDIR="${PACKAGING_WORK_DIR}/process-tmp"
 
-    export BUILD_TARGET MODEL PROJECT_NAME REGION CARRIER
+    export BUILD_TARGET MODEL DEVICE_DISPLAY_NAME PROJECT_NAME REGION CARRIER
     export CHIPSET_NAME TARGET_PRODUCT TARGET_BOARD_PLATFORM
     export STOCK_KERNEL_URL STOCK_VENDOR_DLKM_URL SEC_PROJECT_CONFIG
     export ANDROID_BUILD_TOP ANDROID_PRODUCT_OUT ANDROID_KERNEL_OUT
@@ -133,6 +136,7 @@ print_device_profile() {
     printf '%s\n' \
         "BUILD_TARGET=${BUILD_TARGET}" \
         "MODEL=${MODEL}" \
+        "DEVICE_DISPLAY_NAME=${DEVICE_DISPLAY_NAME}" \
         "PROJECT_NAME=${PROJECT_NAME}" \
         "CHIPSET_NAME=${CHIPSET_NAME}" \
         "TARGET_PRODUCT=${TARGET_PRODUCT}" \
@@ -584,7 +588,8 @@ collect_packaged_images() {
 
     "${SOURCE_DIR}/prebuilts/make_flashable_zip.sh" \
         "${FLASHABLE_ZIP}" \
-        "${PACKAGE_DIR}"
+        "${PACKAGE_DIR}" \
+        "${DEVICE_DISPLAY_NAME}"
 }
 
 main() {

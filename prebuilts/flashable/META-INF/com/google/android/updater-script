@@ -1,5 +1,5 @@
 ui_print(" ");
-ui_print("Installing GoRhanHee Kernel (Galaxy S23 Ultra)...");
+ui_print("Installing GoRhanHee Kernel (@@DEVICE_DISPLAY_NAME@@)...");
 ui_print(" ");
 
 assert(package_extract_file(

@@ -12,11 +12,13 @@ Build a ZIP directly from a device's packaged image directory:
 ```bash
 ./prebuilts/make_flashable_zip.sh \
     out/dm3q/msm-kalama-kalama-gki/packaged/dm3q-kernel-recovery-flashable.zip \
-    out/dm3q/msm-kalama-kalama-gki/packaged
+    out/dm3q/msm-kalama-kalama-gki/packaged \
+    "Galaxy S23 Ultra"
 
 ./prebuilts/make_flashable_zip.sh \
     out/q5q/msm-kalama-kalama-gki/packaged/q5q-kernel-recovery-flashable.zip \
-    out/q5q/msm-kalama-kalama-gki/packaged
+    out/q5q/msm-kalama-kalama-gki/packaged \
+    "Galaxy Z Fold5"
 ```
 
 `./build.sh dm3q full` and `./build.sh q5q full` call the same packager
