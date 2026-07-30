@@ -1,27 +1,27 @@
-name: Build dm3q kernel
+name: Build SM8550 kernel
 
 on:
   workflow_dispatch:
     inputs:
-      mode:
-        description: Kernel build mode
+      device:
+        description: Samsung device
         required: true
-        default: full
+        default: dm3q
         type: choice
         options:
-          - full
-          - common
+          - dm3q
+          - q5q
 
 permissions:
   contents: read
 
 concurrency:
-  group: dm3q-kernel-${{ github.ref }}-${{ inputs.mode }}
+  group: sm8550-kernel-${{ github.ref }}-${{ inputs.device }}
   cancel-in-progress: false
 
 jobs:
   build:
-    name: dm3q ${{ inputs.mode }} build
+    name: ${{ inputs.device }} full build
     runs-on: ubuntu-22.04
     timeout-minutes: 360
 
@@ -108,18 +108,20 @@ jobs:
           path: kernel_platform/prebuilts
           key: samsung-sm8550-toolchain-r450784e-v1
 
-      - name: Build dm3q kernel
+      - name: Build ${{ inputs.device }} kernel
         env:
           JOBS: ${{ runner.arch == 'X64' && '4' || '2' }}
-        run: ./build.sh "${{ inputs.mode }}"
+        run: |
+          device='${{ inputs.device }}'
+          ./build.sh "$device" full
 
       - name: Collect kernel artifacts
         shell: bash
         run: |
           set -euo pipefail
 
-          mode="${{ inputs.mode }}"
-          artifact_dir="out/upload/${mode}"
+          device="${{ inputs.device }}"
+          artifact_dir="out/upload/${device}"
           mkdir -p "${artifact_dir}"
 
           copy_if_present() {
@@ -131,75 +133,58 @@ jobs:
             done
           }
 
-          if [[ "${mode}" == "common" ]]; then
-            dist="out/common-dist"
-            copy_if_present \
-              "${dist}/Image" \
-              "${dist}/Image.gz" \
-              "${dist}/Image.lz4" \
-              "${dist}/boot.img" \
-              "${dist}/system_dlkm.img" \
-              "${dist}/gki-info.txt" \
-              "${dist}/System.map" \
-              "${dist}/vmlinux.symvers" \
-              "${dist}/modules.builtin" \
-              "${dist}/modules.builtin.modinfo" \
-              "${dist}/zram.ko" \
-              "${dist}/zsmalloc.ko" \
-              "${dist}/abi.report.short"
-          else
-            dist="out/msm-kalama-kalama-gki/dist"
-            packaged="out/msm-kalama-kalama-gki/packaged"
-            copy_if_present \
-              "${dist}/Image" \
-              "${dist}/Image.gz" \
-              "${dist}/Image.lz4" \
-              "${dist}/init_boot.img" \
-              "${dist}/dtb.img" \
-              "${dist}/dtbo.img" \
-              "${dist}/system_dlkm.img" \
-              "${dist}/System.map" \
-              "${dist}/Module.symvers" \
-              "${dist}/vmlinux.symvers" \
-              "${dist}/vendor_dlkm.modules.load" \
-              "${dist}/vendor_dlkm.modules.blocklist" \
-              "${dist}/system_dlkm.modules.load" \
-              "${dist}/system_dlkm.modules.blocklist"
+          dist="out/${device}/msm-kalama-kalama-gki/dist"
+          packaged="out/${device}/msm-kalama-kalama-gki/packaged"
+          flashable_zip="${device}-kernel-recovery-flashable.zip"
+          copy_if_present \
+            "${dist}/Image" \
+            "${dist}/Image.gz" \
+            "${dist}/Image.lz4" \
+            "${dist}/init_boot.img" \
+            "${dist}/dtb.img" \
+            "${dist}/dtbo.img" \
+            "${dist}/system_dlkm.img" \
+            "${dist}/System.map" \
+            "${dist}/Module.symvers" \
+            "${dist}/vmlinux.symvers" \
+            "${dist}/vendor_dlkm.modules.load" \
+            "${dist}/vendor_dlkm.modules.blocklist" \
+            "${dist}/system_dlkm.modules.load" \
+            "${dist}/system_dlkm.modules.blocklist"
 
-            mkdir -p "${artifact_dir}/dtbs"
-            for file in "${dist}"/*.dtb "${dist}"/*.dtbo; do
-              [[ -f "${file}" ]] || continue
-              cp "${file}" "${artifact_dir}/dtbs/"
-            done
+          mkdir -p "${artifact_dir}/dtbs"
+          for file in "${dist}"/*.dtb "${dist}"/*.dtbo; do
+            [[ -f "${file}" ]] || continue
+            cp "${file}" "${artifact_dir}/dtbs/"
+          done
 
-            declare -A required_artifacts=(
-              [boot.img]="${dist}/boot.img"
-              [vendor_boot.img]="${packaged}/vendor_boot.img"
-              [vendor_dlkm.img]="${packaged}/vendor_dlkm.img"
-              [dm3q-kernel-recovery-flashable.zip]="${packaged}/dm3q-kernel-recovery-flashable.zip"
-            )
-            for artifact in \
-              boot.img \
-              vendor_boot.img \
-              vendor_dlkm.img \
-              dm3q-kernel-recovery-flashable.zip
-            do
-              source="${required_artifacts[${artifact}]}"
-              if [[ ! -f "${source}" ]]; then
-                echo "::error::Required final artifact not found: ${source}"
-                exit 1
-              fi
-              cp "${source}" "${artifact_dir}/${artifact}"
-            done
-          fi
+          declare -A required_artifacts=(
+            [boot.img]="${dist}/boot.img"
+            [vendor_boot.img]="${packaged}/vendor_boot.img"
+            [vendor_dlkm.img]="${packaged}/vendor_dlkm.img"
+            ["${flashable_zip}"]="${packaged}/${flashable_zip}"
+          )
+          for artifact in \
+            boot.img \
+            vendor_boot.img \
+            vendor_dlkm.img \
+            "${flashable_zip}"
+          do
+            source="${required_artifacts[${artifact}]}"
+            if [[ ! -f "${source}" ]]; then
+              echo "::error::Required final artifact not found: ${source}"
+              exit 1
+            fi
+            cp "${source}" "${artifact_dir}/${artifact}"
+          done
 
           find "${artifact_dir}" -type f -printf '%P\n' | sort
 
       - name: Upload kernel artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: dm3q-${{ inputs.mode }}-${{ github.sha }}
-          path: out/upload/${{ inputs.mode }}/
+          name: ${{ inputs.device }}-full-${{ github.sha }}
+          path: out/upload/${{ inputs.device }}/
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7

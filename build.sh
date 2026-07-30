@@ -11,27 +11,56 @@ readonly CLANG_BIN="${KERNEL_PLATFORM}/prebuilts/clang/host/linux-x86/clang-r450
 readonly JOBS="${JOBS:-$(nproc)}"
 export LTO="${LTO:-thin}"
 
+BUILD_TARGET=""
+MODEL=""
+PROJECT_NAME=""
+REGION=""
+CARRIER=""
+CHIPSET_NAME=""
+TARGET_PRODUCT=""
+TARGET_BOARD_PLATFORM=""
+STOCK_KERNEL_URL=""
+STOCK_VENDOR_DLKM_URL=""
+SEC_PROJECT_CONFIG=""
+ANDROID_BUILD_TOP=""
+ANDROID_PRODUCT_OUT=""
+ANDROID_KERNEL_OUT=""
+OUT_DIR=""
+DIST_DIR=""
+PACKAGE_DIR=""
+TARGET_TEMP_DIR=""
+TARGET_DOWNLOAD_DIR=""
+TARGET_UNPACK_DIR=""
+PACKAGING_WORK_DIR=""
+PACKAGING_PREBUILTS_DIR=""
+DOWNLOAD_DIR=""
+UNPACK_DIR=""
+FLASHABLE_ZIP=""
+TMPDIR=""
+COMMON_HEAD_BEFORE=""
+COMMON_STATUS_BEFORE=""
+
 usage() {
     cat <<EOF
 Usage:
-  ${SCRIPT_NAME} common
-  ${SCRIPT_NAME} full
+  ${SCRIPT_NAME} dm3q full
+  ${SCRIPT_NAME} q5q full
+  ${SCRIPT_NAME} -h
+  ${SCRIPT_NAME} --help
+  ${SCRIPT_NAME} help
 
-Modes:
-  common  Build only the Android common GKI kernel and generic GKI boot images.
-  full    Build the common kernel, msm-kernel, DTBs and external/vendor modules.
+Devices:
+  dm3q  Samsung Galaxy S23 Ultra (SM-S918N)
+  q5q   Samsung Galaxy Z Fold5 (SM-F946N)
 
 Examples:
-  ${SCRIPT_NAME} common
-  ${SCRIPT_NAME} full
+  ${SCRIPT_NAME} dm3q full
+  ${SCRIPT_NAME} q5q full
 
 Environment overrides:
   SOURCE_DIR       Kernel source directory (default: ${SOURCE_DIR})
-  JOBS             Parallel jobs for the common build (default: ${JOBS})
-  COMMON_OUT_DIR   Common kernel object directory
-  COMMON_DIST_DIR  Common kernel artifact directory
-  FULL_OUT_DIR     Full-build output directory
-  FLASHABLE_ZIP    Recovery ZIP output path
+  JOBS             Parallel build jobs (default: ${JOBS})
+  FULL_OUT_DIR     Base directory for target-specific full-build output
   TOOLCHAIN_URL    Samsung toolchain archive URL
   LTO              LTO mode: none, thin or full (default: ${LTO})
 EOF
@@ -46,31 +75,179 @@ require_command() {
     command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
 
-update_submodules() {
-    [[ -f "${SOURCE_DIR}/.gitmodules" ]] || return
+select_device_profile() {
+    local device="$1"
+    local output_base
+    local run_key="${BUILD_RUN_KEY:-run-${BASHPID}}"
 
-    require_command git
-    echo "[submodule] Syncing and updating tracked remote branches"
-    git -C "${SOURCE_DIR}" submodule sync --recursive
-    git -C "${SOURCE_DIR}" submodule update \
-        --init \
-        --recursive \
-        --remote \
-        --force
-    git -C "${SOURCE_DIR}" submodule status --recursive
+    case "${device}" in
+        dm3q)
+            BUILD_TARGET="dm3q_kor_singlex"
+            MODEL="dm3q"
+            STOCK_KERNEL_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZF1_KOO_OKR/S918NKSS8FZF1_kernel.tar"
+            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZF1_KOO_OKR/S918NKSS8FZF1_vendor_dlkm.zip"
+            ;;
+        q5q)
+            BUILD_TARGET="q5q_kor_singlex"
+            MODEL="q5q"
+            STOCK_KERNEL_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZF2_KOO_OKR/F946NKSS6GZF2_kernel.tar"
+            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZF2_KOO_OKR/F946NKSS6GZF2_vendor_dlkm.zip"
+            ;;
+        *)
+            return 2
+            ;;
+    esac
+
+    PROJECT_NAME="${MODEL}"
+    SEC_PROJECT_CONFIG="${MODEL}"
+    REGION="kor"
+    CARRIER="singlex"
+    CHIPSET_NAME="kalama"
+    TARGET_PRODUCT="gki"
+    TARGET_BOARD_PLATFORM="gki"
+    ANDROID_BUILD_TOP="${SOURCE_DIR}"
+    output_base="${FULL_OUT_DIR:-${ANDROID_BUILD_TOP}/out}"
+    ANDROID_PRODUCT_OUT="${output_base}/${MODEL}/target/product/${MODEL}"
+    OUT_DIR="${output_base}/${MODEL}/msm-${CHIPSET_NAME}-${CHIPSET_NAME}-${TARGET_PRODUCT}"
+    ANDROID_KERNEL_OUT="${OUT_DIR}/android-kernel-out"
+    DIST_DIR="${OUT_DIR}/dist"
+    PACKAGE_DIR="${OUT_DIR}/packaged"
+    TARGET_TEMP_DIR="${OUT_DIR}/tmp"
+    TARGET_DOWNLOAD_DIR="${OUT_DIR}/downloads"
+    TARGET_UNPACK_DIR="${OUT_DIR}/unpack"
+    PACKAGING_WORK_DIR="${TARGET_TEMP_DIR}/${run_key}"
+    PACKAGING_PREBUILTS_DIR="${PACKAGING_WORK_DIR}/prebuilts"
+    DOWNLOAD_DIR="${TARGET_DOWNLOAD_DIR}/${run_key}"
+    UNPACK_DIR="${TARGET_UNPACK_DIR}/${run_key}"
+    FLASHABLE_ZIP="${PACKAGE_DIR}/${MODEL}-kernel-recovery-flashable.zip"
+    TMPDIR="${PACKAGING_WORK_DIR}/process-tmp"
+
+    export BUILD_TARGET MODEL PROJECT_NAME REGION CARRIER
+    export CHIPSET_NAME TARGET_PRODUCT TARGET_BOARD_PLATFORM
+    export STOCK_KERNEL_URL STOCK_VENDOR_DLKM_URL SEC_PROJECT_CONFIG
+    export ANDROID_BUILD_TOP ANDROID_PRODUCT_OUT ANDROID_KERNEL_OUT
+    export OUT_DIR DIST_DIR TMPDIR
 }
 
-import_kernelsu_next() {
-    require_command curl
-    require_command bash
+print_device_profile() {
+    printf '%s\n' \
+        "BUILD_TARGET=${BUILD_TARGET}" \
+        "MODEL=${MODEL}" \
+        "PROJECT_NAME=${PROJECT_NAME}" \
+        "CHIPSET_NAME=${CHIPSET_NAME}" \
+        "TARGET_PRODUCT=${TARGET_PRODUCT}" \
+        "TARGET_BOARD_PLATFORM=${TARGET_BOARD_PLATFORM}" \
+        "REGION=${REGION}" \
+        "CARRIER=${CARRIER}" \
+        "STOCK_KERNEL_URL=${STOCK_KERNEL_URL}" \
+        "STOCK_VENDOR_DLKM_URL=${STOCK_VENDOR_DLKM_URL}" \
+        "SEC_PROJECT_CONFIG=${SEC_PROJECT_CONFIG}" \
+        "OUT_DIR=${OUT_DIR}" \
+        "ANDROID_KERNEL_OUT=${ANDROID_KERNEL_OUT}" \
+        "DIST_DIR=${DIST_DIR}" \
+        "PACKAGE_DIR=${PACKAGE_DIR}" \
+        "TEMP_DIR=${PACKAGING_WORK_DIR}" \
+        "TMPDIR=${TMPDIR}" \
+        "DOWNLOAD_DIR=${DOWNLOAD_DIR}" \
+        "UNPACK_DIR=${UNPACK_DIR}" \
+        "FLASHABLE_ZIP=${FLASHABLE_ZIP}"
+}
 
-    echo "[KernelSU-Next] Importing dev branch"
-    (
-        cd "${KERNEL_PLATFORM}/common"
-        curl -LSs \
-            "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | \
-            bash -s dev
-    )
+record_common_state() {
+    local common_dir="${KERNEL_PLATFORM}/common"
+    local top_level
+
+    require_command git
+    [[ -e "${common_dir}/.git" ]] ||
+        die "common submodule is not initialized: ${common_dir}"
+    [[ -n "$(find -H "${common_dir}" -mindepth 1 -maxdepth 1 ! -name .git -print -quit)" ]] ||
+        die "common submodule is empty: ${common_dir}"
+    top_level="$(git -C "${common_dir}" rev-parse --show-toplevel 2>/dev/null)" ||
+        die "common submodule is not initialized: ${common_dir}"
+    [[ "${top_level}" -ef "${common_dir}" ]] ||
+        die "common submodule is not initialized: ${common_dir}"
+
+    COMMON_HEAD_BEFORE="$(git -C "${common_dir}" rev-parse HEAD)"
+    COMMON_STATUS_BEFORE="$(
+        git -C "${common_dir}" status --porcelain=v1 --untracked-files=all
+    )"
+    [[ -z "${COMMON_STATUS_BEFORE}" ]] ||
+        die "common submodule must be clean before the build"
+
+    if [[ -d "${common_dir}/KernelSU-Next" ||
+          -d "${common_dir}/KernelSU" ||
+          -e "${common_dir}/drivers/kernelsu" ]]; then
+        echo "[KernelSU] Reusing the checked-in integration"
+    else
+        echo "[KernelSU] No checked-in integration; leaving common unchanged"
+    fi
+
+    trap verify_common_unchanged EXIT
+}
+
+validate_msm_state() {
+    local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
+    local top_level
+    local head
+    local configured_branch
+    local tracking_ref
+    local tracking_head
+    local status
+
+    [[ -e "${msm_dir}/.git" ]] ||
+        die "msm-kernel submodule is not initialized: ${msm_dir}"
+    [[ -n "$(find "${msm_dir}" -mindepth 1 -maxdepth 1 ! -name .git -print -quit)" ]] ||
+        die "msm-kernel submodule is empty: ${msm_dir}"
+    top_level="$(git -C "${msm_dir}" rev-parse --show-toplevel 2>/dev/null)" ||
+        die "msm-kernel submodule is not initialized: ${msm_dir}"
+    [[ "${top_level}" == "${msm_dir}" ]] ||
+        die "msm-kernel submodule is not initialized: ${msm_dir}"
+
+    head="$(git -C "${msm_dir}" rev-parse --verify HEAD)"
+    status="$(
+        git -C "${msm_dir}" status --porcelain=v1 --untracked-files=all
+    )"
+    [[ -z "${status}" ]] ||
+        die "msm-kernel submodule must be clean before the build"
+
+    configured_branch="$(
+        git -C "${SOURCE_DIR}" config -f .gitmodules \
+            --get submodule.kernel_platform/msm-kernel.branch 2>/dev/null || true
+    )"
+    tracking_ref="refs/remotes/origin/${configured_branch}"
+    if [[ -n "${configured_branch}" ]] &&
+       git -C "${msm_dir}" show-ref --verify --quiet "${tracking_ref}"; then
+        tracking_head="$(git -C "${msm_dir}" rev-parse "${tracking_ref}")"
+        [[ "${head}" == "${tracking_head}" ]] ||
+            die "msm-kernel HEAD does not match ${tracking_ref}"
+        echo "[submodule] msm-kernel ${head} matches ${tracking_ref}"
+    else
+        echo "[submodule] msm-kernel ${head} is initialized and clean"
+    fi
+}
+
+verify_common_unchanged() {
+    local common_dir="${KERNEL_PLATFORM}/common"
+    local head_after
+    local status_after
+
+    [[ -n "${COMMON_HEAD_BEFORE}" ]] || return 0
+    head_after="$(git -C "${common_dir}" rev-parse HEAD 2>/dev/null)" || {
+        echo "error: common submodule became unavailable during the build" >&2
+        return 1
+    }
+    status_after="$(
+        git -C "${common_dir}" status --porcelain=v1 --untracked-files=all
+    )" || {
+        echo "error: common submodule status could not be read after the build" >&2
+        return 1
+    }
+
+    if [[ "${head_after}" != "${COMMON_HEAD_BEFORE}" ||
+          "${status_after}" != "${COMMON_STATUS_BEFORE}" ]]; then
+        echo "error: the build changed kernel_platform/common" >&2
+        return 1
+    fi
 }
 
 prepare_toolchain() {
@@ -83,7 +260,8 @@ prepare_toolchain() {
     require_command tar
 
     local archive
-    archive="$(mktemp "${TMPDIR:-/tmp}/sm8550-toolchain.XXXXXX.tar.xz")"
+    mkdir -p "${DOWNLOAD_DIR}"
+    archive="$(mktemp "${DOWNLOAD_DIR}/sm8550-toolchain.XXXXXX.tar.xz")"
 
     echo "[toolchain] Downloading ${TOOLCHAIN_URL}"
     wget -q --show-progress --progress=dot:giga \
@@ -98,68 +276,37 @@ prepare_toolchain() {
         die "clang-r450784e was not found after extracting the toolchain"
 }
 
-build_common() {
-    local out_dir="${COMMON_OUT_DIR:-${SOURCE_DIR}/out/common}"
-    local dist_dir="${COMMON_DIST_DIR:-${SOURCE_DIR}/out/common-dist}"
-
-    echo "[common] OUT_DIR=${out_dir}"
-    echo "[common] DIST_DIR=${dist_dir}"
-
-    (
-        cd "${KERNEL_PLATFORM}"
-        BUILD_CONFIG=common/build.config.gki.aarch64 \
-        OUT_DIR="${out_dir}" \
-        DIST_DIR="${dist_dir}" \
-        ./build/build.sh "-j${JOBS}"
-    )
-
-    echo "[common] Artifacts: ${dist_dir}"
-}
-
 build_full() {
-    export BUILD_TARGET="dm3q_kor_singlex"
-    export MODEL="dm3q"
-    export PROJECT_NAME="dm3q"
-    export REGION="kor"
-    export CARRIER="singlex"
     export TARGET_BUILD_VARIANT="${TARGET_BUILD_VARIANT:-user}"
-
-    export ANDROID_BUILD_TOP="${SOURCE_DIR}"
-    export CHIPSET_NAME="kalama"
-    export TARGET_PRODUCT="gki"
-    export TARGET_BOARD_PLATFORM="gki"
-    export ANDROID_PRODUCT_OUT="${ANDROID_BUILD_TOP}/out/target/product/${MODEL}"
-    export OUT_DIR="${FULL_OUT_DIR:-${ANDROID_BUILD_TOP}/out/msm-${CHIPSET_NAME}-${CHIPSET_NAME}-${TARGET_PRODUCT}}"
-    export DIST_DIR="${OUT_DIR}/dist"
     export MERGE_CONFIG="${ANDROID_BUILD_TOP}/kernel_platform/common/scripts/kconfig/merge_config.sh"
 
     if [[ -e "${OUT_DIR}/host/bin/ufdt_apply_overlay" ]]; then
         chmod u+w "${OUT_DIR}/host/bin/ufdt_apply_overlay"
     fi
 
-    export KBUILD_EXTRA_SYMBOLS="${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/mmrm-driver/Module.symvers \
-        ${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/mm-drivers/hw_fence/Module.symvers \
-        ${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/mm-drivers/sync_fence/Module.symvers \
-        ${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/mm-drivers/msm_ext_display/Module.symvers \
-        ${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/securemsm-kernel/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/graphics-kernel/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/datarmnet/core/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/wlan/qcacld-3.0/.kiwi_v2/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/wlan/platform/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/camera-kernel/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/eva-kernel/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/video-driver/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/display-drivers/msm/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/datarmnet-ext/aps/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/datarmnet-ext/wlan/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/datarmnet-ext/shs/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/datarmnet-ext/perf_tether/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/datarmnet-ext/perf/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/datarmnet-ext/sch/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/datarmnet-ext/offload/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/bt-kernel/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/dataipa/drivers/platform/msm/Module.symvers \
-		${ANDROID_BUILD_TOP}/out/vendor/qcom/opensource/audio-kernel/Module.symvers \
+    export KBUILD_EXTRA_SYMBOLS="${OUT_DIR%/*}/vendor/qcom/opensource/mmrm-driver/Module.symvers \
+        ${OUT_DIR%/*}/vendor/qcom/opensource/mm-drivers/hw_fence/Module.symvers \
+        ${OUT_DIR%/*}/vendor/qcom/opensource/mm-drivers/sync_fence/Module.symvers \
+        ${OUT_DIR%/*}/vendor/qcom/opensource/mm-drivers/msm_ext_display/Module.symvers \
+        ${OUT_DIR%/*}/vendor/qcom/opensource/securemsm-kernel/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/graphics-kernel/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet/core/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/wlan/qcacld-3.0/.kiwi_v2/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/wlan/platform/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/camera-kernel/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/eva-kernel/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/video-driver/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/display-drivers/msm/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet-ext/aps/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet-ext/wlan/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet-ext/shs/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet-ext/perf_tether/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet-ext/perf/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet-ext/sch/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet-ext/offload/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/bt-kernel/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/dataipa/drivers/platform/msm/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/audio-kernel/Module.symvers \
         "
 
     export MODNAME="audio_dlkm"
@@ -189,6 +336,7 @@ build_full() {
     "  
 
     echo "[full] BUILD_TARGET=${BUILD_TARGET}"
+    echo "[full] MODEL=${MODEL}"
     echo "[full] OUT_DIR=${OUT_DIR}"
 
     mkdir -p "${ANDROID_PRODUCT_OUT}"
@@ -221,8 +369,56 @@ run_privileged() {
     fi
 }
 
+prepare_target_workspace() {
+    local clang_parent="${PACKAGING_WORK_DIR}/kernel_platform/prebuilts/clang/host/linux-x86"
+    local resolved_android_kernel_out
+    local resolved_out_dir
+    local resolved_packaging_work_dir
+    local resolved_tmpdir
+
+    [[ "${ANDROID_KERNEL_OUT}" == "${OUT_DIR}/"* ]] ||
+        die "ANDROID_KERNEL_OUT must be target-scoped beneath OUT_DIR"
+    [[ "${TMPDIR}" == "${PACKAGING_WORK_DIR}/"* ]] ||
+        die "TMPDIR must be scoped beneath the packaging workspace"
+
+    for path in "${PACKAGING_WORK_DIR}" "${DOWNLOAD_DIR}" "${UNPACK_DIR}"; do
+        [[ ! -e "${path}" ]] ||
+            die "target workspace already exists: ${path}"
+    done
+
+    mkdir -p \
+        "${ANDROID_KERNEL_OUT}" \
+        "${PACKAGING_PREBUILTS_DIR}" \
+        "${DOWNLOAD_DIR}" \
+        "${UNPACK_DIR}" \
+        "${TMPDIR}" \
+        "${clang_parent}"
+
+    resolved_out_dir="$(readlink -f "${OUT_DIR}")"
+    resolved_android_kernel_out="$(readlink -f "${ANDROID_KERNEL_OUT}")"
+    resolved_packaging_work_dir="$(readlink -f "${PACKAGING_WORK_DIR}")"
+    resolved_tmpdir="$(readlink -f "${TMPDIR}")"
+    [[ "${resolved_android_kernel_out}" == "${resolved_out_dir}/"* ]] ||
+        die "ANDROID_KERNEL_OUT resolves outside OUT_DIR"
+    [[ "${resolved_tmpdir}" == "${resolved_packaging_work_dir}/"* ]] ||
+        die "TMPDIR resolves outside the packaging workspace"
+
+    echo "[paths] ANDROID_KERNEL_OUT=${ANDROID_KERNEL_OUT}"
+    echo "[paths] TMPDIR=${TMPDIR}"
+
+    ln -s \
+        "${KERNEL_PLATFORM}/prebuilts/clang/host/linux-x86/clang-r450784e" \
+        "${clang_parent}/clang-r450784e"
+    ln -s \
+        "${SOURCE_DIR}/prebuilts/patch_vendor_dlkm_fstab.sh" \
+        "${PACKAGING_PREBUILTS_DIR}/patch_vendor_dlkm_fstab.sh"
+    ln -s \
+        "${SOURCE_DIR}/prebuilts/vendor_dlkm_file_contexts" \
+        "${PACKAGING_PREBUILTS_DIR}/vendor_dlkm_file_contexts"
+}
+
 prepare_packaging_tools() {
-    local prebuilts_dir="${SOURCE_DIR}/prebuilts"
+    local prebuilts_dir="${PACKAGING_PREBUILTS_DIR}"
     local image_tools_dir="${prebuilts_dir}/vendor_dlkm_unpack"
     local image_tools_commit="46a3c6a2b4413bc4570836ae0e3ab2d9de0c15e2"
 
@@ -232,12 +428,6 @@ prepare_packaging_tools() {
     require_packaging_command lz4
     require_packaging_command unzip
     require_packaging_command zip
-
-    rm -rf \
-        "${prebuilts_dir}/LKM_Tools" \
-        "${prebuilts_dir}/vendor_boot_unpack" \
-        "${prebuilts_dir}/vendor_dlkm_unpack"
-    mkdir -p "${prebuilts_dir}"
 
     git clone --depth=1 \
         https://github.com/ravindu644/LKM_Tools.git \
@@ -252,9 +442,9 @@ prepare_packaging_tools() {
         "${image_tools_commit}"
     git -C "${image_tools_dir}" checkout -q --detach FETCH_HEAD
     git -C "${image_tools_dir}" apply \
-        "${prebuilts_dir}/patches/android-image-tools-wait-checksum.patch"
+        "${SOURCE_DIR}/prebuilts/patches/android-image-tools-wait-checksum.patch"
     git -C "${image_tools_dir}" apply \
-        "${prebuilts_dir}/patches/android-image-tools-rootless-fuse.patch"
+        "${SOURCE_DIR}/prebuilts/patches/android-image-tools-rootless-fuse.patch"
 }
 
 write_module_metadata() {
@@ -267,22 +457,21 @@ write_module_metadata() {
     [[ -f "${modules_load}" ]] || die "modules.load not found: ${modules_load}"
 
     mkdir -p "${metadata_dir}"
-    bash "${SOURCE_DIR}/prebuilts/LKM_Tools/01.module_dep.sh" \
+    bash "${PACKAGING_PREBUILTS_DIR}/LKM_Tools/01.module_dep.sh" \
         "${modules_dep}" "${metadata_dir}"
     cp "${modules_load}" "${metadata_dir}/modules.load"
 }
 
 unpack_vendor_boot() {
-    local vboot_url="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZF1_KOO_OKR/S918NKSS8FZF1_kernel.tar"
-    local vboot_tar="${SOURCE_DIR}/.stock_vendor_boot.tar"
-    local extract_dir="${SOURCE_DIR}/.stock_vendor_boot"
-    local editor_dir="${SOURCE_DIR}/prebuilts/vendor_boot_unpack"
+    local vboot_tar="${DOWNLOAD_DIR}/stock-kernel.tar"
+    local extract_dir="${UNPACK_DIR}/vendor-boot"
+    local editor_dir="${PACKAGING_PREBUILTS_DIR}/vendor_boot_unpack"
+    local stock_image="${PACKAGING_WORK_DIR}/vendor_boot.stock.img"
     local vendor_boot_lz4
     local modules_dir
 
     wget -q --show-progress \
-        -O "${vboot_tar}" "${vboot_url}"
-    rm -rf "${extract_dir}"
+        -O "${vboot_tar}" "${STOCK_KERNEL_URL}"
     mkdir -p "${extract_dir}"
     tar -xf "${vboot_tar}" -C "${extract_dir}"
 
@@ -291,25 +480,24 @@ unpack_vendor_boot() {
 
     lz4 -d -f \
         "${vendor_boot_lz4}" \
-        "${SOURCE_DIR}/vendor_boot.stock.img"
+        "${stock_image}"
 
     (
         cd "${editor_dir}"
-        cp "${SOURCE_DIR}/vendor_boot.stock.img" vendor_boot.img
+        cp "${stock_image}" vendor_boot.img
         ./gradlew unpack
     )
 
     modules_dir="${editor_dir}/build/unzip_boot/root.1/lib/modules"
     write_module_metadata \
         "${modules_dir}" \
-        "${SOURCE_DIR}/prebuilts/LKM_Tools/vendor_boot"
+        "${PACKAGING_PREBUILTS_DIR}/LKM_Tools/vendor_boot"
 }
 
 unpack_vendor_dlkm() {
-    local vdlkm_url="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZF1_KOO_OKR/S918NKSS8FZF1_vendor_dlkm.zip"
-    local vdlkm_zip="${SOURCE_DIR}/.stock_vendor_dlkm.zip"
-    local extract_dir="${SOURCE_DIR}/.stock_vendor_dlkm"
-    local image_tools_dir="${SOURCE_DIR}/prebuilts/vendor_dlkm_unpack"
+    local vdlkm_zip="${DOWNLOAD_DIR}/stock-vendor-dlkm.zip"
+    local extract_dir="${UNPACK_DIR}/vendor-dlkm"
+    local image_tools_dir="${PACKAGING_PREBUILTS_DIR}/vendor_dlkm_unpack"
     local vdlkm_img
     local modules_dir
     local output_dir="${image_tools_dir}/EXTRACTED_IMAGES/extracted_vendor_dlkm"
@@ -317,8 +505,7 @@ unpack_vendor_dlkm() {
     local config_file="${image_tools_dir}/CONFIGS/vendor_dlkm_unpack.conf"
 
     wget -q --show-progress \
-        -O "${vdlkm_zip}" "${vdlkm_url}"
-    rm -rf "${extract_dir}"
+        -O "${vdlkm_zip}" "${STOCK_VENDOR_DLKM_URL}"
     mkdir -p "${extract_dir}"
     unzip -q -o "${vdlkm_zip}" -d "${extract_dir}"
 
@@ -334,7 +521,6 @@ unpack_vendor_dlkm() {
         'EXTRACT_DIR=extracted_vendor_dlkm' \
         > "${config_file}"
 
-    rm -f "${rootless_marker}"
     if (( EUID == 0 )) || sudo -n true 2>/dev/null || \
         command -v erofsfuse >/dev/null 2>&1; then
         (
@@ -348,7 +534,6 @@ unpack_vendor_dlkm() {
     else
         require_packaging_command fsck.erofs
         echo "[packaging] Extracting vendor_dlkm with fsck.erofs"
-        rm -rf "${output_dir}"
         mkdir -p "${output_dir}" "${image_tools_dir}/REPACKED_IMAGES"
         fsck.erofs \
             --extract="${output_dir}" \
@@ -362,96 +547,81 @@ unpack_vendor_dlkm() {
     modules_dir="${output_dir}/lib/modules"
     write_module_metadata \
         "${modules_dir}" \
-        "${SOURCE_DIR}/prebuilts/LKM_Tools/vendor_dlkm"
+        "${PACKAGING_PREBUILTS_DIR}/LKM_Tools/vendor_dlkm"
 }
 
 build_vendor_boot() {
-    env SCRIPT_DIR="${SCRIPT_DIR}" \
+    env SCRIPT_DIR="${PACKAGING_WORK_DIR}" \
         DIST_DIR="${DIST_DIR}" \
         OUT_DIR="${OUT_DIR}" \
         "${SCRIPT_DIR}/prebuilts/build_vendor_boot.sh"
 }
 
 build_vendor_dlkm() {
-    env SCRIPT_DIR="${SCRIPT_DIR}" \
+    env SCRIPT_DIR="${PACKAGING_WORK_DIR}" \
         DIST_DIR="${DIST_DIR}" \
         OUT_DIR="${OUT_DIR}" \
         "${SCRIPT_DIR}/prebuilts/build_vendor_dlkm.sh"
 }
 
 collect_packaged_images() {
-    local package_dir="${OUT_DIR}/packaged"
     local boot_image="${DIST_DIR}/boot.img"
-    local flashable_zip="${FLASHABLE_ZIP:-${package_dir}/dm3q-kernel-recovery-flashable.zip}"
+    local vendor_boot_image="${PACKAGING_WORK_DIR}/vendor_boot.img"
+    local vendor_dlkm_image="${PACKAGING_WORK_DIR}/vendor_dlkm.img"
 
     [[ -f "${boot_image}" ]] || die "built boot.img not found: ${boot_image}"
-    [[ -f "${SOURCE_DIR}/vendor_boot.img" ]] || die "rebuilt vendor_boot.img not found"
-    [[ -f "${SOURCE_DIR}/vendor_dlkm.img" ]] || die "rebuilt vendor_dlkm.img not found"
+    [[ -f "${vendor_boot_image}" ]] ||
+        die "rebuilt vendor_boot.img not found: ${vendor_boot_image}"
+    [[ -f "${vendor_dlkm_image}" ]] ||
+        die "rebuilt vendor_dlkm.img not found: ${vendor_dlkm_image}"
 
-    mkdir -p "${package_dir}"
-    cp "${boot_image}" "${package_dir}/boot.img"
-    cp "${SOURCE_DIR}/vendor_boot.img" "${package_dir}/vendor_boot.img"
-    cp "${SOURCE_DIR}/vendor_dlkm.img" "${package_dir}/vendor_dlkm.img"
-    cp "${SOURCE_DIR}/vendor_boot.img" "${DIST_DIR}/vendor_boot.img"
-    cp "${SOURCE_DIR}/vendor_dlkm.img" "${DIST_DIR}/vendor_dlkm.img"
+    mkdir -p "${PACKAGE_DIR}"
+    cp "${boot_image}" "${PACKAGE_DIR}/boot.img"
+    cp "${vendor_boot_image}" "${PACKAGE_DIR}/vendor_boot.img"
+    cp "${vendor_dlkm_image}" "${PACKAGE_DIR}/vendor_dlkm.img"
+    cp "${vendor_boot_image}" "${DIST_DIR}/vendor_boot.img"
+    cp "${vendor_dlkm_image}" "${DIST_DIR}/vendor_dlkm.img"
 
     "${SOURCE_DIR}/prebuilts/make_flashable_zip.sh" \
-        "${flashable_zip}" \
-        "${package_dir}"
-}
-
-cleanup_packaging_workspace() {
-    rm -rf \
-        "${SOURCE_DIR}/prebuilts/LKM_Tools" \
-        "${SOURCE_DIR}/prebuilts/vendor_boot_unpack" \
-        "${SOURCE_DIR}/prebuilts/vendor_dlkm_unpack" \
-        "${SOURCE_DIR}/.stock_vendor_boot" \
-        "${SOURCE_DIR}/.stock_vendor_dlkm"
-    rm -f \
-        "${SOURCE_DIR}/.stock_vendor_boot.tar" \
-        "${SOURCE_DIR}/.stock_vendor_dlkm.zip" \
-        "${SOURCE_DIR}/vendor_boot.stock.img" \
-        "${SOURCE_DIR}/vendor_dlkm.stock.img" \
-        "${SOURCE_DIR}/vendor_boot.img" \
-        "${SOURCE_DIR}/vendor_dlkm.img"
+        "${FLASHABLE_ZIP}" \
+        "${PACKAGE_DIR}"
 }
 
 main() {
-    local mode="${1:-}"
-    case "${mode}" in
-        common)
-            [[ $# -eq 1 ]] || die "common mode does not accept a BUILD_TARGET"
-            update_submodules
-            [[ -d "${KERNEL_PLATFORM}/common" ]] || \
-                die "kernel source not found: ${KERNEL_PLATFORM}"
-            import_kernelsu_next
-            prepare_toolchain
-            build_common
-            ;;
-        full)
-            [[ $# -eq 1 ]] || die "full mode is fixed to dm3q_kor_singlex"
-            update_submodules
-            [[ -d "${KERNEL_PLATFORM}/common" ]] || \
-                die "kernel source not found: ${KERNEL_PLATFORM}"
-            import_kernelsu_next
-            prepare_toolchain
-            build_full
-            prepare_packaging_tools
-            unpack_vendor_boot
-            unpack_vendor_dlkm
-            build_vendor_boot
-            build_vendor_dlkm
-            collect_packaged_images
-            cleanup_packaging_workspace
-            ;;
-        -h|--help|help)
-            usage
-            ;;
-        *)
-            usage >&2
-            exit 2
-            ;;
-    esac
+    if [[ $# -eq 1 ]]; then
+        case "$1" in
+            -h|--help|help)
+                usage
+                return 0
+                ;;
+        esac
+    fi
+
+    if [[ $# -ne 2 || "$2" != "full" ]]; then
+        usage >&2
+        return 2
+    fi
+    if ! select_device_profile "$1"; then
+        usage >&2
+        return 2
+    fi
+
+    if [[ "${BUILD_SH_PROFILE_ONLY:-0}" == "1" ]]; then
+        print_device_profile
+        return 0
+    fi
+
+    record_common_state
+    validate_msm_state
+    prepare_target_workspace
+    prepare_toolchain
+    build_full
+    prepare_packaging_tools
+    unpack_vendor_boot
+    unpack_vendor_dlkm
+    build_vendor_boot
+    build_vendor_dlkm
+    collect_packaged_images
 }
 
 main "$@"
