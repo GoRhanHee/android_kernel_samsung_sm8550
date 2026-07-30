@@ -258,6 +258,23 @@ include $(DISPLAY_ROOT)/msm/samsung/panel_common.conf
 ccflags-y +=	-include $(DISPLAY_ROOT)/msm/samsung/panel_common_conf.h
 
 msm_drm-$(CONFIG_DISPLAY_SAMSUNG) += samsung/PBA_BOOTING/ss_dsi_panel_PBA_BOOTING_fhd.o
+
+ifeq ($(CONFIG_SEC_Q5Q_PROJECT), y)
+include $(DISPLAY_ROOT)/msm/samsung/Q5_S6E3XA2_AMF756BQ03/Q5_S6E3XA2_AMF756BQ03.conf
+ccflags-y +=	-include $(DISPLAY_ROOT)/msm/samsung/Q5_S6E3XA2_AMF756BQ03/Q5_S6E3XA2_AMF756BQ03.h
+
+msm_drm-$(CONFIG_PANEL_Q5_S6E3XA2_AMF756BQ03_QXGA) += samsung/Q5_S6E3XA2_AMF756BQ03/Q5_S6E3XA2_AMF756BQ03_panel.o
+
+include $(DISPLAY_ROOT)/msm/samsung/Q5_S6E3FAC_AMB619EK01/Q5_S6E3FAC_AMB619EK01.conf
+ccflags-y +=	-include $(DISPLAY_ROOT)/msm/samsung/Q5_S6E3FAC_AMB619EK01/Q5_S6E3FAC_AMB619EK01.h
+
+msm_drm-$(CONFIG_PANEL_Q5_S6E3FAC_AMB619EK01_HD) += samsung/Q5_S6E3FAC_AMB619EK01/Q5_S6E3FAC_AMB619EK01_panel.o
+
+include $(DISPLAY_ROOT)/msm/samsung/Q5_S6E3XA2_AMF756EJ01/Q5_S6E3XA2_AMF756EJ01.conf
+ccflags-y +=	-include $(DISPLAY_ROOT)/msm/samsung/Q5_S6E3XA2_AMF756EJ01/Q5_S6E3XA2_AMF756EJ01.h
+
+msm_drm-$(CONFIG_PANEL_Q5_S6E3XA2_AMF756EJ01_QXGA) += samsung/Q5_S6E3XA2_AMF756EJ01/Q5_S6E3XA2_AMF756EJ01_panel.o
+else
 include $(DISPLAY_ROOT)/msm/samsung/DM3_S6E3HAE_AMB681AZ01/DM3_S6E3HAE_AMB681AZ01.conf
 ccflags-y +=	-include $(DISPLAY_ROOT)/msm/samsung/DM3_S6E3HAE_AMB681AZ01/DM3_S6E3HAE_AMB681AZ01.h
 
@@ -267,6 +284,7 @@ include $(DISPLAY_ROOT)/msm/samsung/S6E3HAE_AMB681AZ01/display_S6E3HAE_AMB681AZ0
 ccflags-y +=	-include $(DISPLAY_ROOT)/msm/samsung/S6E3HAE_AMB681AZ01/display_S6E3HAE_AMB681AZ01.h
 
 msm_drm-$(CONFIG_PANEL_S6E3HAE_AMB681AZ01_WQHD) += samsung/S6E3HAE_AMB681AZ01/ss_dsi_panel_S6E3HAE_AMB681AZ01.o
+endif
 include $(DISPLAY_ROOT)/msm/samsung/panel_common.conf
 ccflags-y +=	-include $(DISPLAY_ROOT)/msm/samsung/panel_common_conf.h
 
