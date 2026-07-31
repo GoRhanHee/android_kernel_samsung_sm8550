@@ -70,3 +70,6 @@ __pycache__/
 # Local integration worktrees used during source preparation
 /.common-merge-work/
 /.dm3q-superproject-work/
+
+# Local validation scripts
+/tests/
