@@ -8,6 +8,7 @@ readonly SOURCE_DIR="${SOURCE_DIR:-${SCRIPT_DIR}}"
 readonly KERNEL_PLATFORM="${SOURCE_DIR}/kernel_platform"
 readonly TOOLCHAIN_URL="${TOOLCHAIN_URL:-https://github.com/GoRhanHee/samsung_sm8550_toolchain/releases/download/toolchain/toolchain.tar.xz}"
 readonly CLANG_BIN="${KERNEL_PLATFORM}/prebuilts/clang/host/linux-x86/clang-r450784e/bin/clang"
+readonly KSU_SETUP_URL="https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh"
 readonly JOBS="${JOBS:-$(nproc)}"
 export LTO="${LTO:-thin}"
 
@@ -44,6 +45,10 @@ FLASHABLE_ZIP=""
 TMPDIR=""
 COMMON_HEAD_BEFORE=""
 COMMON_STATUS_BEFORE=""
+KSU_SETUP_SCRIPT=""
+KSU_RESTORE_PATCH=""
+KSU_IMPORT_STARTED=0
+KSU_REUSE_EXISTING=0
 
 select_wlan_profile() {
     local project_config="${KERNEL_PLATFORM}/msm-kernel/arch/arm64/configs/vendor/${SEC_PROJECT_CONFIG}_project.config"
@@ -207,12 +212,60 @@ record_common_state() {
     if [[ -d "${common_dir}/KernelSU-Next" ||
           -d "${common_dir}/KernelSU" ||
           -e "${common_dir}/drivers/kernelsu" ]]; then
+        KSU_REUSE_EXISTING=1
         echo "[KernelSU] Reusing the checked-in integration"
     else
-        echo "[KernelSU] No checked-in integration; leaving common unchanged"
+        echo "[KernelSU-Next] A temporary dev-branch integration will be imported"
     fi
 
-    trap verify_common_unchanged EXIT
+    trap cleanup_common EXIT
+}
+
+import_kernelsu_next() {
+    local common_dir="${KERNEL_PLATFORM}/common"
+    local changed_file
+
+    if (( KSU_REUSE_EXISTING == 1 )); then
+        return 0
+    fi
+
+    require_command bash
+    require_command curl
+    require_command git
+
+    KSU_SETUP_SCRIPT="${PACKAGING_WORK_DIR}/kernelsu-next-setup.sh"
+    KSU_RESTORE_PATCH="${PACKAGING_WORK_DIR}/kernelsu-next-common.patch"
+
+    echo "[KernelSU-Next] Downloading the official setup script"
+    curl -fLSs --retry 3 -o "${KSU_SETUP_SCRIPT}" "${KSU_SETUP_URL}"
+
+    KSU_IMPORT_STARTED=1
+    echo "[KernelSU-Next] Importing dev branch"
+    (
+        cd "${common_dir}"
+        bash "${KSU_SETUP_SCRIPT}" dev
+    )
+
+    git -C "${common_dir}" diff --binary --full-index > "${KSU_RESTORE_PATCH}"
+    [[ -s "${KSU_RESTORE_PATCH}" ]] ||
+        die "KernelSU-Next setup did not modify the common kernel"
+
+    while IFS= read -r changed_file; do
+        case "${changed_file}" in
+            drivers/Kconfig|drivers/Makefile)
+                ;;
+            *)
+                die "KernelSU-Next setup changed an unexpected tracked file: ${changed_file}"
+                ;;
+        esac
+    done < <(git -C "${common_dir}" diff --name-only)
+
+    [[ -L "${common_dir}/drivers/kernelsu" ]] ||
+        die "KernelSU-Next setup did not create drivers/kernelsu"
+    [[ -d "${common_dir}/KernelSU-Next" ]] ||
+        die "KernelSU-Next setup did not clone KernelSU-Next"
+
+    echo "[KernelSU-Next] Restore patch: ${KSU_RESTORE_PATCH}"
 }
 
 validate_msm_state() {
@@ -278,6 +331,61 @@ verify_common_unchanged() {
         echo "error: the build changed kernel_platform/common" >&2
         return 1
     fi
+}
+
+cleanup_kernelsu_next() {
+    local common_dir="${KERNEL_PLATFORM}/common"
+    local kernelsu_dir="${KERNEL_PLATFORM}/common/KernelSU-Next"
+    local kernelsu_link="${KERNEL_PLATFORM}/common/drivers/kernelsu"
+    local fallback_patch="${PACKAGING_WORK_DIR}/kernelsu-next-common-fallback.patch"
+    local cleanup_status=0
+
+    (( KSU_IMPORT_STARTED == 1 )) || return 0
+
+    echo "[KernelSU-Next] Restoring common kernel state"
+    if [[ -s "${KSU_RESTORE_PATCH}" ]]; then
+        git -C "${common_dir}" apply --reverse "${KSU_RESTORE_PATCH}" ||
+            cleanup_status=1
+    elif ! git -C "${common_dir}" diff --quiet; then
+        git -C "${common_dir}" diff --binary --full-index > "${fallback_patch}"
+        git -C "${common_dir}" apply --reverse "${fallback_patch}" ||
+            cleanup_status=1
+    fi
+
+    if [[ -L "${kernelsu_link}" ]]; then
+        rm -- "${kernelsu_link}" || cleanup_status=1
+    elif [[ -e "${kernelsu_link}" ]]; then
+        echo "error: refusing to remove non-symlink path: ${kernelsu_link}" >&2
+        cleanup_status=1
+    fi
+
+    if [[ -L "${kernelsu_dir}" ]]; then
+        echo "error: refusing to recursively remove symlink: ${kernelsu_dir}" >&2
+        cleanup_status=1
+    elif [[ -d "${kernelsu_dir}" ]]; then
+        rm -rf -- "${kernelsu_dir}" || cleanup_status=1
+    elif [[ -e "${kernelsu_dir}" ]]; then
+        echo "error: refusing to remove unexpected path: ${kernelsu_dir}" >&2
+        cleanup_status=1
+    fi
+
+    KSU_IMPORT_STARTED=0
+    return "${cleanup_status}"
+}
+
+cleanup_common() {
+    local build_status=$?
+    local cleanup_status=0
+
+    trap - EXIT
+    cleanup_kernelsu_next || cleanup_status=1
+    verify_common_unchanged || cleanup_status=1
+
+    if (( cleanup_status != 0 )); then
+        echo "error: failed to restore kernel_platform/common" >&2
+        return 1
+    fi
+    return "${build_status}"
 }
 
 prepare_toolchain() {
@@ -645,6 +753,7 @@ main() {
     record_common_state
     validate_msm_state
     prepare_target_workspace
+    import_kernelsu_next
     prepare_toolchain
     build_full
     prepare_packaging_tools
