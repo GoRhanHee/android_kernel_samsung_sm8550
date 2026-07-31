@@ -5,6 +5,37 @@
 
 VENDOR_DLKM_BLOCK_SIZE=4096
 
+vendor_dlkm_metadata_set_uuid() {
+    if (( $# != 2 )); then
+        printf 'usage: vendor_dlkm_metadata_set_uuid <metadata-file> <uuid>\n' >&2
+        return 2
+    fi
+
+    local metadata_file="$1"
+    local filesystem_uuid="$2"
+    local rewritten_metadata
+
+    [[ -f "${metadata_file}" && ! -L "${metadata_file}" ]] || {
+        printf 'vendor_dlkm metadata must be a regular, non-symlink file: %s\n' \
+            "${metadata_file}" >&2
+        return 1
+    }
+    [[ "${filesystem_uuid}" =~ ^[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}$ ]] || {
+        printf 'invalid vendor_dlkm filesystem UUID: %s\n' "${filesystem_uuid}" >&2
+        return 1
+    }
+
+    rewritten_metadata="$(mktemp "${metadata_file}.uuid.XXXXXX")" || return 1
+    if ! awk '!/^ORIGINAL_UUID=/' "${metadata_file}" > "${rewritten_metadata}" ||
+        ! printf 'ORIGINAL_UUID=%s\n' "${filesystem_uuid}" >> "${rewritten_metadata}" ||
+        ! chmod --reference="${metadata_file}" "${rewritten_metadata}" ||
+        ! mv -- "${rewritten_metadata}" "${metadata_file}"; then
+        rm -f -- "${rewritten_metadata}"
+        printf 'failed to set vendor_dlkm UUID metadata: %s\n' "${metadata_file}" >&2
+        return 1
+    fi
+}
+
 _vendor_dlkm_capacity_resolve_size() {
     local image="$1"
     local label="$2"

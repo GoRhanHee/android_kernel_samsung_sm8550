@@ -18,6 +18,7 @@ OBJCOPY_TOOL="${REPO_ROOT}/kernel_platform/prebuilts/clang/host/linux-x86/clang-
 REPACK_CONFIG="${AIT_DIR}/CONFIGS/vendor_dlkm_repack.conf"
 REPACKED_IMAGE="${AIT_DIR}/REPACKED_IMAGES/vendor_dlkm_repacked.img"
 ROOTLESS_EXTRACT_MARKER="${AIT_DIR}/.rootless-erofs-extract"
+REPACK_METADATA="${OUTPUT_DIR}/.repack_info/metadata.txt"
 VENDOR_DLKM_FILE_CONTEXTS="${REPO_ROOT}/prebuilts/vendor_dlkm_file_contexts"
 STOCK_IMAGE="${AIT_DIR}/INPUT_IMAGES/vendor_dlkm.img"
 VENDOR_DLKM_CAPACITY_HELPER="${REPO_ROOT}/prebuilts/vendor_dlkm_capacity.sh"
@@ -181,6 +182,7 @@ if [[ -f "${ROOTLESS_EXTRACT_MARKER}" ]]; then
         "${REPACKED_IMAGE}" \
         "${OUTPUT_DIR}"
 else
+    vendor_dlkm_metadata_set_uuid "${REPACK_METADATA}" "${STOCK_UUID}"
     (
         cd "${AIT_DIR}"
         run_privileged ./android_image_tools.sh \
