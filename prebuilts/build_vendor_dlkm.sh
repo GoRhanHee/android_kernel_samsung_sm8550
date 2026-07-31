@@ -196,8 +196,9 @@ fi
 }
 vendor_dlkm_capacity_pad_to_stock "${STOCK_IMAGE}" "${REPACKED_IMAGE}"
 SELINUX_XATTR_DIR="$(mktemp -d)"
-trap 'rm -rf "${STOCK_MODULES_DIR}" "${SELINUX_XATTR_DIR}"' EXIT
-fsck.erofs -p --xattrs --extract="${SELINUX_XATTR_DIR}" "${REPACKED_IMAGE}"
+trap 'rm -rf "${STOCK_MODULES_DIR}"; run_privileged rm -rf "${SELINUX_XATTR_DIR}"' EXIT
+run_privileged fsck.erofs \
+    -p --xattrs --extract="${SELINUX_XATTR_DIR}" "${REPACKED_IMAGE}"
 REPACKED_UUID="$(
     dump.erofs -s "${REPACKED_IMAGE}" |
         awk '/Filesystem UUID:/ { print $NF; exit }'
@@ -210,7 +211,8 @@ REPACKED_UUID="$(
     echo "rebuilt vendor_dlkm UUID differs from stock: ${REPACKED_UUID} != ${STOCK_UUID}" >&2
     exit 1
 }
-vendor_dlkm_selinux_xattrs_validate "${SELINUX_XATTR_DIR}"
+run_privileged bash "${VENDOR_DLKM_CAPACITY_HELPER}" \
+    --validate-selinux-xattrs "${SELINUX_XATTR_DIR}"
 vendor_dlkm_capacity_validate "${STOCK_IMAGE}" "${REPACKED_IMAGE}"
 
 cp "${REPACKED_IMAGE}" "${REPO_ROOT}/vendor_dlkm.img"

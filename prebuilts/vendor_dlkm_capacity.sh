@@ -196,5 +196,13 @@ vendor_dlkm_selinux_xattrs_validate() {
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    vendor_dlkm_capacity_validate "$@"
+    case "${1:-}" in
+        --validate-selinux-xattrs)
+            shift
+            vendor_dlkm_selinux_xattrs_validate "$@"
+            ;;
+        *)
+            vendor_dlkm_capacity_validate "$@"
+            ;;
+    esac
 fi
