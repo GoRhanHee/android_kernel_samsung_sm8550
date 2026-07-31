@@ -23,6 +23,10 @@ TARGET_BOARD_PLATFORM=""
 STOCK_KERNEL_URL=""
 STOCK_VENDOR_DLKM_URL=""
 SEC_PROJECT_CONFIG=""
+WLAN_PROFILE=""
+WLAN_EXT_MODULE=""
+WLAN_BUILT_MODULE=""
+WLAN_PACKAGED_MODULE=""
 ANDROID_BUILD_TOP=""
 ANDROID_PRODUCT_OUT=""
 ANDROID_KERNEL_OUT=""
@@ -40,6 +44,22 @@ FLASHABLE_ZIP=""
 TMPDIR=""
 COMMON_HEAD_BEFORE=""
 COMMON_STATUS_BEFORE=""
+
+select_wlan_profile() {
+    local project_config="${KERNEL_PLATFORM}/msm-kernel/arch/arm64/configs/vendor/${SEC_PROJECT_CONFIG}_project.config"
+
+    [[ -f "${project_config}" ]] ||
+        die "project config not found: ${project_config}"
+
+    WLAN_PROFILE="kiwi_v2"
+    if grep -Fxq "CONFIG_SEC_Q5Q_PROJECT=y" "${project_config}"; then
+        WLAN_PROFILE="qca6490"
+    fi
+
+    WLAN_EXT_MODULE="../vendor/qcom/opensource/wlan/qcacld-3.0/.${WLAN_PROFILE}"
+    WLAN_BUILT_MODULE="${WLAN_PROFILE}.ko"
+    WLAN_PACKAGED_MODULE="qca_cld3_${WLAN_PROFILE}.ko"
+}
 
 usage() {
     cat <<EOF
@@ -103,6 +123,7 @@ select_device_profile() {
 
     PROJECT_NAME="${MODEL}"
     SEC_PROJECT_CONFIG="${MODEL}"
+    select_wlan_profile
     REGION="kor"
     CARRIER="singlex"
     CHIPSET_NAME="kalama"
@@ -128,6 +149,7 @@ select_device_profile() {
     export BUILD_TARGET MODEL DEVICE_DISPLAY_NAME PROJECT_NAME REGION CARRIER
     export CHIPSET_NAME TARGET_PRODUCT TARGET_BOARD_PLATFORM
     export STOCK_KERNEL_URL STOCK_VENDOR_DLKM_URL SEC_PROJECT_CONFIG
+    export WLAN_PROFILE WLAN_EXT_MODULE WLAN_BUILT_MODULE WLAN_PACKAGED_MODULE
     export ANDROID_BUILD_TOP ANDROID_PRODUCT_OUT ANDROID_KERNEL_OUT
     export OUT_DIR DIST_DIR TMPDIR
 }
@@ -146,6 +168,10 @@ print_device_profile() {
         "STOCK_KERNEL_URL=${STOCK_KERNEL_URL}" \
         "STOCK_VENDOR_DLKM_URL=${STOCK_VENDOR_DLKM_URL}" \
         "SEC_PROJECT_CONFIG=${SEC_PROJECT_CONFIG}" \
+        "WLAN_PROFILE=${WLAN_PROFILE}" \
+        "WLAN_EXT_MODULE=${WLAN_EXT_MODULE}" \
+        "WLAN_BUILT_MODULE=${WLAN_BUILT_MODULE}" \
+        "WLAN_PACKAGED_MODULE=${WLAN_PACKAGED_MODULE}" \
         "OUT_DIR=${OUT_DIR}" \
         "ANDROID_KERNEL_OUT=${ANDROID_KERNEL_OUT}" \
         "DIST_DIR=${DIST_DIR}" \
@@ -295,7 +321,7 @@ build_full() {
         ${OUT_DIR%/*}/vendor/qcom/opensource/securemsm-kernel/Module.symvers \
 		${OUT_DIR%/*}/vendor/qcom/opensource/graphics-kernel/Module.symvers \
 		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet/core/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/wlan/qcacld-3.0/.kiwi_v2/Module.symvers \
+		${OUT_DIR%/*}/${WLAN_EXT_MODULE#../}/Module.symvers \
 		${OUT_DIR%/*}/vendor/qcom/opensource/wlan/platform/Module.symvers \
 		${OUT_DIR%/*}/vendor/qcom/opensource/camera-kernel/Module.symvers \
 		${OUT_DIR%/*}/vendor/qcom/opensource/eva-kernel/Module.symvers \
@@ -336,7 +362,7 @@ build_full() {
         ../vendor/qcom/opensource/eva-kernel \
         ../vendor/qcom/opensource/wlan/platform \
         ../vendor/qcom/opensource/bt-kernel \
-        ../vendor/qcom/opensource/wlan/qcacld-3.0/.kiwi_v2 \
+        ${WLAN_EXT_MODULE} \
     "  
 
     echo "[full] BUILD_TARGET=${BUILD_TARGET}"
@@ -351,10 +377,10 @@ build_full() {
             ./kernel_platform/build/android/prepare_vendor.sh sec "${TARGET_PRODUCT}"
     )
 
-    if [[ -f "${DIST_DIR}/kiwi_v2.ko" ]]; then
-        cp "${DIST_DIR}/kiwi_v2.ko" \
-            "${DIST_DIR}/qca_cld3_kiwi_v2.ko"
-    fi
+    [[ -f "${DIST_DIR}/${WLAN_BUILT_MODULE}" ]] ||
+        die "built WLAN module not found: ${DIST_DIR}/${WLAN_BUILT_MODULE}"
+    cp "${DIST_DIR}/${WLAN_BUILT_MODULE}" \
+        "${DIST_DIR}/${WLAN_PACKAGED_MODULE}"
 
     echo "[full] Artifacts: ${OUT_DIR}/dist"
 }
