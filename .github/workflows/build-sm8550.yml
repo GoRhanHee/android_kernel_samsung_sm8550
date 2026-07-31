@@ -2,28 +2,26 @@ name: Build SM8550 kernel
 
 on:
   workflow_dispatch:
-    inputs:
-      device:
-        description: Samsung device
-        required: true
-        default: dm3q
-        type: choice
-        options:
-          - dm3q
-          - q5q
 
 permissions:
   contents: read
 
 concurrency:
-  group: sm8550-kernel-${{ github.ref }}-${{ inputs.device }}
+  group: sm8550-kernel-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   build:
-    name: ${{ inputs.device }} full build
+    name: ${{ matrix.device }} full build
     runs-on: ubuntu-22.04
     timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        device:
+          - dm3q
+          - q5q
 
     steps:
       - name: Checkout source
@@ -108,11 +106,11 @@ jobs:
           path: kernel_platform/prebuilts
           key: samsung-sm8550-toolchain-r450784e-v1
 
-      - name: Build ${{ inputs.device }} kernel
+      - name: Build ${{ matrix.device }} kernel
         env:
           JOBS: ${{ runner.arch == 'X64' && '4' || '2' }}
         run: |
-          device='${{ inputs.device }}'
+          device='${{ matrix.device }}'
           ./build.sh "$device" full
 
       - name: Collect kernel artifacts
@@ -120,7 +118,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          device="${{ inputs.device }}"
+          device="${{ matrix.device }}"
           artifact_dir="out/upload/${device}"
           mkdir -p "${artifact_dir}"
 
@@ -183,8 +181,8 @@ jobs:
       - name: Upload kernel artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ inputs.device }}-full-${{ github.sha }}
-          path: out/upload/${{ inputs.device }}/
+          name: ${{ matrix.device }}-full-${{ github.sha }}
+          path: out/upload/${{ matrix.device }}/
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7
