@@ -20,6 +20,8 @@ jobs:
       max-parallel: 2
       matrix:
         device:
+          - dm1q
+          - dm2q
           - dm3q
           - q5q
 

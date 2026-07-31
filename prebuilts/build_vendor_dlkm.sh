@@ -20,7 +20,14 @@ REPACKED_IMAGE="${AIT_DIR}/REPACKED_IMAGES/vendor_dlkm_repacked.img"
 ROOTLESS_EXTRACT_MARKER="${AIT_DIR}/.rootless-erofs-extract"
 VENDOR_DLKM_FILE_CONTEXTS="${REPO_ROOT}/prebuilts/vendor_dlkm_file_contexts"
 STOCK_IMAGE="${AIT_DIR}/INPUT_IMAGES/vendor_dlkm.img"
-VENDOR_DLKM_MAX_BYTES=""
+VENDOR_DLKM_CAPACITY_HELPER="${REPO_ROOT}/prebuilts/vendor_dlkm_capacity.sh"
+
+[[ -f "${VENDOR_DLKM_CAPACITY_HELPER}" ]] || {
+    echo "vendor_dlkm capacity helper not found: ${VENDOR_DLKM_CAPACITY_HELPER}" >&2
+    exit 1
+}
+# shellcheck source=/dev/null
+source "${VENDOR_DLKM_CAPACITY_HELPER}"
 
 run_privileged() {
     if (( EUID == 0 )); then
@@ -123,11 +130,6 @@ done < <(find "${MODULES_OUTPUT_DIR}" -maxdepth 1 -type f -name '*.ko' -print)
     echo "stock vendor_dlkm image not found: ${STOCK_IMAGE}" >&2
     exit 1
 }
-VENDOR_DLKM_MAX_BYTES="$(stat -c %s "${STOCK_IMAGE}")"
-[[ "${VENDOR_DLKM_MAX_BYTES}" =~ ^[1-9][0-9]*$ ]] || {
-    echo "invalid stock vendor_dlkm size: ${VENDOR_DLKM_MAX_BYTES}" >&2
-    exit 1
-}
 
 cat > "${REPACK_CONFIG}" <<EOF
 ACTION=repack
@@ -139,32 +141,33 @@ COMPRESSION_MODE=lz4hc
 COMPRESSION_LEVEL=12
 EOF
 
+command -v fsck.erofs >/dev/null 2>&1 || {
+    echo "fsck.erofs not found" >&2
+    exit 1
+}
+command -v dump.erofs >/dev/null 2>&1 || {
+    echo "dump.erofs not found" >&2
+    exit 1
+}
+[[ -f "${VENDOR_DLKM_FILE_CONTEXTS}" ]] || {
+    echo "vendor_dlkm file contexts not found: ${VENDOR_DLKM_FILE_CONTEXTS}" >&2
+    exit 1
+}
+STOCK_UUID="$(
+    dump.erofs -s "${STOCK_IMAGE}" |
+        awk '/Filesystem UUID:/ { print $NF; exit }'
+)"
+[[ -n "${STOCK_UUID}" ]] || {
+    echo "stock vendor_dlkm UUID could not be read" >&2
+    exit 1
+}
+
 if [[ -f "${ROOTLESS_EXTRACT_MARKER}" ]]; then
     command -v mkfs.erofs >/dev/null 2>&1 || {
         echo "mkfs.erofs not found" >&2
         exit 1
     }
-    command -v fsck.erofs >/dev/null 2>&1 || {
-        echo "fsck.erofs not found" >&2
-        exit 1
-    }
-    command -v dump.erofs >/dev/null 2>&1 || {
-        echo "dump.erofs not found" >&2
-        exit 1
-    }
-    [[ -f "${VENDOR_DLKM_FILE_CONTEXTS}" ]] || {
-        echo "vendor_dlkm file contexts not found: ${VENDOR_DLKM_FILE_CONTEXTS}" >&2
-        exit 1
-    }
-    STOCK_UUID="$(
-        dump.erofs -s "${STOCK_IMAGE}" |
-            awk '/Filesystem UUID:/ { print $NF; exit }'
-    )"
     STOCK_TIMESTAMP="$(stat -c %Y "${OUTPUT_DIR}/etc/build.prop")"
-    [[ -n "${STOCK_UUID}" ]] || {
-        echo "stock vendor_dlkm UUID could not be read" >&2
-        exit 1
-    }
     mkdir -p "$(dirname "${REPACKED_IMAGE}")"
     rm -f "${REPACKED_IMAGE}"
     mkfs.erofs \
@@ -177,14 +180,6 @@ if [[ -f "${ROOTLESS_EXTRACT_MARKER}" ]]; then
         --file-contexts="${VENDOR_DLKM_FILE_CONTEXTS}" \
         "${REPACKED_IMAGE}" \
         "${OUTPUT_DIR}"
-    fsck.erofs -p "${REPACKED_IMAGE}"
-    for path in / /etc/build.prop /lib/modules; do
-        dump.erofs --path="${path}" "${REPACKED_IMAGE}" |
-            grep -Eq 'Xattr size: [1-9][0-9]*' || {
-                echo "vendor_dlkm SELinux xattr missing from ${path}" >&2
-                exit 1
-            }
-    done
 else
     (
         cd "${AIT_DIR}"
@@ -197,11 +192,23 @@ fi
     echo "rebuilt vendor_dlkm image is missing or empty: ${REPACKED_IMAGE}" >&2
     exit 1
 }
-REPACKED_SIZE="$(stat -c %s "${REPACKED_IMAGE}")"
-if (( REPACKED_SIZE > VENDOR_DLKM_MAX_BYTES )); then
-    echo "rebuilt vendor_dlkm image exceeds stock partition capacity: ${REPACKED_SIZE} > ${VENDOR_DLKM_MAX_BYTES} bytes" >&2
+vendor_dlkm_capacity_pad_to_stock "${STOCK_IMAGE}" "${REPACKED_IMAGE}"
+SELINUX_XATTR_DIR="$(mktemp -d)"
+trap 'rm -rf "${STOCK_MODULES_DIR}" "${SELINUX_XATTR_DIR}"' EXIT
+fsck.erofs -p --xattrs --extract="${SELINUX_XATTR_DIR}" "${REPACKED_IMAGE}"
+REPACKED_UUID="$(
+    dump.erofs -s "${REPACKED_IMAGE}" |
+        awk '/Filesystem UUID:/ { print $NF; exit }'
+    )"
+[[ -n "${REPACKED_UUID}" ]] || {
+    echo "rebuilt vendor_dlkm UUID could not be read" >&2
     exit 1
-fi
-echo "vendor_dlkm size: ${REPACKED_SIZE}/${VENDOR_DLKM_MAX_BYTES} bytes"
+}
+[[ "${REPACKED_UUID}" == "${STOCK_UUID}" ]] || {
+    echo "rebuilt vendor_dlkm UUID differs from stock: ${REPACKED_UUID} != ${STOCK_UUID}" >&2
+    exit 1
+}
+vendor_dlkm_selinux_xattrs_validate "${SELINUX_XATTR_DIR}"
+vendor_dlkm_capacity_validate "${STOCK_IMAGE}" "${REPACKED_IMAGE}"
 
 cp "${REPACKED_IMAGE}" "${REPO_ROOT}/vendor_dlkm.img"

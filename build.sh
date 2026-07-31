@@ -57,7 +57,7 @@ select_wlan_profile() {
         die "project config not found: ${project_config}"
 
     WLAN_PROFILE="kiwi_v2"
-    if grep -Fxq "CONFIG_SEC_Q5Q_PROJECT=y" "${project_config}"; then
+    if grep -Eq '^CONFIG_SEC_(DM1Q|DM2Q|Q5Q)_PROJECT=y$' "${project_config}"; then
         WLAN_PROFILE="qca6490"
     fi
 
@@ -69,6 +69,8 @@ select_wlan_profile() {
 usage() {
     cat <<EOF
 Usage:
+  ${SCRIPT_NAME} dm1q full
+  ${SCRIPT_NAME} dm2q full
   ${SCRIPT_NAME} dm3q full
   ${SCRIPT_NAME} q5q full
   ${SCRIPT_NAME} -h
@@ -76,10 +78,14 @@ Usage:
   ${SCRIPT_NAME} help
 
 Devices:
+  dm1q  Samsung Galaxy S23 (SM-S911N)
+  dm2q  Samsung Galaxy S23+ (SM-S916N)
   dm3q  Samsung Galaxy S23 Ultra (SM-S918N)
   q5q   Samsung Galaxy Z Fold5 (SM-F946N)
 
 Examples:
+  ${SCRIPT_NAME} dm1q full
+  ${SCRIPT_NAME} dm2q full
   ${SCRIPT_NAME} dm3q full
   ${SCRIPT_NAME} q5q full
 
@@ -107,6 +113,20 @@ select_device_profile() {
     local run_key="${BUILD_RUN_KEY:-run-${BASHPID}}"
 
     case "${device}" in
+        dm1q)
+            BUILD_TARGET="dm1q_kor_singlex"
+            MODEL="dm1q"
+            DEVICE_DISPLAY_NAME="Galaxy S23"
+            STOCK_KERNEL_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S911NKSS8FZF1_KOO_OKR/S911NKSS8FZF1_kernel.tar"
+            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S911NKSS8FZF1_KOO_OKR/S911NKSS8FZF1_vendor_dlkm.zip"
+            ;;
+        dm2q)
+            BUILD_TARGET="dm2q_kor_singlex"
+            MODEL="dm2q"
+            DEVICE_DISPLAY_NAME="Galaxy S23+"
+            STOCK_KERNEL_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S916NKSS8FZF1_KOO_OKR/S916NKSS8FZF1_kernel.tar"
+            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S916NKSS8FZF1_KOO_OKR/S916NKSS8FZF1_vendor_dlkm.zip"
+            ;;
         dm3q)
             BUILD_TARGET="dm3q_kor_singlex"
             MODEL="dm3q"
@@ -553,6 +573,9 @@ prepare_target_workspace() {
     ln -s \
         "${SOURCE_DIR}/prebuilts/vendor_dlkm_file_contexts" \
         "${PACKAGING_PREBUILTS_DIR}/vendor_dlkm_file_contexts"
+    ln -s \
+        "${SOURCE_DIR}/prebuilts/vendor_dlkm_capacity.sh" \
+        "${PACKAGING_PREBUILTS_DIR}/vendor_dlkm_capacity.sh"
 }
 
 prepare_packaging_tools() {
