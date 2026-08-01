@@ -17,7 +17,6 @@ jobs:
     timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: 2
       matrix:
         device:
           - dm1q
