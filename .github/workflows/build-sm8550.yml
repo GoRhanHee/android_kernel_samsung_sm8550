@@ -188,3 +188,12 @@ jobs:
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7
+
+      - name: Upload flashable kernel artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.device }}-flashable-${{ github.sha }}
+          path: out/upload/${{ matrix.device }}/${{ matrix.device }}-kernel-recovery-flashable.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
