@@ -1519,6 +1519,8 @@ int ss_wrapper_read_from_file(struct samsung_display_driver_data *vdd)
 {
 	int ret = 0;
 	const struct firmware *f_image = NULL;
+	struct dsi_panel *panel;
+	struct device *panel_dev;
 	char firmware_path[MAX_FIRMWARE_PATH_LEN];
 
 	if (vdd->file_loading) {
@@ -1530,7 +1532,15 @@ int ss_wrapper_read_from_file(struct samsung_display_driver_data *vdd)
 
 	LCD_INFO(vdd, "Loading Panel Data File name : [%s]\n", firmware_path);
 
-	ret = request_firmware(&f_image, firmware_path, &vdd->lcd_dev->dev);
+	panel = GET_DSI_PANEL(vdd);
+	panel_dev = panel ? panel->parent : NULL;
+	if (!panel_dev) {
+		LCD_ERR(vdd, "Skip panel data firmware Loading: panel device is unavailable\n");
+		ret = -ENODEV;
+		goto err;
+	}
+
+	ret = request_firmware(&f_image, firmware_path, panel_dev);
 	if (ret < 0) {
 		LCD_INFO(vdd, "Skip panel data firmware Loading\n");
 		goto err;
