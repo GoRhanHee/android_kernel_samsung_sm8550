@@ -21,7 +21,7 @@ CARRIER=""
 CHIPSET_NAME=""
 TARGET_PRODUCT=""
 TARGET_BOARD_PLATFORM=""
-STOCK_KERNEL_URL=""
+STOCK_VENDOR_BOOT_URL=""
 STOCK_VENDOR_DLKM_URL=""
 SEC_PROJECT_CONFIG=""
 WLAN_PROFILE=""
@@ -117,29 +117,29 @@ select_device_profile() {
             BUILD_TARGET="dm1q_kor_singlex"
             MODEL="dm1q"
             DEVICE_DISPLAY_NAME="Galaxy S23"
-            STOCK_KERNEL_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S911NKSS8FZF1_KOO_OKR/S911NKSS8FZF1_kernel.tar"
-            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S911NKSS8FZF1_KOO_OKR/S911NKSS8FZF1_vendor_dlkm.zip"
+            STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S911NKSS8FZG1_KOO_OKR/vendor_boot.img"
+            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S911NKSS8FZG1_KOO_OKR/vendor_dlkm.img"
             ;;
         dm2q)
             BUILD_TARGET="dm2q_kor_singlex"
             MODEL="dm2q"
             DEVICE_DISPLAY_NAME="Galaxy S23+"
-            STOCK_KERNEL_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S916NKSS8FZF1_KOO_OKR/S916NKSS8FZF1_kernel.tar"
-            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S916NKSS8FZF1_KOO_OKR/S916NKSS8FZF1_vendor_dlkm.zip"
+            STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S916NKSS8FZG1_KOO_OKR/vendor_boot.img"
+            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S916NKSS8FZG1_KOO_OKR/vendor_dlkm.img"
             ;;
         dm3q)
             BUILD_TARGET="dm3q_kor_singlex"
             MODEL="dm3q"
             DEVICE_DISPLAY_NAME="Galaxy S23 Ultra"
-            STOCK_KERNEL_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZF1_KOO_OKR/S918NKSS8FZF1_kernel.tar"
-            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZF1_KOO_OKR/S918NKSS8FZF1_vendor_dlkm.zip"
+            STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZG1_KOO_OKR/vendor_boot.img"
+            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZG1_KOO_OKR/vendor_dlkm.img"
             ;;
         q5q)
             BUILD_TARGET="q5q_kor_singlex"
             MODEL="q5q"
             DEVICE_DISPLAY_NAME="Galaxy Z Fold5"
-            STOCK_KERNEL_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZF2_KOO_OKR/F946NKSS6GZF2_kernel.tar"
-            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZF2_KOO_OKR/F946NKSS6GZF2_vendor_dlkm.zip"
+            STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZG3_KOO_OKR/vendor_boot.img"
+            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZG3_KOO_OKR/vendor_dlkm.img"
             ;;
         *)
             return 2
@@ -173,7 +173,7 @@ select_device_profile() {
 
     export BUILD_TARGET MODEL DEVICE_DISPLAY_NAME PROJECT_NAME REGION CARRIER
     export CHIPSET_NAME TARGET_PRODUCT TARGET_BOARD_PLATFORM
-    export STOCK_KERNEL_URL STOCK_VENDOR_DLKM_URL SEC_PROJECT_CONFIG
+    export STOCK_VENDOR_BOOT_URL STOCK_VENDOR_DLKM_URL SEC_PROJECT_CONFIG
     export WLAN_PROFILE WLAN_EXT_MODULE WLAN_BUILT_MODULE WLAN_PACKAGED_MODULE
     export ANDROID_BUILD_TOP ANDROID_PRODUCT_OUT ANDROID_KERNEL_OUT
     export OUT_DIR DIST_DIR TMPDIR
@@ -190,7 +190,7 @@ print_device_profile() {
         "TARGET_BOARD_PLATFORM=${TARGET_BOARD_PLATFORM}" \
         "REGION=${REGION}" \
         "CARRIER=${CARRIER}" \
-        "STOCK_KERNEL_URL=${STOCK_KERNEL_URL}" \
+        "STOCK_VENDOR_BOOT_URL=${STOCK_VENDOR_BOOT_URL}" \
         "STOCK_VENDOR_DLKM_URL=${STOCK_VENDOR_DLKM_URL}" \
         "SEC_PROJECT_CONFIG=${SEC_PROJECT_CONFIG}" \
         "WLAN_PROFILE=${WLAN_PROFILE}" \
@@ -585,9 +585,6 @@ prepare_packaging_tools() {
 
     require_packaging_command git
     require_packaging_command wget
-    require_packaging_command tar
-    require_packaging_command lz4
-    require_packaging_command unzip
     require_packaging_command zip
 
     git clone --depth=1 \
@@ -624,24 +621,13 @@ write_module_metadata() {
 }
 
 unpack_vendor_boot() {
-    local vboot_tar="${DOWNLOAD_DIR}/stock-kernel.tar"
-    local extract_dir="${UNPACK_DIR}/vendor-boot"
     local editor_dir="${PACKAGING_PREBUILTS_DIR}/vendor_boot_unpack"
     local stock_image="${PACKAGING_WORK_DIR}/vendor_boot.stock.img"
-    local vendor_boot_lz4
     local modules_dir
 
     wget -q --show-progress \
-        -O "${vboot_tar}" "${STOCK_KERNEL_URL}"
-    mkdir -p "${extract_dir}"
-    tar -xf "${vboot_tar}" -C "${extract_dir}"
-
-    vendor_boot_lz4="$({ find "${extract_dir}" -type f -name 'vendor_boot.img.lz4' -print -quit; })"
-    [[ -n "${vendor_boot_lz4}" ]] || die "vendor_boot.img.lz4 not found"
-
-    lz4 -d -f \
-        "${vendor_boot_lz4}" \
-        "${stock_image}"
+        -O "${stock_image}" "${STOCK_VENDOR_BOOT_URL}"
+    [[ -s "${stock_image}" ]] || die "vendor_boot.img download is empty"
 
     (
         cd "${editor_dir}"
@@ -656,25 +642,19 @@ unpack_vendor_boot() {
 }
 
 unpack_vendor_dlkm() {
-    local vdlkm_zip="${DOWNLOAD_DIR}/stock-vendor-dlkm.zip"
-    local extract_dir="${UNPACK_DIR}/vendor-dlkm"
     local image_tools_dir="${PACKAGING_PREBUILTS_DIR}/vendor_dlkm_unpack"
-    local vdlkm_img
+    local stock_image="${PACKAGING_WORK_DIR}/vendor_dlkm.stock.img"
     local modules_dir
     local output_dir="${image_tools_dir}/EXTRACTED_IMAGES/extracted_vendor_dlkm"
     local rootless_marker="${image_tools_dir}/.rootless-erofs-extract"
     local config_file="${image_tools_dir}/CONFIGS/vendor_dlkm_unpack.conf"
 
     wget -q --show-progress \
-        -O "${vdlkm_zip}" "${STOCK_VENDOR_DLKM_URL}"
-    mkdir -p "${extract_dir}"
-    unzip -q -o "${vdlkm_zip}" -d "${extract_dir}"
-
-    vdlkm_img="$({ find "${extract_dir}" -type f -name 'vendor_dlkm.img' -print -quit; })"
-    [[ -n "${vdlkm_img}" ]] || die "vendor_dlkm.img not found in vendor_dlkm archive"
+        -O "${stock_image}" "${STOCK_VENDOR_DLKM_URL}"
+    [[ -s "${stock_image}" ]] || die "vendor_dlkm.img download is empty"
 
     mkdir -p "${image_tools_dir}/INPUT_IMAGES" "${image_tools_dir}/CONFIGS"
-    cp "${vdlkm_img}" \
+    cp "${stock_image}" \
         "${image_tools_dir}/INPUT_IMAGES/vendor_dlkm.img"
     printf '%s\n' \
         'ACTION=unpack' \
