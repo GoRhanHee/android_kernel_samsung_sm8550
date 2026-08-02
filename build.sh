@@ -708,13 +708,21 @@ build_vendor_dlkm() {
 collect_packaged_images() {
     local boot_image="${DIST_DIR}/boot.img"
     local vendor_boot_image="${PACKAGING_WORK_DIR}/vendor_boot.img"
+    local stock_vendor_dlkm_image="${PACKAGING_WORK_DIR}/vendor_dlkm.stock.img"
     local vendor_dlkm_image="${PACKAGING_WORK_DIR}/vendor_dlkm.img"
 
     [[ -f "${boot_image}" ]] || die "built boot.img not found: ${boot_image}"
     [[ -f "${vendor_boot_image}" ]] ||
         die "rebuilt vendor_boot.img not found: ${vendor_boot_image}"
+    [[ -f "${stock_vendor_dlkm_image}" ]] ||
+        die "stock vendor_dlkm.img not found: ${stock_vendor_dlkm_image}"
     [[ -f "${vendor_dlkm_image}" ]] ||
         die "rebuilt vendor_dlkm.img not found: ${vendor_dlkm_image}"
+
+    echo "[packaging] Validating vendor_dlkm capacity against stock image"
+    "${SOURCE_DIR}/prebuilts/vendor_dlkm_capacity.sh" \
+        "${stock_vendor_dlkm_image}" \
+        "${vendor_dlkm_image}" || return 1
 
     mkdir -p "${PACKAGE_DIR}"
     cp "${boot_image}" "${PACKAGE_DIR}/boot.img"
