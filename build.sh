@@ -23,6 +23,7 @@ TARGET_PRODUCT=""
 TARGET_BOARD_PLATFORM=""
 STOCK_VENDOR_BOOT_URL=""
 STOCK_VENDOR_DLKM_URL=""
+STOCK_SYSTEM_DLKM_URL=""
 SEC_PROJECT_CONFIG=""
 WLAN_PROFILE=""
 WLAN_EXT_MODULE=""
@@ -42,7 +43,9 @@ PACKAGING_PREBUILTS_DIR=""
 DOWNLOAD_DIR=""
 UNPACK_DIR=""
 FLASHABLE_ZIP=""
+CUSTOM_SYSTEM_DLKM_IMAGE=""
 TMPDIR=""
+DLKM_EXTRACTED_ROOT=""
 COMMON_HEAD_BEFORE=""
 COMMON_STATUS_BEFORE=""
 KSU_SETUP_SCRIPT=""
@@ -119,6 +122,7 @@ select_device_profile() {
             DEVICE_DISPLAY_NAME="Galaxy S23"
             STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S911NKSS8FZG1_KOO_OKR/vendor_boot.img"
             STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S911NKSS8FZG1_KOO_OKR/vendor_dlkm.img"
+            STOCK_SYSTEM_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S911NKSS8FZG1_KOO_OKR/system_dlkm.img"
             ;;
         dm2q)
             BUILD_TARGET="dm2q_kor_singlex"
@@ -126,6 +130,7 @@ select_device_profile() {
             DEVICE_DISPLAY_NAME="Galaxy S23+"
             STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S916NKSS8FZG1_KOO_OKR/vendor_boot.img"
             STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S916NKSS8FZG1_KOO_OKR/vendor_dlkm.img"
+            STOCK_SYSTEM_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S916NKSS8FZG1_KOO_OKR/system_dlkm.img"
             ;;
         dm3q)
             BUILD_TARGET="dm3q_kor_singlex"
@@ -133,6 +138,7 @@ select_device_profile() {
             DEVICE_DISPLAY_NAME="Galaxy S23 Ultra"
             STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZG1_KOO_OKR/vendor_boot.img"
             STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZG1_KOO_OKR/vendor_dlkm.img"
+            STOCK_SYSTEM_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZG1_KOO_OKR/system_dlkm.img"
             ;;
         q5q)
             BUILD_TARGET="q5q_kor_singlex"
@@ -140,6 +146,7 @@ select_device_profile() {
             DEVICE_DISPLAY_NAME="Galaxy Z Fold5"
             STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZG3_KOO_OKR/vendor_boot.img"
             STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZG3_KOO_OKR/vendor_dlkm.img"
+            STOCK_SYSTEM_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZG3_KOO_OKR/system_dlkm.img"
             ;;
         *)
             return 2
@@ -169,14 +176,16 @@ select_device_profile() {
     DOWNLOAD_DIR="${TARGET_DOWNLOAD_DIR}/${run_key}"
     UNPACK_DIR="${TARGET_UNPACK_DIR}/${run_key}"
     FLASHABLE_ZIP="${PACKAGE_DIR}/${MODEL}-kernel-recovery-flashable.zip"
+    CUSTOM_SYSTEM_DLKM_IMAGE="${PACKAGING_WORK_DIR}/system_dlkm.img"
     TMPDIR="${PACKAGING_WORK_DIR}/process-tmp"
 
     export BUILD_TARGET MODEL DEVICE_DISPLAY_NAME PROJECT_NAME REGION CARRIER
     export CHIPSET_NAME TARGET_PRODUCT TARGET_BOARD_PLATFORM
-    export STOCK_VENDOR_BOOT_URL STOCK_VENDOR_DLKM_URL SEC_PROJECT_CONFIG
+    export STOCK_VENDOR_BOOT_URL STOCK_VENDOR_DLKM_URL STOCK_SYSTEM_DLKM_URL
+    export SEC_PROJECT_CONFIG
     export WLAN_PROFILE WLAN_EXT_MODULE WLAN_BUILT_MODULE WLAN_PACKAGED_MODULE
     export ANDROID_BUILD_TOP ANDROID_PRODUCT_OUT ANDROID_KERNEL_OUT
-    export OUT_DIR DIST_DIR TMPDIR
+    export OUT_DIR DIST_DIR CUSTOM_SYSTEM_DLKM_IMAGE TMPDIR
 }
 
 print_device_profile() {
@@ -192,6 +201,7 @@ print_device_profile() {
         "CARRIER=${CARRIER}" \
         "STOCK_VENDOR_BOOT_URL=${STOCK_VENDOR_BOOT_URL}" \
         "STOCK_VENDOR_DLKM_URL=${STOCK_VENDOR_DLKM_URL}" \
+        "STOCK_SYSTEM_DLKM_URL=${STOCK_SYSTEM_DLKM_URL}" \
         "SEC_PROJECT_CONFIG=${SEC_PROJECT_CONFIG}" \
         "WLAN_PROFILE=${WLAN_PROFILE}" \
         "WLAN_EXT_MODULE=${WLAN_EXT_MODULE}" \
@@ -205,6 +215,7 @@ print_device_profile() {
         "TMPDIR=${TMPDIR}" \
         "DOWNLOAD_DIR=${DOWNLOAD_DIR}" \
         "UNPACK_DIR=${UNPACK_DIR}" \
+        "CUSTOM_SYSTEM_DLKM_IMAGE=${CUSTOM_SYSTEM_DLKM_IMAGE}" \
         "FLASHABLE_ZIP=${FLASHABLE_ZIP}"
 }
 
@@ -576,33 +587,51 @@ prepare_target_workspace() {
     ln -s \
         "${SOURCE_DIR}/prebuilts/vendor_dlkm_capacity.sh" \
         "${PACKAGING_PREBUILTS_DIR}/vendor_dlkm_capacity.sh"
+    ln -s \
+        "${SOURCE_DIR}/prebuilts/dlkm_capacity.sh" \
+        "${PACKAGING_PREBUILTS_DIR}/dlkm_capacity.sh"
+    ln -s \
+        "${SOURCE_DIR}/prebuilts/build_dlkm.sh" \
+        "${PACKAGING_PREBUILTS_DIR}/build_dlkm.sh"
+    ln -s \
+        "${SOURCE_DIR}/prebuilts/system_dlkm_file_contexts" \
+        "${PACKAGING_PREBUILTS_DIR}/system_dlkm_file_contexts"
 }
 
 prepare_packaging_tools() {
     local prebuilts_dir="${PACKAGING_PREBUILTS_DIR}"
-    local image_tools_dir="${prebuilts_dir}/vendor_dlkm_unpack"
+    local image_tools_dir
     local image_tools_commit="46a3c6a2b4413bc4570836ae0e3ab2d9de0c15e2"
+    local lkm_tools_dir="${prebuilts_dir}/LKM_Tools"
+    local lkm_tools_commit="a27baca7ba68348608b397ea0a4a307f84ff5e0c"
 
     require_packaging_command git
     require_packaging_command wget
     require_packaging_command zip
 
-    git clone --depth=1 \
-        https://github.com/ravindu644/LKM_Tools.git \
-        "${prebuilts_dir}/LKM_Tools"
+    git init -q "${lkm_tools_dir}"
+    git -C "${lkm_tools_dir}" remote add origin \
+        https://github.com/ravindu644/LKM_Tools.git
+    git -C "${lkm_tools_dir}" fetch --depth=1 origin \
+        "${lkm_tools_commit}"
+    git -C "${lkm_tools_dir}" checkout -q --detach FETCH_HEAD
     git clone --depth=1 \
         https://github.com/cfig/Android_boot_image_editor.git \
         "${prebuilts_dir}/vendor_boot_unpack"
-    git init -q "${image_tools_dir}"
-    git -C "${image_tools_dir}" remote add origin \
-        https://github.com/ravindu644/Android_Image_Tools.git
-    git -C "${image_tools_dir}" fetch --depth=1 origin \
-        "${image_tools_commit}"
-    git -C "${image_tools_dir}" checkout -q --detach FETCH_HEAD
-    git -C "${image_tools_dir}" apply \
-        "${SOURCE_DIR}/prebuilts/patches/android-image-tools-wait-checksum.patch"
-    git -C "${image_tools_dir}" apply \
-        "${SOURCE_DIR}/prebuilts/patches/android-image-tools-rootless-fuse.patch"
+    for image_tools_dir in \
+        "${prebuilts_dir}/vendor_dlkm_unpack" \
+        "${prebuilts_dir}/system_dlkm_unpack"; do
+        git init -q "${image_tools_dir}"
+        git -C "${image_tools_dir}" remote add origin \
+            https://github.com/ravindu644/Android_Image_Tools.git
+        git -C "${image_tools_dir}" fetch --depth=1 origin \
+            "${image_tools_commit}"
+        git -C "${image_tools_dir}" checkout -q --detach FETCH_HEAD
+        git -C "${image_tools_dir}" apply \
+            "${SOURCE_DIR}/prebuilts/patches/android-image-tools-wait-checksum.patch"
+        git -C "${image_tools_dir}" apply \
+            "${SOURCE_DIR}/prebuilts/patches/android-image-tools-rootless-fuse.patch"
+    done
 }
 
 write_module_metadata() {
@@ -641,25 +670,34 @@ unpack_vendor_boot() {
         "${PACKAGING_PREBUILTS_DIR}/LKM_Tools/vendor_boot"
 }
 
-unpack_vendor_dlkm() {
-    local image_tools_dir="${PACKAGING_PREBUILTS_DIR}/vendor_dlkm_unpack"
-    local stock_image="${PACKAGING_WORK_DIR}/vendor_dlkm.stock.img"
-    local modules_dir
-    local output_dir="${image_tools_dir}/EXTRACTED_IMAGES/extracted_vendor_dlkm"
+extract_dlkm_image() {
+    local partition="$1"
+    local stock_url="$2"
+    local image_tools_dir="${PACKAGING_PREBUILTS_DIR}/${partition}_unpack"
+    local stock_image="${PACKAGING_WORK_DIR}/${partition}.stock.img"
+    local output_dir="${image_tools_dir}/EXTRACTED_IMAGES/extracted_${partition}"
     local rootless_marker="${image_tools_dir}/.rootless-erofs-extract"
-    local config_file="${image_tools_dir}/CONFIGS/vendor_dlkm_unpack.conf"
+    local config_file="${image_tools_dir}/CONFIGS/${partition}_unpack.conf"
+
+    case "${partition}" in
+        vendor_dlkm|system_dlkm)
+            ;;
+        *)
+            die "unsupported DLKM extraction partition: ${partition}"
+            ;;
+    esac
 
     wget -q --show-progress \
-        -O "${stock_image}" "${STOCK_VENDOR_DLKM_URL}"
-    [[ -s "${stock_image}" ]] || die "vendor_dlkm.img download is empty"
+        -O "${stock_image}" "${stock_url}"
+    [[ -s "${stock_image}" ]] || die "${partition}.img download is empty"
 
     mkdir -p "${image_tools_dir}/INPUT_IMAGES" "${image_tools_dir}/CONFIGS"
     cp "${stock_image}" \
-        "${image_tools_dir}/INPUT_IMAGES/vendor_dlkm.img"
+        "${image_tools_dir}/INPUT_IMAGES/${partition}.img"
     printf '%s\n' \
         'ACTION=unpack' \
-        'INPUT_IMAGE=vendor_dlkm.img' \
-        'EXTRACT_DIR=extracted_vendor_dlkm' \
+        "INPUT_IMAGE=${partition}.img" \
+        "EXTRACT_DIR=extracted_${partition}" \
         > "${config_file}"
 
     if (( EUID == 0 )) || sudo -n true 2>/dev/null || \
@@ -674,21 +712,60 @@ unpack_vendor_dlkm() {
         fi
     else
         require_packaging_command fsck.erofs
-        echo "[packaging] Extracting vendor_dlkm with fsck.erofs"
+        echo "[packaging] Extracting ${partition} with fsck.erofs"
         mkdir -p "${output_dir}" "${image_tools_dir}/REPACKED_IMAGES"
         fsck.erofs \
             --extract="${output_dir}" \
             --xattrs \
             --no-preserve-owner \
             --no-preserve-perms \
-            "${image_tools_dir}/INPUT_IMAGES/vendor_dlkm.img"
+            "${image_tools_dir}/INPUT_IMAGES/${partition}.img"
         touch "${rootless_marker}"
     fi
 
-    modules_dir="${output_dir}/lib/modules"
+    DLKM_EXTRACTED_ROOT="${output_dir}"
+}
+
+unpack_vendor_dlkm() {
+    extract_dlkm_image vendor_dlkm "${STOCK_VENDOR_DLKM_URL}"
+    write_module_metadata \
+        "${DLKM_EXTRACTED_ROOT}/lib/modules" \
+        "${PACKAGING_PREBUILTS_DIR}/LKM_Tools/vendor_dlkm"
+}
+
+find_system_module_root() {
+    local modules_base="$1"
+    local -a module_roots=()
+    local module_root_name
+
+    if [[ -d "${modules_base}" ]]; then
+        mapfile -d '' module_roots < <(
+            find "${modules_base}" -mindepth 1 -maxdepth 1 -type d -print0
+        )
+    fi
+    (( ${#module_roots[@]} == 1 )) ||
+        die "expected exactly one versioned system_dlkm module directory, found ${#module_roots[@]}"
+
+    module_root_name="$(basename "${module_roots[0]}")"
+    [[ "${module_root_name}" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?[-._+[:alnum:]]*$ ]] ||
+        die "invalid system_dlkm module directory: ${module_root_name}"
+    printf '%s\n' "${module_roots[0]}"
+}
+
+unpack_system_dlkm() {
+    local modules_dir
+    local blocklist_source="${DIST_DIR}/system_dlkm.modules.blocklist"
+    local blocklist_destination="${PACKAGING_PREBUILTS_DIR}/LKM_Tools/system_dlkm/modules.blocklist"
+
+    extract_dlkm_image system_dlkm "${STOCK_SYSTEM_DLKM_URL}"
+    modules_dir="$(find_system_module_root "${DLKM_EXTRACTED_ROOT}/lib/modules")"
     write_module_metadata \
         "${modules_dir}" \
-        "${PACKAGING_PREBUILTS_DIR}/LKM_Tools/vendor_dlkm"
+        "${PACKAGING_PREBUILTS_DIR}/LKM_Tools/system_dlkm"
+    rm -f -- "${blocklist_destination}"
+    if [[ -s "${blocklist_source}" ]]; then
+        cp -- "${blocklist_source}" "${blocklist_destination}"
+    fi
 }
 
 build_vendor_boot() {
@@ -705,11 +782,50 @@ build_vendor_dlkm() {
         "${SCRIPT_DIR}/prebuilts/build_vendor_dlkm.sh"
 }
 
+build_system_dlkm() {
+    env SCRIPT_DIR="${PACKAGING_WORK_DIR}" \
+        DIST_DIR="${DIST_DIR}" \
+        OUT_DIR="${OUT_DIR}" \
+        "${SCRIPT_DIR}/prebuilts/build_system_dlkm.sh"
+}
+
+validate_collected_dlkm_capacity() {
+    local partition="$1"
+    local stock_image="$2"
+    local rebuilt_image="$3"
+    local helper="${SOURCE_DIR}/prebuilts/dlkm_capacity.sh"
+
+    [[ -f "${helper}" ]] || die "DLKM capacity helper not found: ${helper}"
+    (
+        # shellcheck source=/dev/null
+        source "${helper}"
+        dlkm_capacity_validate \
+            "${partition}" "${stock_image}" "${rebuilt_image}"
+    )
+}
+
+create_flashable_zip() {
+    "${SOURCE_DIR}/prebuilts/make_flashable_zip.sh" \
+        "${FLASHABLE_ZIP}" \
+        "${PACKAGE_DIR}" \
+        "${DEVICE_DISPLAY_NAME}"
+}
+
 collect_packaged_images() {
     local boot_image="${DIST_DIR}/boot.img"
     local vendor_boot_image="${PACKAGING_WORK_DIR}/vendor_boot.img"
     local stock_vendor_dlkm_image="${PACKAGING_WORK_DIR}/vendor_dlkm.stock.img"
     local vendor_dlkm_image="${PACKAGING_WORK_DIR}/vendor_dlkm.img"
+    local stock_system_dlkm_image="${PACKAGING_WORK_DIR}/system_dlkm.stock.img"
+    local system_dlkm_image="${CUSTOM_SYSTEM_DLKM_IMAGE}"
+
+    mkdir -p "${PACKAGE_DIR}"
+    rm -f -- \
+        "${PACKAGE_DIR}/boot.img" \
+        "${PACKAGE_DIR}/vendor_boot.img" \
+        "${PACKAGE_DIR}/vendor_dlkm.img" \
+        "${PACKAGE_DIR}/system_dlkm.img" \
+        "${FLASHABLE_ZIP}"
 
     [[ -f "${boot_image}" ]] || die "built boot.img not found: ${boot_image}"
     [[ -f "${vendor_boot_image}" ]] ||
@@ -718,23 +834,31 @@ collect_packaged_images() {
         die "stock vendor_dlkm.img not found: ${stock_vendor_dlkm_image}"
     [[ -f "${vendor_dlkm_image}" ]] ||
         die "rebuilt vendor_dlkm.img not found: ${vendor_dlkm_image}"
+    [[ -f "${stock_system_dlkm_image}" ]] ||
+        die "stock system_dlkm.img not found: ${stock_system_dlkm_image}"
+    [[ -s "${system_dlkm_image}" ]] ||
+        die "rebuilt system_dlkm.img not found or empty: ${system_dlkm_image}"
+    [[ "${system_dlkm_image}" != "${DIST_DIR}/system_dlkm.img" ]] ||
+        die "custom system_dlkm.img must not use the kernel DIST_DIR path"
 
     echo "[packaging] Validating vendor_dlkm capacity against stock image"
-    "${SOURCE_DIR}/prebuilts/vendor_dlkm_capacity.sh" \
+    validate_collected_dlkm_capacity vendor_dlkm \
         "${stock_vendor_dlkm_image}" \
         "${vendor_dlkm_image}" || return 1
+    echo "[packaging] Validating system_dlkm capacity against stock image"
+    validate_collected_dlkm_capacity system_dlkm \
+        "${stock_system_dlkm_image}" \
+        "${system_dlkm_image}" || return 1
 
-    mkdir -p "${PACKAGE_DIR}"
     cp "${boot_image}" "${PACKAGE_DIR}/boot.img"
     cp "${vendor_boot_image}" "${PACKAGE_DIR}/vendor_boot.img"
     cp "${vendor_dlkm_image}" "${PACKAGE_DIR}/vendor_dlkm.img"
+    cp "${system_dlkm_image}" "${PACKAGE_DIR}/system_dlkm.img"
     cp "${vendor_boot_image}" "${DIST_DIR}/vendor_boot.img"
     cp "${vendor_dlkm_image}" "${DIST_DIR}/vendor_dlkm.img"
+    cp "${system_dlkm_image}" "${DIST_DIR}/system_dlkm.img"
 
-    "${SOURCE_DIR}/prebuilts/make_flashable_zip.sh" \
-        "${FLASHABLE_ZIP}" \
-        "${PACKAGE_DIR}" \
-        "${DEVICE_DISPLAY_NAME}"
+    create_flashable_zip
 }
 
 main() {
@@ -770,8 +894,10 @@ main() {
     prepare_packaging_tools
     unpack_vendor_boot
     unpack_vendor_dlkm
+    unpack_system_dlkm
     build_vendor_boot
     build_vendor_dlkm
+    build_system_dlkm
     collect_packaged_images
 }
 

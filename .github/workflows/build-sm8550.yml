@@ -161,12 +161,14 @@ jobs:
             [boot.img]="${dist}/boot.img"
             [vendor_boot.img]="${packaged}/vendor_boot.img"
             [vendor_dlkm.img]="${packaged}/vendor_dlkm.img"
+            [system_dlkm.img]="${packaged}/system_dlkm.img"
             ["${flashable_zip}"]="${packaged}/${flashable_zip}"
           )
           for artifact in \
             boot.img \
             vendor_boot.img \
             vendor_dlkm.img \
+            system_dlkm.img \
             "${flashable_zip}"
           do
             source="${required_artifacts[${artifact}]}"

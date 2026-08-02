@@ -1,10 +1,24 @@
 ui_print(" ");
 ui_print("Installing GoRhanHee Kernel (@@DEVICE_DISPLAY_NAME@@)...");
+ui_print("WARNING: Fail-fast flashing has no rollback after a prior partition write.");
 ui_print(" ");
 
 assert(package_extract_file(
     "META-INF/com/google/android/sm8550-flash-image.sh",
     "/tmp/sm8550-flash-image.sh"
+));
+
+ui_print("Preparing writable system_dlkm mapping...");
+run_program("/sbin/sh", "-c", "umount /system_dlkm >/dev/null 2>&1 || true");
+assert(unmap_partition("system_dlkm"));
+assert(map_partition("system_dlkm"));
+
+ui_print("Flashing system_dlkm...");
+assert(ifelse(
+    package_extract_file("files/system_dlkm.img", "/tmp/system_dlkm.img") &&
+        run_program("/sbin/sh", "/tmp/sm8550-flash-image.sh", "system_dlkm", "/tmp/system_dlkm.img") == "0",
+    unmap_partition("system_dlkm"),
+    unmap_partition("system_dlkm") && abort("system_dlkm flash failed")
 ));
 
 ui_print("Preparing writable vendor_dlkm mapping...");
@@ -13,9 +27,12 @@ assert(unmap_partition("vendor_dlkm"));
 assert(map_partition("vendor_dlkm"));
 
 ui_print("Flashing vendor_dlkm...");
-assert(package_extract_file("files/vendor_dlkm.img", "/tmp/vendor_dlkm.img"));
-assert(run_program("/sbin/sh", "/tmp/sm8550-flash-image.sh", "vendor_dlkm", "/tmp/vendor_dlkm.img") == "0");
-unmap_partition("vendor_dlkm");
+assert(ifelse(
+    package_extract_file("files/vendor_dlkm.img", "/tmp/vendor_dlkm.img") &&
+        run_program("/sbin/sh", "/tmp/sm8550-flash-image.sh", "vendor_dlkm", "/tmp/vendor_dlkm.img") == "0",
+    unmap_partition("vendor_dlkm"),
+    unmap_partition("vendor_dlkm") && abort("vendor_dlkm flash failed")
+));
 
 ui_print("Flashing vendor_boot...");
 assert(package_extract_file("files/vendor_boot.img", "/tmp/vendor_boot.img"));

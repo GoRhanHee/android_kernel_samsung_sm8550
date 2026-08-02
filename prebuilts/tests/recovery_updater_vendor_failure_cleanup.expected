@@ -1,0 +1,13 @@
+prepare-unmap:system_dlkm
+map:system_dlkm
+extract:system_dlkm
+flash:system_dlkm
+cleanup-unmap:system_dlkm
+prepare-unmap:vendor_dlkm
+map:vendor_dlkm
+extract:vendor_dlkm
+flash:vendor_dlkm
+cleanup-unmap:vendor_dlkm
+abort:vendor_dlkm
+state:system_dlkm=unmapped
+state:vendor_dlkm=unmapped
