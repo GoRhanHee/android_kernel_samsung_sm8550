@@ -108,6 +108,7 @@ expected_entries="$(printf '%s\n' \
     'META-INF/com/google/android/sm8550-flash-image.sh' \
     'META-INF/com/google/android/update-binary' \
     'META-INF/com/google/android/updater-script' \
+    'dynamic_partitions_op_list' \
     'files/' \
     'files/boot.img' \
     'files/system_dlkm.img' \
@@ -126,6 +127,13 @@ for image in boot.img vendor_boot.img vendor_dlkm.img system_dlkm.img; do
 done
 
 updater_script="$(unzip -p "${zip_path}" META-INF/com/google/android/updater-script)"
+resize_operations="$(unzip -p "${zip_path}" dynamic_partitions_op_list)"
+[[ "${resize_operations}" == $'resize system_dlkm 4096\nresize vendor_dlkm 4096' ]] || {
+    printf '%s\n' 'actual resize operations:' "${resize_operations}" >&2
+    die 'dynamic partition resize operation list does not match image sizes'
+}
+assert_contains "${updater_script}" 'update_dynamic_partitions' \
+    'updater-script dynamic partition resize'
 assert_contains "${updater_script}" 'files/system_dlkm.img' \
     'updater-script system image extraction'
 assert_contains "${updater_script}" 'system_dlkm' \
@@ -147,4 +155,4 @@ cp -a "${fixture_dir}" "${three_image_dir}"
 find "${three_image_dir}" -maxdepth 1 -type f -name 'system_dlkm.img' -delete
 assert_rejected 'three-image-input' "${three_image_dir}"
 
-printf '%s\n' 'PASS: four-image ZIP contract, exact entries, byte copies, updater references, and rejection cases'
+printf '%s\n' 'PASS: four-image ZIP contract, resize metadata, exact entries, byte copies, updater references, and rejection cases'

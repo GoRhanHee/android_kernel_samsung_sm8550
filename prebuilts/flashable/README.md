@@ -46,10 +46,11 @@ The full-build commands call the same packager automatically. Each writes
 `${device}-kernel-recovery-flashable.zip` next to that device's packaged
 images under `out/${device}/msm-kalama-kalama-gki/packaged/`.
 
-The ZIP contains only those four image files under `files/`, plus the required
-`META-INF` installer files. It does not include `dtbo.img`, module lists,
-staging archives, checksums, or other side metadata, even when those files are
-present beside the packaged images.
+The ZIP contains those four image files under `files/`, the
+`dynamic_partitions_op_list` resize metadata, and the required `META-INF`
+installer files. It does not include `dtbo.img`, module lists, staging
+archives, checksums, or other side metadata, even when those files are present
+beside the packaged images.
 
 Both `vendor_dlkm.img` and `system_dlkm.img` are matched to the selected
 device's downloaded stock image's exact stat size, not a shared hardcoded
@@ -85,12 +86,15 @@ target-specific `dist` directory for separate collection; they are not added
 to the recovery ZIP.
 
 The installer uses the same ARM64 Edify `update-binary` layout as the q5q
-package. On Samsung non-A/B devices it resolves the existing block devices for
-`system_dlkm`, `vendor_dlkm`, `vendor_boot`, and `boot`, rejects non-block
-targets, writes each image with `dd`, and verifies the exact written range with
-SHA-256. The flash order is `system_dlkm`, `vendor_dlkm`, `vendor_boot`, then
-`boot`; `boot` is written last. Flashing is sequential and has no rollback:
-if a later write fails, earlier successful writes remain in place.
+package. Before any image write, it applies a generated dynamic-partition
+operation list that resizes `system_dlkm` and `vendor_dlkm` to their packaged
+image sizes, just like fastbootd. Recovery must have enough free space in the
+dynamic partition group for the resize. It then resolves the block devices,
+rejects non-block targets, writes each image with `dd`, and verifies the exact
+written range with SHA-256. The flash order is `system_dlkm`, `vendor_dlkm`,
+`vendor_boot`, then `boot`; `boot` is written last. Flashing is sequential and
+has no rollback: if a later write fails, earlier successful writes remain in
+place.
 
 Before flashing, keep a matching stock/custom set of `boot`, `vendor_boot`,
 `vendor_dlkm`, and `system_dlkm` images available. Flashing a mismatched or

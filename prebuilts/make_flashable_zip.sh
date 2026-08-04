@@ -34,6 +34,23 @@ require_command() {
         die "required command not found: $1"
 }
 
+append_resize_operation() {
+    local partition="$1"
+    local image="$2"
+    local operation_list="$3"
+    local size
+
+    if ! size="$(stat -c '%s' -- "${image}")"; then
+        die "could not determine ${partition} image size: ${image}"
+    fi
+    [[ "${size}" =~ ^[1-9][0-9]*$ ]] ||
+        die "invalid ${partition} image size: ${size}"
+    (( size % 4096 == 0 )) ||
+        die "${partition} image size is not 4096-byte aligned: ${size}"
+
+    printf 'resize %s %s\n' "${partition}" "${size}" >> "${operation_list}"
+}
+
 cleanup() {
     local exit_status=$?
 
@@ -62,6 +79,7 @@ main() {
     local archive
     local image
     local updater_script
+    local dynamic_partitions_op_list
 
     if [[ "${output_zip}" != /* ]]; then
         output_zip="${PWD}/${output_zip}"
@@ -73,6 +91,7 @@ main() {
     trap cleanup EXIT
 
     require_command zip
+    require_command stat
 
     [[ -d "${TEMPLATE_DIR}/META-INF" ]] ||
         die "flashable template not found: ${TEMPLATE_DIR}"
@@ -89,6 +108,8 @@ main() {
 
     mkdir -p "${stage_dir}/files"
     cp -a "${TEMPLATE_DIR}/META-INF" "${stage_dir}/"
+    dynamic_partitions_op_list="${stage_dir}/dynamic_partitions_op_list"
+    : > "${dynamic_partitions_op_list}"
     updater_script="${stage_dir}/META-INF/com/google/android/updater-script"
     grep -Fq '@@DEVICE_DISPLAY_NAME@@' "${updater_script}" ||
         die "device display name placeholder not found in updater-script"
@@ -105,9 +126,17 @@ main() {
         chmod 0644 "${stage_dir}/files/${image}"
     done
 
+    append_resize_operation system_dlkm \
+        "${stage_dir}/files/system_dlkm.img" \
+        "${dynamic_partitions_op_list}"
+    append_resize_operation vendor_dlkm \
+        "${stage_dir}/files/vendor_dlkm.img" \
+        "${dynamic_partitions_op_list}"
+    chmod 0644 "${dynamic_partitions_op_list}"
+
     (
         cd "${stage_dir}"
-        zip -0 -q -r "${output_name}" META-INF files
+        zip -0 -q -r "${output_name}" META-INF files dynamic_partitions_op_list
     )
 
     archive="${stage_dir}/${output_name}"

@@ -6,6 +6,7 @@ SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 REPO_ROOT="$(CDPATH= cd -- "${SCRIPT_DIR}/../.." && pwd)"
 FLASHER="${REPO_ROOT}/prebuilts/flashable/META-INF/com/google/android/sm8550-flash-image.sh"
 UPDATER="${REPO_ROOT}/prebuilts/flashable/META-INF/com/google/android/updater-script"
+UPDATE_BINARY="${REPO_ROOT}/prebuilts/flashable/META-INF/com/google/android/update-binary"
 MOCK_TOOL="${SCRIPT_DIR}/recovery_mock_tool.sh"
 MODE="${1-all}"
 
@@ -162,6 +163,7 @@ simulate_updater() {
     while IFS= read -r line; do
         operation=''
         case "${line}" in
+            *update_dynamic_partitions*dynamic_partitions_op_list*) operation='resize-dlkm-metadata' ;;
             *'assert(unmap_partition("system_dlkm"));'*)
                 system_unmaps=$((system_unmaps + 1))
                 if [ "${system_unmaps}" -eq 1 ]; then
@@ -240,6 +242,7 @@ simulate_failed_flash_cleanup() {
     while IFS= read -r line; do
         operation=''
         case "${line}" in
+            *update_dynamic_partitions*dynamic_partitions_op_list*) operation='resize-dlkm-metadata' ;;
             *'assert(unmap_partition("system_dlkm"));'*)
                 operation='prepare-unmap:system_dlkm'
                 ;;
@@ -346,6 +349,7 @@ run_baseline_tests() {
 }
 
 updater_system_contract_is_valid() {
+    dynamic_resize="$(line_number 'assert(update_dynamic_partitions(' first)"
     system_prepare="$(line_number 'assert(unmap_partition("system_dlkm"));' first)"
     system_map="$(line_number 'assert(map_partition("system_dlkm"));' first)"
     system_extract="$(line_number 'package_extract_file("files/system_dlkm.img"' first)"
@@ -359,7 +363,9 @@ updater_system_contract_is_valid() {
     vendor_boot_flash="$(line_number '"vendor_boot", "/tmp/vendor_boot.img") == "0"' first)"
     boot_flash="$(line_number '"boot", "/tmp/boot.img") == "0"' first)"
 
-    [ -n "${system_prepare}" ] &&
+    [ -n "${dynamic_resize}" ] &&
+        [ -n "${system_prepare}" ] &&
+        [ "${dynamic_resize}" -lt "${system_prepare}" ] &&
         [ "${system_prepare}" -lt "${system_map}" ] &&
         [ "${system_map}" -lt "${system_extract}" ] &&
         [ "${system_extract}" -lt "${system_flash}" ] &&
@@ -374,6 +380,13 @@ updater_system_contract_is_valid() {
         updater_has_failure_cleanup system_dlkm &&
         updater_has_failure_cleanup vendor_dlkm &&
         grep -Fqi 'no rollback after' "${UPDATER}"
+}
+
+updater_has_dynamic_resize_support() {
+    command -v strings >/dev/null 2>&1 || return 1
+    strings "${UPDATE_BINARY}" | grep -Fq 'update_dynamic_partitions' ||
+        return 1
+    strings "${UPDATE_BINARY}" | grep -Fxq 'resize'
 }
 
 expect_status() {
@@ -396,9 +409,15 @@ helper_requires_real_target_capacity() {
 
 run_system_tests() {
     if updater_system_contract_is_valid; then
-        pass 'updater has asserted system/vendor map-extract-flash-unmap order with boot last'
+        pass 'updater resizes DLKM metadata before map-extract-flash-unmap order with boot last'
     else
-        fail 'updater has asserted system/vendor map-extract-flash-unmap order with boot last'
+        fail 'updater resizes DLKM metadata before map-extract-flash-unmap order with boot last'
+    fi
+
+    if updater_has_dynamic_resize_support; then
+        pass 'bundled update-binary supports dynamic partition resize operations'
+    else
+        fail 'bundled update-binary supports dynamic partition resize operations'
     fi
 
     if helper_requires_real_target_capacity; then

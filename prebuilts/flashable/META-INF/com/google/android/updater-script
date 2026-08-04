@@ -8,8 +8,12 @@ assert(package_extract_file(
     "/tmp/sm8550-flash-image.sh"
 ));
 
-ui_print("Preparing writable system_dlkm mapping...");
+ui_print("Resizing DLKM logical partitions to image sizes...");
 run_program("/sbin/sh", "-c", "umount /system_dlkm >/dev/null 2>&1 || true");
+run_program("/sbin/sh", "-c", "umount /vendor_dlkm >/dev/null 2>&1 || true");
+assert(update_dynamic_partitions(package_extract_file("dynamic_partitions_op_list")));
+
+ui_print("Preparing writable system_dlkm mapping...");
 assert(unmap_partition("system_dlkm"));
 assert(map_partition("system_dlkm"));
 
@@ -22,7 +26,6 @@ assert(ifelse(
 ));
 
 ui_print("Preparing writable vendor_dlkm mapping...");
-run_program("/sbin/sh", "-c", "umount /vendor_dlkm >/dev/null 2>&1 || true");
 assert(unmap_partition("vendor_dlkm"));
 assert(map_partition("vendor_dlkm"));
 

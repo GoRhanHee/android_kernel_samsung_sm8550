@@ -1,3 +1,4 @@
+resize-dlkm-metadata
 prepare-unmap:system_dlkm
 map:system_dlkm
 extract:system_dlkm
