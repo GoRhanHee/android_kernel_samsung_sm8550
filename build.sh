@@ -17,6 +17,8 @@ export LTO="${LTO:-thin}"
 # so the rebuilt kernel and its matching modules are validated together.
 export TRIM_NONLISTED_KMI=0
 export KMI_SYMBOL_LIST_STRICT_MODE=0
+# The packaging lane assembles the manually cooked vendor_boot image.
+export SKIP_VENDOR_BOOT=1
 
 BUILD_TARGET=""
 MODEL=""
