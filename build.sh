@@ -12,6 +12,12 @@ readonly KSU_SETUP_URL="https://raw.githubusercontent.com/KernelSU-Next/KernelSU
 readonly JOBS="${JOBS:-$(nproc)}"
 export LTO="${LTO:-thin}"
 
+# This fork intentionally changes the GKI ABI for full DroidSpaces support.
+# Keep the complete exported symbol set and skip the baseline ABI comparison
+# so the rebuilt kernel and its matching modules are validated together.
+export TRIM_NONLISTED_KMI=0
+export KMI_SYMBOL_LIST_STRICT_MODE=0
+
 BUILD_TARGET=""
 MODEL=""
 DEVICE_DISPLAY_NAME=""
