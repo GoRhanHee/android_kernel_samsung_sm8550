@@ -12,6 +12,12 @@ readonly KSU_SETUP_URL="https://raw.githubusercontent.com/KernelSU-Next/KernelSU
 readonly JOBS="${JOBS:-$(nproc)}"
 export LTO="${LTO:-thin}"
 
+readonly COMMON_FEATURE_PATCH_FILES=(
+    "${SOURCE_DIR}/patches/common/ntsync/ntsync_base.patch"
+    "${SOURCE_DIR}/patches/common/ntsync/ntsync_compat_android13-5.15.patch"
+    "${SOURCE_DIR}/patches/common/bbrv3/0001-net-tcp-backport-BBRv3-to-android13-5.15.patch"
+)
+
 # This fork intentionally changes the GKI ABI for full DroidSpaces support.
 # Keep the complete exported symbol set and skip the baseline ABI comparison
 # so the rebuilt kernel and its matching modules are validated together.
@@ -60,6 +66,7 @@ KSU_SETUP_SCRIPT=""
 KSU_RESTORE_PATCH=""
 KSU_IMPORT_STARTED=0
 KSU_REUSE_EXISTING=0
+COMMON_FEATURE_PATCHES_APPLIED=0
 
 select_wlan_profile() {
     local project_config="${KERNEL_PLATFORM}/msm-kernel/arch/arm64/configs/vendor/${SEC_PROJECT_CONFIG}_project.config"
@@ -307,6 +314,31 @@ import_kernelsu_next() {
     echo "[KernelSU-Next] Restore patch: ${KSU_RESTORE_PATCH}"
 }
 
+apply_common_feature_patches() {
+    local common_dir="${KERNEL_PLATFORM}/common"
+    local patch_file
+
+    require_command patch
+
+    for patch_file in "${COMMON_FEATURE_PATCH_FILES[@]}"; do
+        [[ -f "${patch_file}" ]] ||
+            die "common feature patch not found: ${patch_file}"
+
+        echo "[common patches] Checking $(basename "${patch_file}")"
+        (
+            cd "${common_dir}"
+            patch --batch --forward --fuzz=1 --no-backup-if-mismatch --dry-run -p1 < "${patch_file}" >/dev/null
+        ) || die "common feature patch does not apply: ${patch_file}"
+
+        echo "[common patches] Applying $(basename "${patch_file}")"
+        (
+            cd "${common_dir}"
+            patch --batch --forward --fuzz=1 --no-backup-if-mismatch -p1 < "${patch_file}"
+        )
+        COMMON_FEATURE_PATCHES_APPLIED=$((COMMON_FEATURE_PATCHES_APPLIED + 1))
+    done
+}
+
 validate_msm_state() {
     local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
     local top_level
@@ -412,11 +444,33 @@ cleanup_kernelsu_next() {
     return "${cleanup_status}"
 }
 
+cleanup_common_feature_patches() {
+    local common_dir="${KERNEL_PLATFORM}/common"
+    local patch_file
+    local patch_index
+    local cleanup_status=0
+
+    (( COMMON_FEATURE_PATCHES_APPLIED > 0 )) || return 0
+
+    echo "[common patches] Restoring common kernel state"
+    for ((patch_index = COMMON_FEATURE_PATCHES_APPLIED - 1; patch_index >= 0; patch_index--)); do
+        patch_file="${COMMON_FEATURE_PATCH_FILES[patch_index]}"
+        (
+            cd "${common_dir}"
+            patch --batch --fuzz=1 --no-backup-if-mismatch -R -p1 < "${patch_file}"
+        ) || cleanup_status=1
+    done
+
+    COMMON_FEATURE_PATCHES_APPLIED=0
+    return "${cleanup_status}"
+}
+
 cleanup_common() {
     local build_status=$?
     local cleanup_status=0
 
     trap - EXIT
+    cleanup_common_feature_patches || cleanup_status=1
     cleanup_kernelsu_next || cleanup_status=1
     verify_common_unchanged || cleanup_status=1
 
@@ -897,6 +951,7 @@ main() {
     validate_msm_state
     prepare_target_workspace
     import_kernelsu_next
+    apply_common_feature_patches
     prepare_toolchain
     build_full
     prepare_packaging_tools
