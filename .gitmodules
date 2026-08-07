@@ -5,4 +5,4 @@
 [submodule "kernel_platform/msm-kernel"]
 	path = kernel_platform/msm-kernel
 	url = https://github.com/GoRhanHee/android_kernel_samsung_sm8550_msm.git
-	branch = android13-5.15-sm8550
+	branch = toolchain22-only

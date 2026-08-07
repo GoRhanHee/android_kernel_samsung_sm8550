@@ -6,10 +6,13 @@ readonly SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SOURCE_DIR="${SOURCE_DIR:-${SCRIPT_DIR}}"
 readonly KERNEL_PLATFORM="${SOURCE_DIR}/kernel_platform"
-readonly TOOLCHAIN_URL="${TOOLCHAIN_URL:-https://github.com/GoRhanHee/samsung_sm8550_toolchain/releases/download/toolchain/toolchain.tar.xz}"
-readonly CLANG_BIN="${KERNEL_PLATFORM}/prebuilts/clang/host/linux-x86/clang-r450784e/bin/clang"
+readonly TOOLCHAIN_VERSION="${TOOLCHAIN_VERSION:-r596125}"
+readonly TOOLCHAIN_URL="${TOOLCHAIN_URL:-https://github.com/GoRhanHee/samsung_sm8550_toolchain/releases/download/clang22-dm3q/toolchain.tar.xz}"
+readonly CLANG_TOOLCHAIN_DIR="${KERNEL_PLATFORM}/prebuilts/clang/host/linux-x86/clang-${TOOLCHAIN_VERSION}"
+readonly CLANG_BIN="${CLANG_TOOLCHAIN_DIR}/bin/clang"
 readonly KSU_SETUP_URL="https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh"
 readonly JOBS="${JOBS:-$(nproc)}"
+export TOOLCHAIN_VERSION
 export LTO="${LTO:-thin}"
 
 readonly COMMON_FEATURE_PATCH_FILES=(
@@ -111,6 +114,7 @@ Environment overrides:
   SOURCE_DIR       Kernel source directory (default: ${SOURCE_DIR})
   JOBS             Parallel build jobs (default: ${JOBS})
   FULL_OUT_DIR     Base directory for target-specific full-build output
+  TOOLCHAIN_VERSION Android Clang revision (default: ${TOOLCHAIN_VERSION})
   TOOLCHAIN_URL    Samsung toolchain archive URL
   LTO              LTO mode: none, thin or full (default: ${LTO})
 EOF
@@ -504,12 +508,13 @@ prepare_toolchain() {
     rm -f "${archive}"
 
     [[ -x "${CLANG_BIN}" ]] || \
-        die "clang-r450784e was not found after extracting the toolchain"
+        die "clang-${TOOLCHAIN_VERSION} was not found after extracting the toolchain"
 }
 
 build_full() {
     export TARGET_BUILD_VARIANT="${TARGET_BUILD_VARIANT:-user}"
     export MERGE_CONFIG="${ANDROID_BUILD_TOP}/kernel_platform/common/scripts/kconfig/merge_config.sh"
+    export GKI_BUILD_CONFIG_FRAGMENT="${SOURCE_DIR}/prebuilts/gki_toolchain.config"
 
     if [[ -e "${OUT_DIR}/host/bin/ufdt_apply_overlay" ]]; then
         chmod u+w "${OUT_DIR}/host/bin/ufdt_apply_overlay"
@@ -638,8 +643,8 @@ prepare_target_workspace() {
     echo "[paths] TMPDIR=${TMPDIR}"
 
     ln -s \
-        "${KERNEL_PLATFORM}/prebuilts/clang/host/linux-x86/clang-r450784e" \
-        "${clang_parent}/clang-r450784e"
+        "${CLANG_TOOLCHAIN_DIR}" \
+        "${clang_parent}/clang-${TOOLCHAIN_VERSION}"
     ln -s \
         "${SOURCE_DIR}/prebuilts/patch_vendor_dlkm_fstab.sh" \
         "${PACKAGING_PREBUILTS_DIR}/patch_vendor_dlkm_fstab.sh"
