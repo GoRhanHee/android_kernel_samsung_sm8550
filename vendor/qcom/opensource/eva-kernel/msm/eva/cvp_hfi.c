@@ -474,7 +474,7 @@ static int __read_queue(struct cvp_iface_q_info *qinfo, u8 *packet,
 		u32 *pb_tx_req_is_set)
 {
 	struct cvp_hfi_queue_header *queue;
-	u32 packet_size_in_words, new_read_idx;
+	u32 packet_size_in_words, new_read_idx, packet_size_in_bytes;
 	u32 *read_ptr;
 	u32 receive_request = 0;
 	u32 read_idx, write_idx;
@@ -547,6 +547,7 @@ static int __read_queue(struct cvp_iface_q_info *qinfo, u8 *packet,
 	}
 
 	packet_size_in_words = (*read_ptr) >> 2;
+	packet_size_in_bytes = *read_ptr;
 	if (!packet_size_in_words) {
 		spin_unlock(&qinfo->hfi_lock);
 		dprintk(CVP_ERR, "Zero packet size\n");
@@ -573,7 +574,7 @@ static int __read_queue(struct cvp_iface_q_info *qinfo, u8 *packet,
 		 * the packet from a shared queue, there is a possibility to get the
 		 * packet->size data corrupted of shared queue by mallicious FW.
 		 */
-		*((u32 *) packet) = packet_size_in_words << 2;
+		*((u32 *) packet) = packet_size_in_bytes;
 	} else {
 		dprintk(CVP_WARN,
 			"BAD packet received, read_idx: %#x, pkt_size: %d\n",
@@ -2695,8 +2696,8 @@ static void __process_sys_error(struct iris_hfi_device *device)
 	u32 sfr_buf_size = 0;
 
 	vsfr = (struct cvp_hfi_sfr_struct *)device->sfr.align_virtual_addr;
-	sfr_buf_size = vsfr->bufSize;
-	if (vsfr && sfr_buf_size < ALIGNED_SFR_SIZE) {
+	sfr_buf_size = vsfr ? vsfr->bufSize : 0;
+	if (vsfr && sfr_buf_size > 0 && sfr_buf_size < ALIGNED_SFR_SIZE) {
 		void *p = memchr(vsfr->rg_data, '\0', sfr_buf_size);
 		/*
 		 * SFR isn't guaranteed to be NULL terminated
@@ -2917,7 +2918,7 @@ static int __response_handler(struct iris_hfi_device *device)
 		return 0;
 	}
 
-	if (device->intr_status & CVP_FATAL_INTR_BMSK) {
+	if (device->intr_status & CVP_WRAPPER_INTR_MASK_A2HWD_BMSK) {
 		struct cvp_hfi_sfr_struct *vsfr = (struct cvp_hfi_sfr_struct *)
 			device->sfr.align_virtual_addr;
 		struct msm_cvp_cb_info info = {
