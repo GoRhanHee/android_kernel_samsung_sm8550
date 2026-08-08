@@ -579,6 +579,7 @@ build_full() {
 
     (
         cd "${SOURCE_DIR}"
+        HERMETIC_TOOLCHAIN=0 \
         RECOMPILE_KERNEL=1 \
             ./kernel_platform/build/android/prepare_vendor.sh sec "${TARGET_PRODUCT}"
     )
