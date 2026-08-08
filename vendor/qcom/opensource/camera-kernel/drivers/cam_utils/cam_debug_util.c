@@ -111,7 +111,7 @@ int cam_debugfs_lookup_subdir(const char *name, struct dentry **subdir)
 	return (*subdir) ? 0 : -ENOENT;
 }
 
-const struct camera_debug_settings *cam_debug_get_settings()
+const struct camera_debug_settings *cam_debug_get_settings(void)
 {
 	return &cam_debug;
 }
