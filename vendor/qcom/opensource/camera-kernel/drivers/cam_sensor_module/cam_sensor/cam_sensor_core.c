@@ -412,7 +412,7 @@ int cam_sensor_wait_otp_mode(struct cam_sensor_ctrl_t *s_ctrl)
 	return rc;
 }
 
-static int cam_bpc_match_crc()
+static int cam_bpc_match_crc(void)
 {
 	uint32_t calculated_crc = 0x0;
 	uint32_t check_sum_crc = 0x0;

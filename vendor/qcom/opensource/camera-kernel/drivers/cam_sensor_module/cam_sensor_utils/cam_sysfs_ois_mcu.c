@@ -173,7 +173,7 @@ static ssize_t ois_autotest_store(struct device *dev,
 	return size;
 }
 
-static ois_power_store_off (struct cam_ois_ctrl_t *o_ctrl)
+static int ois_power_store_off (struct cam_ois_ctrl_t *o_ctrl)
 {
 	if (o_ctrl->sysfs_ois_power == 0) {
 		pr_info("%s: [WARNING] ois is off, skip power down", __func__);
@@ -186,7 +186,7 @@ static ois_power_store_off (struct cam_ois_ctrl_t *o_ctrl)
 	return 0;
 }
 
-static ois_power_store_on (struct cam_ois_ctrl_t *o_ctrl)
+static int ois_power_store_on (struct cam_ois_ctrl_t *o_ctrl)
 {
 #if defined(CONFIG_SAMSUNG_ACTUATOR_PREVENT_SHAKING)
 	if (actuator_power > 0) {
