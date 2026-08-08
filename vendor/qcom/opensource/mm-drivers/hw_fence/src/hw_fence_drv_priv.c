@@ -134,7 +134,7 @@ static int init_hw_fences_queues(struct hw_fence_driver_data *drv_data,
 	return ret;
 }
 
-static inline _lock_client_queue(int queue_type)
+static inline bool _lock_client_queue(int queue_type)
 {
 	/* Only lock Rx Queue */
 	return (queue_type == (HW_FENCE_RX_QUEUE - 1)) ? true : false;
