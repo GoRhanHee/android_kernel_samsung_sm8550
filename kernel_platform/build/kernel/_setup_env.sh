@@ -101,7 +101,7 @@ BUILDTOOLS_PREBUILT_BIN
 # Have host compiler use LLD and compiler-rt.
 LLD_COMPILER_RT="-fuse-ld=lld --rtlib=compiler-rt"
 if [[ -n "${NDK_TRIPLE}" ]]; then
-  NDK_DIR=${ROOT_DIR}/prebuilts/ndk-r23
+  NDK_DIR=${NDK_DIR:-${ROOT_DIR}/prebuilts/ndk-r26d}
   if [[ ! -d "${NDK_DIR}" ]]; then
     # Kleaf/Bazel will checkout the ndk to a different directory than
     # build.sh.
