@@ -20,7 +20,7 @@
 
 #if defined(CONFIG_CAMERA_HW_ERROR_DETECT) && defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
 extern char rear_i2c_rfinfo[30];
-static void camera_io_rear_i2c_rfinfo()
+static void camera_io_rear_i2c_rfinfo(void)
 {
 	struct cam_cp_noti_info rf_info;
 

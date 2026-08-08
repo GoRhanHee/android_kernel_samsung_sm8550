@@ -18597,7 +18597,7 @@ void hdd_driver_unload(void)
 EXPORT_SYMBOL(hdd_driver_unload);
 #endif
 #if defined (SEC_CONFIG_PSM_SYSFS)
-int wlan_hdd_sec_get_psm()
+int wlan_hdd_sec_get_psm(void)
 {
 	int psm = 0;
 
