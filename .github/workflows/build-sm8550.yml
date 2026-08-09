@@ -101,11 +101,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Restore Samsung toolchain
+      - name: Restore Clang22 and NDK r26d toolchain
         uses: actions/cache@v6
         with:
           path: kernel_platform/prebuilts
-          key: samsung-sm8550-toolchain-r450784e-v1
+          key: samsung-sm8550-toolchain-clang22-r596125-ndk-r26d-${{ runner.os }}-${{ runner.arch }}-v1
 
       - name: Build ${{ matrix.device }} kernel
         env:
