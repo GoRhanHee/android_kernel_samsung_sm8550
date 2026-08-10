@@ -16,6 +16,23 @@ STRIP_TOOL="${CLANG_TOOLCHAIN_DIR}/bin/llvm-strip"
 FSTAB_FILE="${BOOT_EDITOR_DIR}/build/unzip_boot/root.1/first_stage_ramdisk/fstab.qcom"
 FSTAB_PATCHER="${REPO_ROOT}/prebuilts/patch_vendor_dlkm_fstab.sh"
 
+NUKE_MODULE="hdm.ko"
+
+remove_nuked_module() {
+    local modules_dir="$1"
+    local metadata
+    local escaped_module="${NUKE_MODULE//./\\.}"
+
+    rm -f -- "${modules_dir}/${NUKE_MODULE}"
+    for metadata in modules.load modules.load.recovery modules.dep modules.softdep modules_list.txt; do
+        [[ -f "${modules_dir}/${metadata}" ]] || continue
+        sed -i \
+            -e "/^${escaped_module}$/d" \
+            -e "/^${escaped_module}:/d" \
+            "${modules_dir}/${metadata}"
+    done
+}
+
 [[ -x "${PKG_VENDOR_BOOT}" ]] || chmod +x "${PKG_VENDOR_BOOT}"
 [[ -f "${MODULES_LIST}" ]] || { echo "vendor_boot modules list not found: ${MODULES_LIST}" >&2; exit 1; }
 [[ -f "${OEM_LOAD_FILE}" ]] || { echo "vendor_boot modules.load not found: ${OEM_LOAD_FILE}" >&2; exit 1; }
@@ -24,6 +41,8 @@ FSTAB_PATCHER="${REPO_ROOT}/prebuilts/patch_vendor_dlkm_fstab.sh"
 STOCK_MODULES_DIR="$(mktemp -d)"
 trap 'rm -rf "${STOCK_MODULES_DIR}"' EXIT
 cp -a "${OUTPUT_DIR}/." "${STOCK_MODULES_DIR}/"
+remove_nuked_module "${STOCK_MODULES_DIR}"
+remove_nuked_module "${LKM_TOOLS_DIR}/vendor_boot"
 
 "${PKG_VENDOR_BOOT}" \
     "${MODULES_LIST}" \
@@ -51,6 +70,8 @@ while IFS= read -r stock_file; do
     target="${OUTPUT_DIR}/$(basename "${stock_file}")"
     [[ -e "${target}" ]] || cp "${stock_file}" "${target}"
 done < <(find "${STOCK_MODULES_DIR}" -maxdepth 1 -type f ! -name '*.ko')
+
+remove_nuked_module "${OUTPUT_DIR}"
 
 [[ -f "${FSTAB_FILE}" ]] || { echo "fstab not found: ${FSTAB_FILE}" >&2; exit 1; }
 "${FSTAB_PATCHER}" "${FSTAB_FILE}"

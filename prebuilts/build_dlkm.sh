@@ -23,6 +23,21 @@ run_privileged() {
     fi
 }
 
+remove_nuked_module() {
+    local modules_dir="$1"
+    local metadata
+    local escaped_module='hdm\.ko'
+
+    rm -f -- "${modules_dir}/hdm.ko"
+    for metadata in modules.load modules.load.recovery modules.dep modules.softdep modules_list.txt; do
+        [[ -f "${modules_dir}/${metadata}" ]] || continue
+        sed -i \
+            -e "/^${escaped_module}$/d" \
+            -e "/^${escaped_module}:/d" \
+            "${modules_dir}/${metadata}"
+    done
+}
+
 cleanup_dlkm_temporary_dirs() {
     local directory
 
@@ -251,6 +266,12 @@ main() {
     trap cleanup_dlkm_temporary_dirs EXIT
     cp -a "${modules_output_dir}/." "${stock_modules_dir}/"
 
+    remove_nuked_module "${stock_modules_dir}"
+    remove_nuked_module "${partition_metadata}"
+    if [[ "${partition}" == vendor_dlkm ]]; then
+        remove_nuked_module "${lkm_tools_dir}/vendor_boot"
+    fi
+
     "${cooker}" \
         "${modules_list}" \
         "${kbuild_path}" \
@@ -292,6 +313,7 @@ main() {
             die "cooker did not produce ${partition} modules.load"
         normalize_system_modules_load "${modules_load}" "${modules_output_dir}"
     fi
+    remove_nuked_module "${modules_output_dir}"
     [[ -f "${modules_output_dir}/modules.dep" ]] ||
         die "cooker did not produce ${partition} modules.dep"
     while IFS= read -r -d '' module; do
