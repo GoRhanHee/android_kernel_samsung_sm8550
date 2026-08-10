@@ -23,6 +23,7 @@ jobs:
           - dm2q
           - dm3q
           - q5q
+          - b5q
 
     steps:
       - name: Checkout source

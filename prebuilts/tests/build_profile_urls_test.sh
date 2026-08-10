@@ -29,5 +29,6 @@ assert_profile_urls dm1q S911NKSS8FZG1_KOO_OKR dm1q
 assert_profile_urls dm2q S916NKSS8FZG1_KOO_OKR dm2q
 assert_profile_urls dm3q S918NKSS8FZG1_KOO_OKR dm3q
 assert_profile_urls q5q F946NKSS6GZG3_KOO_OKR q5q
+assert_profile_urls b5q F731NKSS6GZG4_KOO_OKR b5q
 
 printf '%s\n' 'PASS: current build.sh vendor and system_dlkm profile URLs'

@@ -78,7 +78,7 @@ select_wlan_profile() {
         die "project config not found: ${project_config}"
 
     WLAN_PROFILE="kiwi_v2"
-    if grep -Eq '^CONFIG_SEC_(DM1Q|DM2Q|Q5Q)_PROJECT=y$' "${project_config}"; then
+    if grep -Eq '^CONFIG_SEC_(DM1Q|DM2Q|Q5Q|B5Q)_PROJECT=y$' "${project_config}"; then
         WLAN_PROFILE="qca6490"
     fi
 
@@ -94,6 +94,7 @@ Usage:
   ${SCRIPT_NAME} dm2q full
   ${SCRIPT_NAME} dm3q full
   ${SCRIPT_NAME} q5q full
+  ${SCRIPT_NAME} b5q full
   ${SCRIPT_NAME} -h
   ${SCRIPT_NAME} --help
   ${SCRIPT_NAME} help
@@ -103,12 +104,14 @@ Devices:
   dm2q  Samsung Galaxy S23+ (SM-S916N)
   dm3q  Samsung Galaxy S23 Ultra (SM-S918N)
   q5q   Samsung Galaxy Z Fold5 (SM-F946N)
+  b5q   Samsung Galaxy Z Flip5 (SM-F731N)
 
 Examples:
   ${SCRIPT_NAME} dm1q full
   ${SCRIPT_NAME} dm2q full
   ${SCRIPT_NAME} dm3q full
   ${SCRIPT_NAME} q5q full
+  ${SCRIPT_NAME} b5q full
 
 Environment overrides:
   SOURCE_DIR       Kernel source directory (default: ${SOURCE_DIR})
@@ -166,6 +169,14 @@ select_device_profile() {
             STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZG3_KOO_OKR/vendor_boot.img"
             STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZG3_KOO_OKR/vendor_dlkm.img"
             STOCK_SYSTEM_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZG3_KOO_OKR/system_dlkm.img"
+            ;;
+        b5q)
+            BUILD_TARGET="b5q_kor_singlex"
+            MODEL="b5q"
+            DEVICE_DISPLAY_NAME="Galaxy Z Flip5"
+            STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F731NKSS6GZG4_KOO_OKR/vendor_boot.img"
+            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F731NKSS6GZG4_KOO_OKR/vendor_dlkm.img"
+            STOCK_SYSTEM_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F731NKSS6GZG4_KOO_OKR/system_dlkm.img"
             ;;
         *)
             return 2
