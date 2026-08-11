@@ -1361,6 +1361,7 @@ static int tfa98xx_run_calibration(struct tfa98xx *tfa98xx0)
 	struct tfa98xx *tfa98xx;
 	struct tfa_device *tfa;
 	enum tfa_error ret, cal_err = tfa_error_ok;
+	enum tfa98xx_error temp_ret;
 	int idx, ndev = tfa98xx_device_count;
 	int cal_profile = 0;
 	u16 temp_val = DEFAULT_REF_TEMP; /* default */
@@ -1376,8 +1377,8 @@ static int tfa98xx_run_calibration(struct tfa98xx *tfa98xx0)
 	}
 
 	/* EXT_TEMP */
-	ret = tfa98xx_read_reference_temp(&temp_val);
-	if (ret) {
+	temp_ret = tfa98xx_read_reference_temp(&temp_val);
+	if (temp_ret != TFA98XX_ERROR_OK) {
 		pr_err("%s: error in reading reference temp\n",
 			__func__);
 		temp_val = DEFAULT_REF_TEMP; /* default */
@@ -4948,7 +4949,7 @@ EXPORT_SYMBOL(tfa_run_cal);
 
 void tfa_restore_after_cal(int index, int cal_err)
 {
-	enum tfa98xx_error err = TFA98XX_ERROR_OK;
+	enum tfa_error err = tfa_error_ok;
 	struct tfa_device *tfa = tfa98xx_get_tfa_device_from_index(index);
 	struct tfa_device *ntfa;
 	int i;
@@ -5012,7 +5013,7 @@ void tfa_restore_after_cal(int index, int cal_err)
 
 			err = tfa_dev_switch_profile(ntfa,
 				ntfa->next_profile, ntfa->vstep);
-			if (err != TFA98XX_ERROR_OK)
+			if (err != tfa_error_ok)
 				pr_err("%s: error in switch profile (%d)\n",
 					__func__, err);
 		}
