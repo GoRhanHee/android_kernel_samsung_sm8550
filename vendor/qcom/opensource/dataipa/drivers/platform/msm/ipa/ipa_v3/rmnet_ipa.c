@@ -725,7 +725,7 @@ static void ipa3_del_low_lat_rt_rule(void)
 	kfree(rt_rule);
 }
 
-static void ipa3_copy_qmi_flt_rule_ex(
+static int ipa3_copy_qmi_flt_rule_ex(
 	struct ipa_ioc_ext_intf_prop *q6_ul_flt_rule_ptr,
 	void *flt_spec_ptr_void)
 {
@@ -740,8 +740,36 @@ static void ipa3_copy_qmi_flt_rule_ex(
 	 */
 	flt_spec_ptr = (struct ipa_filter_spec_ex_type_v01 *) flt_spec_ptr_void;
 
-	q6_ul_flt_rule_ptr->ip = flt_spec_ptr->ip_type;
-	q6_ul_flt_rule_ptr->action = flt_spec_ptr->filter_action;
+	switch (flt_spec_ptr->ip_type) {
+	case QMI_IPA_IP_TYPE_V4_V01:
+		q6_ul_flt_rule_ptr->ip = IPA_IP_v4;
+		break;
+	case QMI_IPA_IP_TYPE_V6_V01:
+		q6_ul_flt_rule_ptr->ip = IPA_IP_v6;
+		break;
+	default:
+		IPAWANERR("Invalid QMI IP type: %d\n", flt_spec_ptr->ip_type);
+		return -EINVAL;
+	}
+
+	switch (flt_spec_ptr->filter_action) {
+	case QMI_IPA_FILTER_ACTION_SRC_NAT_V01:
+		q6_ul_flt_rule_ptr->action = IPA_PASS_TO_SRC_NAT;
+		break;
+	case QMI_IPA_FILTER_ACTION_DST_NAT_V01:
+		q6_ul_flt_rule_ptr->action = IPA_PASS_TO_DST_NAT;
+		break;
+	case QMI_IPA_FILTER_ACTION_ROUTING_V01:
+		q6_ul_flt_rule_ptr->action = IPA_PASS_TO_ROUTING;
+		break;
+	case QMI_IPA_FILTER_ACTION_EXCEPTION_V01:
+		q6_ul_flt_rule_ptr->action = IPA_PASS_TO_EXCEPTION;
+		break;
+	default:
+		IPAWANERR("Invalid QMI filter action: %d\n",
+			flt_spec_ptr->filter_action);
+		return -EINVAL;
+	}
 	if (flt_spec_ptr->is_routing_table_index_valid == true)
 		q6_ul_flt_rule_ptr->rt_tbl_idx =
 		flt_spec_ptr->route_table_index;
@@ -849,12 +877,14 @@ static void ipa3_copy_qmi_flt_rule_ex(
 		flt_spec_ptr->filter_rule.metadata_meq32.value;
 	q6_ul_flt_rule_ptr->eq_attrib.ipv4_frag_eq_present =
 		flt_spec_ptr->filter_rule.ipv4_frag_eq_present;
+
+	return 0;
 }
 
 int ipa3_copy_ul_filter_rule_to_ipa(struct ipa_install_fltr_rule_req_msg_v01
 		*rule_req)
 {
-	int i;
+	int i, rc = 0;
 
 	/* prevent multi-threads accessing rmnet_ipa3_ctx->num_q6_rules */
 	mutex_lock(&rmnet_ipa3_ctx->add_mux_channel_lock);
@@ -893,13 +923,15 @@ int ipa3_copy_ul_filter_rule_to_ipa(struct ipa_install_fltr_rule_req_msg_v01
 			goto failure;
 		}
 		if (rule_req->filter_spec_ex_list_valid == true)
-			ipa3_copy_qmi_flt_rule_ex(
+			rc = ipa3_copy_qmi_flt_rule_ex(
 				&ipa3_qmi_ctx->q6_ul_filter_rule[i],
 				&rule_req->filter_spec_ex_list[i]);
 		else if (rule_req->filter_spec_ex2_list_valid == true)
-			ipa3_copy_qmi_flt_rule_ex(
+			rc = ipa3_copy_qmi_flt_rule_ex(
 				&ipa3_qmi_ctx->q6_ul_filter_rule[i],
 				&rule_req->filter_spec_ex2_list[i]);
+		if (rc)
+			goto failure;
 	}
 
 	if (rule_req->xlat_filter_indices_list_valid) {

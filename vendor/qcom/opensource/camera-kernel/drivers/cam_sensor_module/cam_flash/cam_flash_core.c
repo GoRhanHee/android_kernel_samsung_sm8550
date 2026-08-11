@@ -411,6 +411,21 @@ int cam_flash_off(struct cam_flash_ctrl *flash_ctrl)
 	flash_ctrl->flash_state = CAM_FLASH_STATE_START;
 	return 0;
 }
+#if defined(CONFIG_SAMSUNG_PMIC_FLASH)
+int cam_torch_off(struct cam_flash_ctrl *flash_ctrl)
+{
+	if (!flash_ctrl) {
+		CAM_ERR(CAM_FLASH, "Flash control Null");
+		return -EINVAL;
+	}
+
+	s2mpb02_led_en(S2MPB02_FLASH_LED_1, 0,
+		S2MPB02_LED_TURN_WAY_I2C);
+	s2mpb02_led_en(S2MPB02_TORCH_LED_1, 0,
+		S2MPB02_LED_TURN_WAY_I2C);
+	return 0;
+}
+#endif
 
 static int cam_flash_low(
 	struct cam_flash_ctrl *flash_ctrl,

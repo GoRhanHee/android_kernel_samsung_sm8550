@@ -253,6 +253,13 @@ msm_drm-$(CONFIG_DRM_MSM) += msm_atomic.o \
 CDEFINES += -DBUILD_TIMESTAMP=\"$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')\"
 
 
+ifeq ($(CONFIG_SEC_B5Q_PROJECT), y)
+include $(DISPLAY_ROOT)/msm/samsung/PBA_BOOTING_DSI1/display_PBA_BOOTING_DSI1.conf
+ccflags-y +=	-include $(DISPLAY_ROOT)/msm/samsung/PBA_BOOTING_DSI1/display_PBA_BOOTING_DSI1.h
+
+msm_drm-$(CONFIG_PANEL_PBA_FHD_DSI1) += samsung/PBA_BOOTING_DSI1/ss_dsi_panel_PBA_BOOTING_fhd_dsi1.o
+endif
+
 include $(DISPLAY_ROOT)/msm/samsung/panel_common.conf
 ccflags-y +=	-include $(DISPLAY_ROOT)/msm/samsung/panel_common_conf.h
 
