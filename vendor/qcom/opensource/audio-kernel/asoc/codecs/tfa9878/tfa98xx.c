@@ -29,6 +29,7 @@
 #include "inc/tfa98xx.h"
 #include "inc/tfa.h"
 #include "inc/tfa_internal.h"
+#include "inc/tfa_error_map.h"
 
 #include "inc/tfa98xx_tfafieldnames.h"
 
@@ -1335,7 +1336,7 @@ static void tfa98xx_debug_remove(struct tfa98xx *tfa98xx)
 }
 #endif /* CONFIG_DEBUG_FS */
 
-static void tfa98xx_check_calibration(struct tfa98xx *tfa98xx)
+static void __maybe_unused tfa98xx_check_calibration(struct tfa98xx *tfa98xx)
 {
 	unsigned short value = 0;
 
@@ -1361,7 +1362,6 @@ static int tfa98xx_run_calibration(struct tfa98xx *tfa98xx0)
 	struct tfa98xx *tfa98xx;
 	struct tfa_device *tfa;
 	enum tfa_error ret, cal_err = tfa_error_ok;
-	enum tfa98xx_error temp_ret;
 	int idx, ndev = tfa98xx_device_count;
 	int cal_profile = 0;
 	u16 temp_val = DEFAULT_REF_TEMP; /* default */
@@ -1377,8 +1377,8 @@ static int tfa98xx_run_calibration(struct tfa98xx *tfa98xx0)
 	}
 
 	/* EXT_TEMP */
-	temp_ret = tfa98xx_read_reference_temp(&temp_val);
-	if (temp_ret != TFA98XX_ERROR_OK) {
+	ret = tfa98xx_to_tfa_err(tfa98xx_read_reference_temp(&temp_val));
+	if (ret) {
 		pr_err("%s: error in reading reference temp\n",
 			__func__);
 		temp_val = DEFAULT_REF_TEMP; /* default */
@@ -4949,7 +4949,7 @@ EXPORT_SYMBOL(tfa_run_cal);
 
 void tfa_restore_after_cal(int index, int cal_err)
 {
-	enum tfa_error err = tfa_error_ok;
+	enum tfa98xx_error err = TFA98XX_ERROR_OK;
 	struct tfa_device *tfa = tfa98xx_get_tfa_device_from_index(index);
 	struct tfa_device *ntfa;
 	int i;
@@ -5011,9 +5011,9 @@ void tfa_restore_after_cal(int index, int cal_err)
 			pr_info("%s: apply the whole profile setting\n",
 				__func__);
 
-			err = tfa_dev_switch_profile(ntfa,
-				ntfa->next_profile, ntfa->vstep);
-			if (err != tfa_error_ok)
+			err = tfa_to_tfa98xx_err(tfa_dev_switch_profile(ntfa,
+				ntfa->next_profile, ntfa->vstep));
+			if (err != TFA98XX_ERROR_OK)
 				pr_err("%s: error in switch profile (%d)\n",
 					__func__, err);
 		}
