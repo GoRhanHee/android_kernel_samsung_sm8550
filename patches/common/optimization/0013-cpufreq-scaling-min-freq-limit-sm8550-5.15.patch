@@ -1,0 +1,121 @@
+--- a/drivers/cpufreq/cpufreq.c
++++ b/drivers/cpufreq/cpufreq.c
+@@ -35,6 +35,69 @@
+ #include <trace/hooks/thermal.h>
+ 
+ static LIST_HEAD(cpufreq_policy_list);
++#define MIN_LIMIT_STORE_COUNT NR_CPUS
++
++struct cpumask_uint_kv {
++	struct cpumask key;
++	unsigned int value;
++	bool valid;
++};
++
++static struct cpumask_uint_kv cpumask_min_limit_store[MIN_LIMIT_STORE_COUNT]
++	__read_mostly;
++static DEFINE_MUTEX(cpumask_min_limit_lock);
++
++static void store_cpumask_min_limit(const struct cpumask *key,
++				    unsigned int value)
++{
++	int i;
++	int empty = -1;
++
++	mutex_lock(&cpumask_min_limit_lock);
++	for (i = 0; i < MIN_LIMIT_STORE_COUNT; i++) {
++		if (cpumask_min_limit_store[i].valid) {
++			if (cpumask_equal(&cpumask_min_limit_store[i].key, key)) {
++				cpumask_min_limit_store[i].value = value;
++				mutex_unlock(&cpumask_min_limit_lock);
++				return;
++			}
++			continue;
++		}
++		if (empty < 0)
++			empty = i;
++	}
++
++	if (empty >= 0) {
++		cpumask_copy(&cpumask_min_limit_store[empty].key, key);
++		cpumask_min_limit_store[empty].value = value;
++		cpumask_min_limit_store[empty].valid = true;
++		mutex_unlock(&cpumask_min_limit_lock);
++		return;
++	}
++	mutex_unlock(&cpumask_min_limit_lock);
++	pr_err("cpumask_min_limit_store is full.\n");
++}
++
++static unsigned int get_cpumask_min_limit(const struct cpumask *key)
++{
++	unsigned int value = INT_MAX;
++	int i;
++
++	if (!key)
++		return value;
++
++	mutex_lock(&cpumask_min_limit_lock);
++	for (i = 0; i < MIN_LIMIT_STORE_COUNT; i++) {
++		if (cpumask_min_limit_store[i].valid &&
++		    cpumask_equal(&cpumask_min_limit_store[i].key, key)) {
++			value = cpumask_min_limit_store[i].value;
++			break;
++		}
++	}
++	mutex_unlock(&cpumask_min_limit_lock);
++
++	return value;
++}
+ 
+ /* Macros to iterate over CPU policies */
+ #define for_each_suitable_policy(__policy, __active)			 \
+@@ -707,6 +770,12 @@
+ }
+ 
+ show_one(cpuinfo_min_freq, cpuinfo.min_freq);
++static ssize_t show_scaling_min_freq_limit(struct cpufreq_policy *policy, char *buf)
++{
++	unsigned int val = get_cpumask_min_limit(policy->related_cpus);
++
++	return sprintf(buf, "%u\n", val);
++}
+ show_one(cpuinfo_transition_latency, cpuinfo.transition_latency);
+ show_one(scaling_min_freq, min);
+ show_one(scaling_max_freq, max);
+@@ -750,6 +819,17 @@
+ }
+ 
+ store_one(scaling_min_freq, min);
++static ssize_t store_scaling_min_freq_limit
++(struct cpufreq_policy *policy, const char *buf, size_t count)
++{
++	unsigned int val;
++
++	if (sscanf(buf, "%u", &val) != 1)
++		return -EINVAL;
++
++	store_cpumask_min_limit(policy->related_cpus, val);
++	return count;
++}
+ store_one(scaling_max_freq, max);
+ 
+ /*
+@@ -937,6 +1017,7 @@
+ cpufreq_freq_attr_ro(related_cpus);
+ cpufreq_freq_attr_ro(affected_cpus);
+ cpufreq_freq_attr_rw(scaling_min_freq);
++cpufreq_freq_attr_rw(scaling_min_freq_limit);
+ cpufreq_freq_attr_rw(scaling_max_freq);
+ cpufreq_freq_attr_rw(scaling_governor);
+ cpufreq_freq_attr_rw(scaling_setspeed);
+@@ -2613,6 +2694,9 @@
+ 	 */
+ 	new_data.min = freq_qos_read_value(&policy->constraints, FREQ_QOS_MIN);
+ 	new_data.max = freq_qos_read_value(&policy->constraints, FREQ_QOS_MAX);
++	new_data.min = min(new_data.min,
++			   get_cpumask_min_limit(policy->related_cpus));
++
+ 
+ 	pr_debug("setting new policy for CPU %u: %u - %u kHz\n",
+ 		 new_data.cpu, new_data.min, new_data.max);

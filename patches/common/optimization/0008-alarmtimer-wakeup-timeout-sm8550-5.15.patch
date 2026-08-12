@@ -1,0 +1,12 @@
+diff --git a/kernel/time/alarmtimer.c b/kernel/time/alarmtimer.c
+--- a/kernel/time/alarmtimer.c
++++ b/kernel/time/alarmtimer.c
+@@ -293,7 +293,7 @@ static int alarmtimer_suspend(struct device *dev)
+ 			log_suspend_abort_reason("alarmtimer suspending blocked by %ps\n", min_alarm->function);
+ 		}
+ 
+-		pm_wakeup_event(dev, 2 * MSEC_PER_SEC);
++		pm_wakeup_event(dev, ktime_to_ms(min) + 1);
+ 		return -EBUSY;
+ 	}
+ 
