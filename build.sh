@@ -19,6 +19,7 @@ readonly COMMON_FEATURE_PATCH_FILES=(
     "${SOURCE_DIR}/patches/common/ntsync/ntsync_base.patch"
     "${SOURCE_DIR}/patches/common/ntsync/ntsync_compat_android13-5.15.patch"
     "${SOURCE_DIR}/patches/common/bbrv3/0001-net-tcp-backport-BBRv3-to-android13-5.15.patch"
+    "${SOURCE_DIR}/patches/common/bbg/0001-baseband-guard.patch"
 )
 
 # This fork intentionally changes the GKI ABI for full DroidSpaces support.

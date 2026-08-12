@@ -6,6 +6,12 @@ CONFIG_SECURITY_DEFEX=n
 CONFIG_PROCA=n
 CONFIG_FIVE=n
 
+# Baseband Guard
+CONFIG_BBG=y
+CONFIG_BBG_BLOCK_BOOT=n
+CONFIG_BBG_BLOCK_RECOVERY=n
+CONFIG_LSM="landlock,lockdown,yama,loadpin,safesetid,integrity,selinux,baseband_guard,smack,tomoyo,apparmor,bpf"
+
 # Disable Werror
 CONFIG_WERROR=n
 
