@@ -15,6 +15,14 @@ readonly JOBS="${JOBS:-$(nproc)}"
 export TOOLCHAIN_VERSION
 export LTO="${LTO:-thin}"
 
+# Set the kernel build identity and use Korea Standard Time.
+export TZ="Asia/Seoul"
+export LC_ALL=C
+export KBUILD_BUILD_USER="GoRhanHee"
+export KBUILD_BUILD_HOST="SM8550-Kernel"
+export KBUILD_BUILD_TIMESTAMP="$(date)"
+export KBUILD_BUILD_VERSION="${BUILD_VERSION:-1}"
+
 readonly COMMON_FEATURE_PATCH_FILES=(
     "${SOURCE_DIR}/patches/common/ntsync/ntsync_base.patch"
     "${SOURCE_DIR}/patches/common/ntsync/ntsync_compat_android13-5.15.patch"

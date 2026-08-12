@@ -76,15 +76,15 @@ export UNSTRIPPED_DIR=${DIST_DIR}/unstripped
 export UNSTRIPPED_MODULES_ARCHIVE=unstripped_modules.tar.gz
 export MODULES_ARCHIVE=modules.tar.gz
 
-export TZ=UTC
+export TZ="${TZ:-UTC}"
 export LC_ALL=C
 if [ -z "${SOURCE_DATE_EPOCH}" ]; then
   export SOURCE_DATE_EPOCH=$(git -C ${ROOT_DIR}/${KERNEL_DIR} log -1 --pretty=%ct)
 fi
-export KBUILD_BUILD_TIMESTAMP="$(date -d @${SOURCE_DATE_EPOCH})"
+export KBUILD_BUILD_TIMESTAMP="${KBUILD_BUILD_TIMESTAMP:-$(date -d @${SOURCE_DATE_EPOCH})}"
 export KBUILD_BUILD_HOST=${KBUILD_BUILD_HOST:-build-host}
 export KBUILD_BUILD_USER=${KBUILD_BUILD_USER:-build-user}
-export KBUILD_BUILD_VERSION=1
+export KBUILD_BUILD_VERSION="${KBUILD_BUILD_VERSION:-1}"
 
 # List of prebuilt directories shell variables to incorporate into PATH
 prebuilts_paths=(
