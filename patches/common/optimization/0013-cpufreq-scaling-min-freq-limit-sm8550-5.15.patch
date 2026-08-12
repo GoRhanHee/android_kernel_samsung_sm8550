@@ -109,6 +109,8 @@
  cpufreq_freq_attr_rw(scaling_max_freq);
  cpufreq_freq_attr_rw(scaling_governor);
  cpufreq_freq_attr_rw(scaling_setspeed);
+@@ -949,0 +1030,1 @@
++	&scaling_min_freq_limit.attr,
 @@ -2613,6 +2694,9 @@
  	 */
  	new_data.min = freq_qos_read_value(&policy->constraints, FREQ_QOS_MIN);
