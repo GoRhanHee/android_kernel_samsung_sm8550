@@ -43,69 +43,29 @@ The build pipeline integrates the official KernelSU-Next setup flow when a check
 - Verifies that the setup only changes the expected KernelSU registration files.
 - Restores the common tree after the build and packaging steps finish.
 
-This keeps the source checkout reproducible while still producing a kernel with KernelSU-Next support. The appropriate KernelSU-Next manager and userspace configuration are still required after flashing.
+This keeps the source checkout reproducible while still producing a kernel with KernelSU-Next support. The appropriate KernelSU-Next manager and userspace setup are still required after flashing.
 
 #### Baseband Guard (BBG)
 
 Baseband Guard is integrated as a lightweight Linux Security Module (LSM). Its purpose is to reduce the chance that an unauthorized process can write to sensitive partition devices or perform destructive operations against protected storage.
 
-The current configuration enables:
+BBG monitors writes to protected partition devices, destructive block-device ioctls, unauthorized attribute changes, and relevant process credential and execution paths.
 
-- `CONFIG_BBG=y`
-- `baseband_guard` in the `CONFIG_LSM` list
-- Protection hooks for protected partition writes
-- Protection for destructive block-device ioctls
-- Protection for unauthorized attribute changes
-- Compatibility hooks for process credential and execution paths
+Boot and recovery blocking is intentionally left disabled so normal recovery, boot-image, and DLKM flashing workflows remain usable.
 
-The boot and recovery blocking options are intentionally disabled:
-
-```text
-CONFIG_BBG_BLOCK_BOOT=n
-CONFIG_BBG_BLOCK_RECOVERY=n
-```
-
-That choice is important for this project. It keeps normal recovery, boot-image, and DLKM flashing workflows from being blocked by BBG. BBG is therefore a protection layer for unauthorized runtime writes, not a replacement for a verified backup or a guarantee that every partition operation is safe.
+This preserves normal recovery, boot-image, and DLKM flashing workflows. BBG is therefore a protection layer for unauthorized runtime writes, not a replacement for a verified backup or a guarantee that every partition operation is safe.
 
 #### Samsung Anti-Root Protections
 
-The custom defconfig disables several Samsung-specific anti-root or integrity layers so that a custom kernel can work with KernelSU-Next and other development workflows:
-
-- `CONFIG_UH=n`
-- `CONFIG_RKP=n`
-- `CONFIG_KDP=n`
-- `CONFIG_SECURITY_DEFEX=n`
-- `CONFIG_PROCA=n`
-- `CONFIG_FIVE=n`
+Samsung's stock anti-root and integrity layers are reduced in this build so that a custom kernel can work with KernelSU-Next and other development workflows.
 
 This improves custom-kernel compatibility, but it also means that stock Samsung hardening is not preserved in the same form. Do not interpret these changes as security enhancements.
 
 ### 🐳 DroidSpaces and Linux Container Support
 
-The kernel includes the configuration needed by [DroidSpaces](https://github.com/ravindu644/Droidspaces-OSS), a userspace container environment for running Linux distributions and services on Android.
+The kernel includes the support needed by [DroidSpaces](https://github.com/ravindu644/Droidspaces-OSS), a userspace container environment for running Linux distributions and services on Android.
 
-The custom defconfig enables or prepares:
-
-- System V IPC and POSIX message queues
-- IPC, PID, and user namespaces
-- `devtmpfs` for device-node management
-- User namespaces for rootless or isolated container workflows
-- Extended attributes and POSIX ACLs on tmpfs
-- Netfilter address-type matching
-- IP set support for firewall and fail2ban-style rules
-- IPv6 NAT and masquerading
-- TTL and IPv6 hop-limit targets
-- USB Audio Class 1 gadget compatibility
-- A deliberately expanded GKI symbol surface for matching kernel and module builds
-
-The build also sets:
-
-```text
-TRIM_NONLISTED_KMI=0
-KMI_SYMBOL_LIST_STRICT_MODE=0
-```
-
-These settings intentionally relax the normal baseline KMI comparison because this fork changes the GKI ABI for full DroidSpaces and matching vendor-module support. The kernel and its matching modules must be treated as one build output.
+Container workloads can use System V and POSIX IPC, IPC/PID/user namespaces, managed device nodes, rootless or isolated user namespaces, extended attributes and POSIX ACLs on tmpfs, netfilter address matching, IP sets, IPv6 NAT and masquerading, TTL and IPv6 hop-limit handling, and USB Audio Class 1 gadget support. The kernel and its matching vendor modules are built as one compatible output and should be used together.
 
 ### 🪟 NTSync for Wine, Winlator, and GameHub
 
@@ -116,7 +76,7 @@ NTSync provides kernel-backed emulation of Windows NT synchronization primitives
 - Manual and auto-reset events
 - Wait queues for `wait-any` and `wait-all` behavior
 
-It is enabled with `CONFIG_NTSYNC=y` and is intended to reduce synchronization overhead for Wine-based workloads such as Winlator and GameHub. NTSync is not a hardware driver; it is a kernel interface used by compatible userspace runtimes.
+It is intended to reduce synchronization overhead for Wine-based workloads such as Winlator and GameHub. NTSync is not a hardware driver; it is a kernel interface used by compatible userspace runtimes.
 
 ### 🌐 Network Stack
 
@@ -124,25 +84,15 @@ It is enabled with `CONFIG_NTSYNC=y` and is intended to reduce synchronization o
 
 BBRv3 is backported to the Android 13 / 5.15 common kernel with Android KABI compatibility. It adds a congestion-control algorithm that estimates bottleneck bandwidth and round-trip time instead of relying only on packet loss.
 
-The tree provides:
+The tree provides BBRv3 congestion-control logic, including TCP Probe Loss Balance (PLB) support from the backport, together with runtime congestion-control selection support.
 
-- `CONFIG_TCP_CONG_BBR3=y`
-- BBRv3 congestion-control logic
-- TCP Probe Loss Balance (PLB) support from the backport
-- Kernel configuration and runtime selection support
-
-BBRv3 is **available**, but this project does not force it as the global runtime default. The active congestion controller remains a userspace / sysctl policy decision. When supported by the running kernel, it can be selected with:
-
-```sh
-su -c 'cat /proc/sys/net/ipv4/tcp_allowed_congestion_control'
-su -c 'echo bbr3 > /proc/sys/net/ipv4/tcp_congestion_control'
-```
+BBRv3 is **available**, but this project does not force it as the global runtime default. The active congestion controller remains a runtime policy choice, so actual behavior depends on how the operating system and network stack select algorithms.
 
 Actual networking results depend on the modem, Wi-Fi chipset, carrier, access point, queueing discipline, and network path. BBRv3 is not a promise of a faster internet connection in every environment.
 
 #### Queueing Disciplines and Firewall Features
 
-The custom defconfig enables a broad set of networking components:
+Networking support includes a broad set of components:
 
 - FQ, FQ-CoDel, CAKE, PIE, and FQ-PIE queueing disciplines
 - IPv4 and IPv6 NAT support
@@ -172,13 +122,7 @@ These are workload-dependent optimizations. They can improve responsiveness or r
 
 #### CPU Minimum-Frequency Limit Interface
 
-The custom cpufreq patch adds a per-policy `scaling_min_freq_limit` interface. Its behavior is deliberately a limit, not a forced performance floor:
-
-```text
-effective_minimum = min(scaling_min_freq, scaling_min_freq_limit)
-```
-
-This allows a userspace power policy to cap an accidentally high minimum frequency so the CPU can idle at lower frequencies. It does not raise the minimum frequency, increase the maximum frequency, or create a performance boost by itself.
+The custom cpufreq patch adds a per-policy minimum-frequency limit. It lets a userspace power policy cap an accidentally high minimum frequency so the CPU can idle at lower frequencies. It does not raise the minimum frequency, increase the maximum frequency, or create a performance boost by itself.
 
 ### 💾 Storage and Filesystem Tuning
 
@@ -219,7 +163,7 @@ This keeps debugging output easier to read during charging, app startup, and CPU
 
 ## 🧰 Build Information
 
-| Item | Configuration |
+| Item | Details |
 | --- | --- |
 | Kernel base | Android 13 Common Kernel, Linux 5.15 GKI |
 | Platform | Qualcomm SM8550 / Kalama |
@@ -302,7 +246,7 @@ Use the generated flashable package only on its matching target and firmware fam
 - Ext4's 30-second commit age reduces write frequency at the cost of a larger sudden-power-loss window.
 - Lower freeze, wakelock, and F2FS timeouts can expose badly behaved vendor software.
 - BBG boot/recovery blocking is disabled to preserve flashing compatibility.
-- The custom GKI ABI settings mean kernel modules must come from the matching build.
+- DroidSpaces support expands the kernel/module interface, so kernel modules must come from the matching build.
 - Custom kernels reduce the safety margin provided by stock Samsung integrity features. Keep recovery images and backups before testing.
 
 ## 📚 Credits and Sources
@@ -320,7 +264,7 @@ The project is built from and inspired by the following work. Individual patch f
 
 - [KernelSU-Next](https://github.com/KernelSU-Next/KernelSU-Next) — KernelSU-Next integration and setup flow.
 - [Baseband Guard](https://github.com/vc-teahouse/Baseband-guard) — BBG implementation and security concept.
-- [DroidSpaces OSS](https://github.com/ravindu644/Droidspaces-OSS) — container-oriented kernel configuration guidance and userspace integration target.
+- [DroidSpaces OSS](https://github.com/ravindu644/Droidspaces-OSS) — container-oriented kernel support guidance and userspace integration target.
 - [LineageOS SM8550 kernel source](https://github.com/LineageOS/android_kernel_qcom_sm8550) — SM8550 community kernel reference.
 - [Google BBR](https://github.com/google/bbr) — BBR family reference and congestion-control background.
 - [WildKernels `Samsung_KernelSU_SUSFS`](https://github.com/WildKernels/Samsung_KernelSU_SUSFS) — reference for the imported optimization and kernel-feature patch set.
