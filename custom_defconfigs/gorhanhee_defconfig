@@ -16,7 +16,7 @@ CONFIG_LSM="landlock,lockdown,yama,loadpin,safesetid,integrity,selinux,baseband_
 CONFIG_WERROR=n
 
 # Add LOCALVERSION
-CONFIG_LOCALVERSION="-GoRhanHee-Kernel-Droidspace"
+CONFIG_LOCALVERSION="-GoRhanHee-Kernel"
 CONFIG_LOCALVERSION_AUTO=n
 
 # Kernel configurations for full DroidSpaces support for GKI
