@@ -22,28 +22,28 @@ To build a ZIP directly from a device's packaged image directory:
 
 ```bash
 ./prebuilts/make_flashable_zip.sh \
-    out/dm1q/msm-kalama-kalama-gki/packaged/dm1q-kernel-recovery-flashable.zip \
+    out/dm1q/msm-kalama-kalama-gki/packaged/GoRhanHee_Kernel-kalama-dm1q.zip \
     out/dm1q/msm-kalama-kalama-gki/packaged \
     "Galaxy S23"
 
 ./prebuilts/make_flashable_zip.sh \
-    out/dm2q/msm-kalama-kalama-gki/packaged/dm2q-kernel-recovery-flashable.zip \
+    out/dm2q/msm-kalama-kalama-gki/packaged/GoRhanHee_Kernel-kalama-dm2q.zip \
     out/dm2q/msm-kalama-kalama-gki/packaged \
     "Galaxy S23+"
 
 ./prebuilts/make_flashable_zip.sh \
-    out/dm3q/msm-kalama-kalama-gki/packaged/dm3q-kernel-recovery-flashable.zip \
+    out/dm3q/msm-kalama-kalama-gki/packaged/GoRhanHee_Kernel-kalama-dm3q.zip \
     out/dm3q/msm-kalama-kalama-gki/packaged \
     "Galaxy S23 Ultra"
 
 ./prebuilts/make_flashable_zip.sh \
-    out/q5q/msm-kalama-kalama-gki/packaged/q5q-kernel-recovery-flashable.zip \
+    out/q5q/msm-kalama-kalama-gki/packaged/GoRhanHee_Kernel-kalama-q5q.zip \
     out/q5q/msm-kalama-kalama-gki/packaged \
     "Galaxy Z Fold5"
 ```
 
 The build commands call the same packager automatically. Each writes
-`${device}-kernel-recovery-flashable.zip` next to that device's packaged
+`GoRhanHee_Kernel-kalama-${device}.zip` next to that device's packaged
 images under `out/${device}/msm-kalama-kalama-gki/packaged/`.
 
 The ZIP contains those four image files under `files/`, the

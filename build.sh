@@ -256,7 +256,7 @@ select_device_profile() {
     PACKAGING_PREBUILTS_DIR="${PACKAGING_WORK_DIR}/prebuilts"
     DOWNLOAD_DIR="${TARGET_DOWNLOAD_DIR}/${run_key}"
     UNPACK_DIR="${TARGET_UNPACK_DIR}/${run_key}"
-    FLASHABLE_ZIP="${PACKAGE_DIR}/${MODEL}-kernel-recovery-flashable.zip"
+    FLASHABLE_ZIP="${PACKAGE_DIR}/GoRhanHee_Kernel-${CHIPSET_NAME}-${MODEL}.zip"
     CUSTOM_SYSTEM_DLKM_IMAGE="${PACKAGING_WORK_DIR}/system_dlkm.img"
     TMPDIR="${PACKAGING_WORK_DIR}/process-tmp"
 

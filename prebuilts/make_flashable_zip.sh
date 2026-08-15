@@ -20,7 +20,7 @@ IMAGE_DIR must contain:
   system_dlkm.img
 
 Example:
-  ${SCRIPT_NAME} out/dm3q-kernel-flashable.zip out/msm-kalama-kalama-gki/packaged "Galaxy S23 Ultra"
+  ${SCRIPT_NAME} out/GoRhanHee_Kernel-kalama-dm3q.zip out/msm-kalama-kalama-gki/packaged "Galaxy S23 Ultra"
 EOF
 }
 

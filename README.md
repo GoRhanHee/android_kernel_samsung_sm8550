@@ -73,7 +73,7 @@ boot.img
 vendor_boot.img
 vendor_dlkm.img
 system_dlkm.img
-<model>-kernel-recovery-flashable.zip
+GoRhanHee_Kernel-kalama-<model>.zip
 ```
 
 - Flash only to the matching device and firmware family.
