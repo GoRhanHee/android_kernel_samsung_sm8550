@@ -23,6 +23,8 @@ readonly GKI_KERNEL_BUILD_OPTIONS=(
     "HERMETIC_TOOLCHAIN=0"
     "KMI_SYMBOL_LIST_STRICT_MODE=0"
     "TRIM_NONLISTED_KMI=0"
+    # Keep custom-only options out of the embedded /proc/config.gz output.
+    "CONFIG_FAKE_DISABLE=CONFIG_BBG CONFIG_NTSYNC CONFIG_TCP_CONG_BBR3"
     "RECOMPILE_KERNEL=1"
     "ABI_DEFINITION="
     "BUILD_BOOT_IMG=1"
@@ -81,6 +83,13 @@ readonly COMMON_FEATURE_PATCH_FILES=(
     "${SOURCE_DIR}/patches/common/optimization/0022-silence-system-logspam.patch"
 )
 
+# Apply this shared patch to both kernel trees during the build.
+readonly FAKE_CONFIG_PATCH_FILE="${SOURCE_DIR}/patches/common/fake_config.patch"
+readonly FAKE_CONFIG_PATCH_TARGETS=(
+    "${KERNEL_PLATFORM}/common"
+    "${KERNEL_PLATFORM}/msm-kernel"
+)
+
 BUILD_TARGET=""
 MODEL=""
 DEVICE_DISPLAY_NAME=""
@@ -117,11 +126,14 @@ TMPDIR=""
 DLKM_EXTRACTED_ROOT=""
 COMMON_HEAD_BEFORE=""
 COMMON_STATUS_BEFORE=""
+MSM_HEAD_BEFORE=""
+MSM_STATUS_BEFORE=""
 KSU_SETUP_SCRIPT=""
 KSU_RESTORE_PATCH=""
 KSU_IMPORT_STARTED=0
 KSU_REUSE_EXISTING=0
 COMMON_FEATURE_PATCHES_APPLIED=0
+FAKE_CONFIG_PATCHES_APPLIED=0
 
 select_wlan_profile() {
     local project_config="${KERNEL_PLATFORM}/msm-kernel/arch/arm64/configs/vendor/${SEC_PROJECT_CONFIG}_project.config"
@@ -374,6 +386,31 @@ apply_common_feature_patches() {
     done
 }
 
+apply_fake_config_patch() {
+    local kernel_dir
+
+    require_command patch
+    [[ -f "${FAKE_CONFIG_PATCH_FILE}" ]] ||
+        die "fake config patch not found: ${FAKE_CONFIG_PATCH_FILE}"
+
+    for kernel_dir in "${FAKE_CONFIG_PATCH_TARGETS[@]}"; do
+        echo "[fake config] Checking $(basename "${kernel_dir}")"
+        (
+            cd "${kernel_dir}"
+            patch --batch --forward --fuzz=1 --no-backup-if-mismatch \
+                --dry-run -p1 < "${FAKE_CONFIG_PATCH_FILE}" >/dev/null
+        ) || die "fake config patch does not apply: ${kernel_dir}"
+
+        echo "[fake config] Applying to $(basename "${kernel_dir}")"
+        (
+            cd "${kernel_dir}"
+            patch --batch --forward --fuzz=1 --no-backup-if-mismatch \
+                -p1 < "${FAKE_CONFIG_PATCH_FILE}"
+        )
+        FAKE_CONFIG_PATCHES_APPLIED=$((FAKE_CONFIG_PATCHES_APPLIED + 1))
+    done
+}
+
 validate_msm_state() {
     local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
     local top_level
@@ -398,6 +435,8 @@ validate_msm_state() {
     )"
     [[ -z "${status}" ]] ||
         die "msm-kernel submodule must be clean before the build"
+    MSM_HEAD_BEFORE="${head}"
+    MSM_STATUS_BEFORE="${status}"
 
     configured_branch="$(
         git -C "${SOURCE_DIR}" config -f .gitmodules \
@@ -435,6 +474,30 @@ verify_common_unchanged() {
     if [[ "${head_after}" != "${COMMON_HEAD_BEFORE}" ||
           "${status_after}" != "${COMMON_STATUS_BEFORE}" ]]; then
         echo "error: the build changed kernel_platform/common" >&2
+        return 1
+    fi
+}
+
+verify_msm_unchanged() {
+    local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
+    local head_after
+    local status_after
+
+    [[ -n "${MSM_HEAD_BEFORE}" ]] || return 0
+    head_after="$(git -C "${msm_dir}" rev-parse HEAD 2>/dev/null)" || {
+        echo "error: msm-kernel submodule became unavailable during the build" >&2
+        return 1
+    }
+    status_after="$(
+        git -C "${msm_dir}" status --porcelain=v1 --untracked-files=all
+    )" || {
+        echo "error: msm-kernel status could not be read after the build" >&2
+        return 1
+    }
+
+    if [[ "${head_after}" != "${MSM_HEAD_BEFORE}" ||
+          "${status_after}" != "${MSM_STATUS_BEFORE}" ]]; then
+        echo "error: the build changed kernel_platform/msm-kernel" >&2
         return 1
     fi
 }
@@ -500,14 +563,36 @@ cleanup_common_feature_patches() {
     return "${cleanup_status}"
 }
 
+cleanup_fake_config_patch() {
+    local patch_index
+    local kernel_dir
+    local cleanup_status=0
+
+    (( FAKE_CONFIG_PATCHES_APPLIED > 0 )) || return 0
+
+    echo "[fake config] Restoring kernel source state"
+    for ((patch_index = FAKE_CONFIG_PATCHES_APPLIED - 1; patch_index >= 0; patch_index--)); do
+        kernel_dir="${FAKE_CONFIG_PATCH_TARGETS[patch_index]}"
+        (
+            cd "${kernel_dir}"
+            patch --batch --fuzz=1 --no-backup-if-mismatch -R -p1 < "${FAKE_CONFIG_PATCH_FILE}"
+        ) || cleanup_status=1
+    done
+
+    FAKE_CONFIG_PATCHES_APPLIED=0
+    return "${cleanup_status}"
+}
+
 cleanup_common() {
     local build_status=$?
     local cleanup_status=0
 
     trap - EXIT
+    cleanup_fake_config_patch || cleanup_status=1
     cleanup_common_feature_patches || cleanup_status=1
     cleanup_kernelsu_next || cleanup_status=1
     verify_common_unchanged || cleanup_status=1
+    verify_msm_unchanged || cleanup_status=1
 
     if (( cleanup_status != 0 )); then
         echo "error: failed to restore kernel_platform/common" >&2
@@ -983,6 +1068,7 @@ main() {
     prepare_target_workspace
     import_kernelsu_next
     apply_common_feature_patches
+    apply_fake_config_patch
     prepare_toolchain
     build
     prepare_packaging_tools
