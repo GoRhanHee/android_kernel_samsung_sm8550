@@ -12,10 +12,10 @@ Run a build for the selected device. Each command uses that device's
 isolated output and stock-image inputs:
 
 ```bash
-./build.sh dm1q  # Galaxy S23 (SM-S911N)
-./build.sh dm2q  # Galaxy S23+ (SM-S916N)
-./build.sh dm3q  # Galaxy S23 Ultra (SM-S918N)
-./build.sh q5q   # Galaxy Z Fold5 (SM-F946N)
+./build.sh dm1q  # Galaxy S23
+./build.sh dm2q  # Galaxy S23+
+./build.sh dm3q  # Galaxy S23 Ultra
+./build.sh q5q   # Galaxy Z Fold5
 ```
 
 To build a ZIP directly from a device's packaged image directory:

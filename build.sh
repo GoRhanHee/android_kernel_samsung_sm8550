@@ -13,12 +13,36 @@ readonly CLANG_BIN="${CLANG_TOOLCHAIN_DIR}/bin/clang"
 readonly KSU_SETUP_URL="https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh"
 readonly JOBS="$(nproc)"
 export TOOLCHAIN_VERSION
-export LTO="thin"
 
 # Environment passed to prepare_vendor.sh. Keep this as an array so paths and
 # empty assignments remain single arguments instead of being reparsed by eval
 # or by unquoted word splitting.
-GKI_KERNEL_BUILD_OPTIONS=()
+readonly GKI_KERNEL_BUILD_OPTIONS=(
+    "SKIP_MRPROPER=1"
+    "LTO=thin"
+    "HERMETIC_TOOLCHAIN=0"
+    "KMI_SYMBOL_LIST_STRICT_MODE=0"
+    "TRIM_NONLISTED_KMI=0"
+    "RECOMPILE_KERNEL=1"
+    "ABI_DEFINITION="
+    "BUILD_BOOT_IMG=1"
+    "SKIP_VENDOR_BOOT=1"
+    "MKBOOTIMG_PATH=${SOURCE_DIR}/kernel_platform/tools/mkbootimg/mkbootimg.py"
+    "KERNEL_BINARY=Image"
+    "BOOT_IMAGE_HEADER_VERSION=4"
+    "AVB_SIGN_BOOT_IMG=1"
+    "AVB_BOOT_PARTITION_SIZE=100663296"
+    "AVB_BOOT_KEY=${SOURCE_DIR}/kernel_platform/tools/mkbootimg/gki/testdata/testkey_rsa4096.pem"
+    "AVB_BOOT_ALGORITHM=SHA256_RSA4096"
+    "AVB_BOOT_PARTITION_NAME=boot"
+)
+
+# MKBOOTIMG Setting
+export MKBOOTIMG_EXTRA_ARGS="
+    --os_version 13.0.0 \
+    --os_patch_level 2099-12-31 \
+    --pagesize 4096 \
+"
 
 # Set the kernel build identity and use Korea Standard Time.
 export TZ="Asia/Seoul"
@@ -56,38 +80,6 @@ readonly COMMON_FEATURE_PATCH_FILES=(
     "${SOURCE_DIR}/patches/common/optimization/0021-silence-irq-cpu-logspam-sm8550-5.15.patch"
     "${SOURCE_DIR}/patches/common/optimization/0022-silence-system-logspam.patch"
 )
-
-configure_gki_build_options() {
-    # This fork intentionally changes the GKI ABI for full DroidSpaces
-    # support. Keep the complete exported symbol set and skip the baseline
-    # ABI comparison so the rebuilt kernel and matching modules are validated
-    # together.
-    export TRIM_NONLISTED_KMI="0"
-    export KMI_SYMBOL_LIST_STRICT_MODE="0"
-
-    # The packaging lane assembles the manually cooked vendor_boot image.
-    export SKIP_VENDOR_BOOT="1"
-
-    GKI_KERNEL_BUILD_OPTIONS=(
-        "SKIP_MRPROPER=1"
-        "LTO=thin"
-        "HERMETIC_TOOLCHAIN=0"
-        "KMI_SYMBOL_LIST_STRICT_MODE=0"
-        "TRIM_NONLISTED_KMI=0"
-        "RECOMPILE_KERNEL=1"
-        "ABI_DEFINITION="
-        "BUILD_BOOT_IMG=1"
-        "SKIP_VENDOR_BOOT=1"
-        "MKBOOTIMG_PATH=${SOURCE_DIR}/kernel_platform/tools/mkbootimg/mkbootimg.py"
-        "KERNEL_BINARY=Image"
-        "BOOT_IMAGE_HEADER_VERSION=4"
-        "AVB_SIGN_BOOT_IMG=1"
-        "AVB_BOOT_PARTITION_SIZE=100663296"
-        "AVB_BOOT_KEY=${SOURCE_DIR}/kernel_platform/tools/mkbootimg/gki/testdata/testkey_rsa4096.pem"
-        "AVB_BOOT_ALGORITHM=SHA256_RSA4096"
-        "AVB_BOOT_PARTITION_NAME=boot"
-    )
-}
 
 BUILD_TARGET=""
 MODEL=""
@@ -160,11 +152,11 @@ Usage:
   ${SCRIPT_NAME} help
 
 Devices:
-  dm1q  Samsung Galaxy S23 (SM-S911N)
-  dm2q  Samsung Galaxy S23+ (SM-S916N)
-  dm3q  Samsung Galaxy S23 Ultra (SM-S918N)
-  q5q   Samsung Galaxy Z Fold5 (SM-F946N)
-  b5q   Samsung Galaxy Z Flip5 (SM-F731N)
+  dm1q  Samsung Galaxy S23
+  dm2q  Samsung Galaxy S23+
+  dm3q  Samsung Galaxy S23 Ultra
+  q5q   Samsung Galaxy Z Fold5
+  b5q   Samsung Galaxy Z Flip5
 
 Examples:
   ${SCRIPT_NAME} dm1q
@@ -554,7 +546,6 @@ build() {
     export TARGET_BUILD_VARIANT="user"
     export MERGE_CONFIG="${ANDROID_BUILD_TOP}/kernel_platform/common/scripts/kconfig/merge_config.sh"
     export GKI_BUILD_CONFIG_FRAGMENT="${SOURCE_DIR}/prebuilts/gki_toolchain.config"
-    configure_gki_build_options
 
     if [[ -e "${OUT_DIR}/host/bin/ufdt_apply_overlay" ]]; then
         chmod u+w "${OUT_DIR}/host/bin/ufdt_apply_overlay"
