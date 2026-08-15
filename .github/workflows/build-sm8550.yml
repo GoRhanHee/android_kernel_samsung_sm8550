@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   build:
-    name: ${{ matrix.device }} full build
+    name: ${{ matrix.device }} build
     runs-on: ubuntu-22.04
     timeout-minutes: 360
     strategy:
@@ -109,11 +109,9 @@ jobs:
           key: samsung-sm8550-toolchain-clang22-r596125-ndk-r26d-${{ runner.os }}-${{ runner.arch }}-v1
 
       - name: Build ${{ matrix.device }} kernel
-        env:
-          JOBS: ${{ runner.arch == 'X64' && '4' || '2' }}
         run: |
           device='${{ matrix.device }}'
-          ./build.sh "$device" full
+          ./build.sh "$device"
 
       - name: Collect kernel artifacts
         shell: bash
@@ -185,7 +183,7 @@ jobs:
       - name: Upload kernel artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.device }}-full-${{ github.sha }}
+          name: ${{ matrix.device }}-build-${{ github.sha }}
           path: out/upload/${{ matrix.device }}/
           if-no-files-found: warn
           compression-level: 0

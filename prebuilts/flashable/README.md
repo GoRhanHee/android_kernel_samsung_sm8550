@@ -8,14 +8,14 @@ the four images required by each device:
 - `vendor_dlkm.img`
 - `system_dlkm.img`
 
-Run a full build for the selected device. Each command uses that device's
+Run a build for the selected device. Each command uses that device's
 isolated output and stock-image inputs:
 
 ```bash
-./build.sh dm1q full  # Galaxy S23 (SM-S911N)
-./build.sh dm2q full  # Galaxy S23+ (SM-S916N)
-./build.sh dm3q full  # Galaxy S23 Ultra (SM-S918N)
-./build.sh q5q full   # Galaxy Z Fold5 (SM-F946N)
+./build.sh dm1q  # Galaxy S23 (SM-S911N)
+./build.sh dm2q  # Galaxy S23+ (SM-S916N)
+./build.sh dm3q  # Galaxy S23 Ultra (SM-S918N)
+./build.sh q5q   # Galaxy Z Fold5 (SM-F946N)
 ```
 
 To build a ZIP directly from a device's packaged image directory:
@@ -42,7 +42,7 @@ To build a ZIP directly from a device's packaged image directory:
     "Galaxy Z Fold5"
 ```
 
-The full-build commands call the same packager automatically. Each writes
+The build commands call the same packager automatically. Each writes
 `${device}-kernel-recovery-flashable.zip` next to that device's packaged
 images under `out/${device}/msm-kalama-kalama-gki/packaged/`.
 
@@ -75,10 +75,10 @@ Wireless routing is device-specific: dm1q, dm2q, and q5q use the QCA6490
 profile; dm3q uses Kiwi V2.
 
 For local pre-push validation, run the static shell, YAML, profile, Kconfig,
-DTS, and packaging checks first. Run a targeted `./build.sh dm1q full` or
-`./build.sh dm2q full` only when the remaining question requires build-produced
+DTS, and packaging checks first. Run a targeted `./build.sh dm1q` or
+`./build.sh dm2q` only when the remaining question requires build-produced
 evidence (such as emitted DTBs, compiled WLAN/module routing, or a repacked
-`vendor_dlkm.img`). The CI workflow intentionally performs a full build for
+`vendor_dlkm.img`). The CI workflow intentionally performs a build for
 every matrix device; this static-first policy applies to local validation.
 
 The build keeps `dtbo.img` and system module side artifacts in the

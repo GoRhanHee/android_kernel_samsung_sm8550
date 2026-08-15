@@ -4,16 +4,21 @@ set -Eeuo pipefail
 
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SOURCE_DIR="${SOURCE_DIR:-${SCRIPT_DIR}}"
+readonly SOURCE_DIR="${SCRIPT_DIR}"
 readonly KERNEL_PLATFORM="${SOURCE_DIR}/kernel_platform"
-readonly TOOLCHAIN_VERSION="${TOOLCHAIN_VERSION:-r596125}"
-readonly TOOLCHAIN_URL="${TOOLCHAIN_URL:-https://github.com/GoRhanHee/samsung_sm8550_toolchain/releases/download/clang22-ndk26d/toolchain-clang22-ndk26d.tar.xz}"
+readonly TOOLCHAIN_VERSION="r596125"
+readonly TOOLCHAIN_URL="https://github.com/GoRhanHee/samsung_sm8550_toolchain/releases/download/clang22-ndk26d/toolchain-clang22-ndk26d.tar.xz"
 readonly CLANG_TOOLCHAIN_DIR="${KERNEL_PLATFORM}/prebuilts/clang/host/linux-x86/clang-${TOOLCHAIN_VERSION}"
 readonly CLANG_BIN="${CLANG_TOOLCHAIN_DIR}/bin/clang"
 readonly KSU_SETUP_URL="https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh"
-readonly JOBS="${JOBS:-$(nproc)}"
+readonly JOBS="$(nproc)"
 export TOOLCHAIN_VERSION
-export LTO="${LTO:-thin}"
+export LTO="thin"
+
+# Environment passed to prepare_vendor.sh. Keep this as an array so paths and
+# empty assignments remain single arguments instead of being reparsed by eval
+# or by unquoted word splitting.
+GKI_KERNEL_BUILD_OPTIONS=()
 
 # Set the kernel build identity and use Korea Standard Time.
 export TZ="Asia/Seoul"
@@ -21,7 +26,7 @@ export LC_ALL=C
 export KBUILD_BUILD_USER="GoRhanHee"
 export KBUILD_BUILD_HOST="SM8550-Kernel"
 export KBUILD_BUILD_TIMESTAMP="$(date)"
-export KBUILD_BUILD_VERSION="${BUILD_VERSION:-1}"
+export KBUILD_BUILD_VERSION="1"
 
 readonly COMMON_FEATURE_PATCH_FILES=(
     "${SOURCE_DIR}/patches/common/ntsync/ntsync_base.patch"
@@ -52,13 +57,37 @@ readonly COMMON_FEATURE_PATCH_FILES=(
     "${SOURCE_DIR}/patches/common/optimization/0022-silence-system-logspam.patch"
 )
 
-# This fork intentionally changes the GKI ABI for full DroidSpaces support.
-# Keep the complete exported symbol set and skip the baseline ABI comparison
-# so the rebuilt kernel and its matching modules are validated together.
-export TRIM_NONLISTED_KMI=0
-export KMI_SYMBOL_LIST_STRICT_MODE=0
-# The packaging lane assembles the manually cooked vendor_boot image.
-export SKIP_VENDOR_BOOT=1
+configure_gki_build_options() {
+    # This fork intentionally changes the GKI ABI for full DroidSpaces
+    # support. Keep the complete exported symbol set and skip the baseline
+    # ABI comparison so the rebuilt kernel and matching modules are validated
+    # together.
+    export TRIM_NONLISTED_KMI="0"
+    export KMI_SYMBOL_LIST_STRICT_MODE="0"
+
+    # The packaging lane assembles the manually cooked vendor_boot image.
+    export SKIP_VENDOR_BOOT="1"
+
+    GKI_KERNEL_BUILD_OPTIONS=(
+        "SKIP_MRPROPER=1"
+        "LTO=thin"
+        "HERMETIC_TOOLCHAIN=0"
+        "KMI_SYMBOL_LIST_STRICT_MODE=0"
+        "TRIM_NONLISTED_KMI=0"
+        "RECOMPILE_KERNEL=1"
+        "ABI_DEFINITION="
+        "BUILD_BOOT_IMG=1"
+        "SKIP_VENDOR_BOOT=1"
+        "MKBOOTIMG_PATH=${SOURCE_DIR}/kernel_platform/tools/mkbootimg/mkbootimg.py"
+        "KERNEL_BINARY=Image"
+        "BOOT_IMAGE_HEADER_VERSION=4"
+        "AVB_SIGN_BOOT_IMG=1"
+        "AVB_BOOT_PARTITION_SIZE=100663296"
+        "AVB_BOOT_KEY=${SOURCE_DIR}/kernel_platform/tools/mkbootimg/gki/testdata/testkey_rsa4096.pem"
+        "AVB_BOOT_ALGORITHM=SHA256_RSA4096"
+        "AVB_BOOT_PARTITION_NAME=boot"
+    )
+}
 
 BUILD_TARGET=""
 MODEL=""
@@ -121,11 +150,11 @@ select_wlan_profile() {
 usage() {
     cat <<EOF
 Usage:
-  ${SCRIPT_NAME} dm1q full
-  ${SCRIPT_NAME} dm2q full
-  ${SCRIPT_NAME} dm3q full
-  ${SCRIPT_NAME} q5q full
-  ${SCRIPT_NAME} b5q full
+  ${SCRIPT_NAME} dm1q
+  ${SCRIPT_NAME} dm2q
+  ${SCRIPT_NAME} dm3q
+  ${SCRIPT_NAME} q5q
+  ${SCRIPT_NAME} b5q
   ${SCRIPT_NAME} -h
   ${SCRIPT_NAME} --help
   ${SCRIPT_NAME} help
@@ -138,19 +167,18 @@ Devices:
   b5q   Samsung Galaxy Z Flip5 (SM-F731N)
 
 Examples:
-  ${SCRIPT_NAME} dm1q full
-  ${SCRIPT_NAME} dm2q full
-  ${SCRIPT_NAME} dm3q full
-  ${SCRIPT_NAME} q5q full
-  ${SCRIPT_NAME} b5q full
+  ${SCRIPT_NAME} dm1q
+  ${SCRIPT_NAME} dm2q
+  ${SCRIPT_NAME} dm3q
+  ${SCRIPT_NAME} q5q
+  ${SCRIPT_NAME} b5q
 
-Environment overrides:
-  SOURCE_DIR       Kernel source directory (default: ${SOURCE_DIR})
-  JOBS             Parallel build jobs (default: ${JOBS})
-  FULL_OUT_DIR     Base directory for target-specific full-build output
-  TOOLCHAIN_VERSION Android Clang revision (default: ${TOOLCHAIN_VERSION})
-  TOOLCHAIN_URL    Samsung toolchain archive URL
-  LTO              LTO mode: none, thin or full (default: ${LTO})
+Build profile:
+  Source directory  ${SOURCE_DIR}
+  Parallel jobs     ${JOBS}
+  Toolchain         clang-${TOOLCHAIN_VERSION}
+  LTO               thin
+  GKI/boot options  fixed in this script
 EOF
 }
 
@@ -166,7 +194,7 @@ require_command() {
 select_device_profile() {
     local device="$1"
     local output_base
-    local run_key="${BUILD_RUN_KEY:-run-${BASHPID}}"
+    local run_key="run-${BASHPID}"
 
     case "${device}" in
         dm1q)
@@ -223,7 +251,7 @@ select_device_profile() {
     TARGET_PRODUCT="gki"
     TARGET_BOARD_PLATFORM="gki"
     ANDROID_BUILD_TOP="${SOURCE_DIR}"
-    output_base="${FULL_OUT_DIR:-${ANDROID_BUILD_TOP}/out}"
+    output_base="${ANDROID_BUILD_TOP}/out"
     ANDROID_PRODUCT_OUT="${output_base}/${MODEL}/target/product/${MODEL}"
     OUT_DIR="${output_base}/${MODEL}/msm-${CHIPSET_NAME}-${CHIPSET_NAME}-${TARGET_PRODUCT}"
     ANDROID_KERNEL_OUT="${OUT_DIR}/android-kernel-out"
@@ -247,37 +275,6 @@ select_device_profile() {
     export WLAN_PROFILE WLAN_EXT_MODULE WLAN_BUILT_MODULE WLAN_PACKAGED_MODULE
     export ANDROID_BUILD_TOP ANDROID_PRODUCT_OUT ANDROID_KERNEL_OUT
     export OUT_DIR DIST_DIR CUSTOM_SYSTEM_DLKM_IMAGE TMPDIR
-}
-
-print_device_profile() {
-    printf '%s\n' \
-        "BUILD_TARGET=${BUILD_TARGET}" \
-        "MODEL=${MODEL}" \
-        "DEVICE_DISPLAY_NAME=${DEVICE_DISPLAY_NAME}" \
-        "PROJECT_NAME=${PROJECT_NAME}" \
-        "CHIPSET_NAME=${CHIPSET_NAME}" \
-        "TARGET_PRODUCT=${TARGET_PRODUCT}" \
-        "TARGET_BOARD_PLATFORM=${TARGET_BOARD_PLATFORM}" \
-        "REGION=${REGION}" \
-        "CARRIER=${CARRIER}" \
-        "STOCK_VENDOR_BOOT_URL=${STOCK_VENDOR_BOOT_URL}" \
-        "STOCK_VENDOR_DLKM_URL=${STOCK_VENDOR_DLKM_URL}" \
-        "STOCK_SYSTEM_DLKM_URL=${STOCK_SYSTEM_DLKM_URL}" \
-        "SEC_PROJECT_CONFIG=${SEC_PROJECT_CONFIG}" \
-        "WLAN_PROFILE=${WLAN_PROFILE}" \
-        "WLAN_EXT_MODULE=${WLAN_EXT_MODULE}" \
-        "WLAN_BUILT_MODULE=${WLAN_BUILT_MODULE}" \
-        "WLAN_PACKAGED_MODULE=${WLAN_PACKAGED_MODULE}" \
-        "OUT_DIR=${OUT_DIR}" \
-        "ANDROID_KERNEL_OUT=${ANDROID_KERNEL_OUT}" \
-        "DIST_DIR=${DIST_DIR}" \
-        "PACKAGE_DIR=${PACKAGE_DIR}" \
-        "TEMP_DIR=${PACKAGING_WORK_DIR}" \
-        "TMPDIR=${TMPDIR}" \
-        "DOWNLOAD_DIR=${DOWNLOAD_DIR}" \
-        "UNPACK_DIR=${UNPACK_DIR}" \
-        "CUSTOM_SYSTEM_DLKM_IMAGE=${CUSTOM_SYSTEM_DLKM_IMAGE}" \
-        "FLASHABLE_ZIP=${FLASHABLE_ZIP}"
 }
 
 record_common_state() {
@@ -553,10 +550,11 @@ prepare_toolchain() {
         die "clang-${TOOLCHAIN_VERSION} was not found after extracting the toolchain"
 }
 
-build_full() {
-    export TARGET_BUILD_VARIANT="${TARGET_BUILD_VARIANT:-user}"
+build() {
+    export TARGET_BUILD_VARIANT="user"
     export MERGE_CONFIG="${ANDROID_BUILD_TOP}/kernel_platform/common/scripts/kconfig/merge_config.sh"
     export GKI_BUILD_CONFIG_FRAGMENT="${SOURCE_DIR}/prebuilts/gki_toolchain.config"
+    configure_gki_build_options
 
     if [[ -e "${OUT_DIR}/host/bin/ufdt_apply_overlay" ]]; then
         chmod u+w "${OUT_DIR}/host/bin/ufdt_apply_overlay"
@@ -613,16 +611,15 @@ build_full() {
         ${WLAN_EXT_MODULE} \
     "  
 
-    echo "[full] BUILD_TARGET=${BUILD_TARGET}"
-    echo "[full] MODEL=${MODEL}"
-    echo "[full] OUT_DIR=${OUT_DIR}"
+    echo "[build] BUILD_TARGET=${BUILD_TARGET}"
+    echo "[build] MODEL=${MODEL}"
+    echo "[build] OUT_DIR=${OUT_DIR}"
 
     mkdir -p "${ANDROID_PRODUCT_OUT}"
 
     (
         cd "${SOURCE_DIR}"
-        HERMETIC_TOOLCHAIN=0 \
-        RECOMPILE_KERNEL=1 \
+        env "${GKI_KERNEL_BUILD_OPTIONS[@]}" \
             ./kernel_platform/build/android/prepare_vendor.sh sec "${TARGET_PRODUCT}"
     )
 
@@ -631,7 +628,7 @@ build_full() {
     cp "${DIST_DIR}/${WLAN_BUILT_MODULE}" \
         "${DIST_DIR}/${WLAN_PACKAGED_MODULE}"
 
-    echo "[full] Artifacts: ${OUT_DIR}/dist"
+    echo "[build] Artifacts: ${OUT_DIR}/dist"
 }
 
 require_packaging_command() {
@@ -981,7 +978,7 @@ main() {
         esac
     fi
 
-    if [[ $# -ne 2 || "$2" != "full" ]]; then
+    if [[ $# -ne 1 ]]; then
         usage >&2
         return 2
     fi
@@ -990,18 +987,13 @@ main() {
         return 2
     fi
 
-    if [[ "${BUILD_SH_PROFILE_ONLY:-0}" == "1" ]]; then
-        print_device_profile
-        return 0
-    fi
-
     record_common_state
     validate_msm_state
     prepare_target_workspace
     import_kernelsu_next
     apply_common_feature_patches
     prepare_toolchain
-    build_full
+    build
     prepare_packaging_tools
     unpack_vendor_boot
     unpack_vendor_dlkm

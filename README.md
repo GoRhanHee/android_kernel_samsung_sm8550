@@ -49,18 +49,12 @@ git submodule update --init --recursive
 Supported build targets:
 
 ```sh
-./build.sh dm1q full
-./build.sh dm2q full
-./build.sh dm3q full
-./build.sh q5q full
+./build.sh dm1q
+./build.sh dm2q
+./build.sh dm3q
+./build.sh q5q
 ```
 
-Useful overrides:
-
-```sh
-JOBS=16 LTO=thin ./build.sh dm3q full
-TOOLCHAIN_VERSION=r596125 ./build.sh dm3q full
-```
 
 The build flow selects the device profile, applies the common feature patches, merges the custom defconfig, builds the kernel and matching vendor modules, then packages the boot and DLKM images.
 
