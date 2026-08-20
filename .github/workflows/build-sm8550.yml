@@ -108,92 +108,38 @@ jobs:
           path: kernel_platform/prebuilts
           key: samsung-sm8550-toolchain-clang22-r596125-ndk-r26d-${{ runner.os }}-${{ runner.arch }}-v1
 
+      - name: Validate fastboot package contract
+        run: prebuilts/tests/fastboot_package_test.sh
+
       - name: Build ${{ matrix.device }} kernel
         run: |
           device='${{ matrix.device }}'
           ./build.sh "$device"
 
-      - name: Collect kernel artifacts
+      - name: Verify fastboot release package
         shell: bash
         run: |
           set -euo pipefail
 
           device="${{ matrix.device }}"
-          artifact_dir="out/upload/${device}"
-          mkdir -p "${artifact_dir}"
-
-          copy_if_present() {
-            local file
-            for file in "$@"; do
-              if [[ -f "${file}" ]]; then
-                cp "${file}" "${artifact_dir}/"
-              fi
-            done
+          package="out/${device}/msm-kalama-kalama-gki/packaged/GoRhanHee_Kernel-kalama-${device}-fastboot.zip"
+          [[ -f "${package}" ]] || {
+            echo "::error::Required fastboot package not found: ${package}"
+            exit 1
+          }
+          unzip -t "${package}" >/dev/null
+          entries="$(zipinfo -1 "${package}" | LC_ALL=C sort)"
+          expected="$(printf "%s\n" boot.img vendor_boot.img vendor_dlkm.img system_dlkm.img flash_windows.bat flash_macos.sh flash_linux.sh | LC_ALL=C sort)"
+          [[ "${entries}" == "${expected}" ]] || {
+            echo "::error::Fastboot package must contain exactly four images and three flash scripts"
+            exit 1
           }
 
-          dist="out/${device}/msm-kalama-kalama-gki/dist"
-          packaged="out/${device}/msm-kalama-kalama-gki/packaged"
-          flashable_zip="GoRhanHee_Kernel-kalama-${device}.zip"
-          copy_if_present \
-            "${dist}/Image" \
-            "${dist}/Image.gz" \
-            "${dist}/Image.lz4" \
-            "${dist}/init_boot.img" \
-            "${dist}/dtb.img" \
-            "${dist}/dtbo.img" \
-            "${dist}/system_dlkm.img" \
-            "${dist}/System.map" \
-            "${dist}/Module.symvers" \
-            "${dist}/vmlinux.symvers" \
-            "${dist}/vendor_dlkm.modules.load" \
-            "${dist}/vendor_dlkm.modules.blocklist" \
-            "${dist}/system_dlkm.modules.load" \
-            "${dist}/system_dlkm.modules.blocklist"
-
-          mkdir -p "${artifact_dir}/dtbs"
-          for file in "${dist}"/*.dtb "${dist}"/*.dtbo; do
-            [[ -f "${file}" ]] || continue
-            cp "${file}" "${artifact_dir}/dtbs/"
-          done
-
-          declare -A required_artifacts=(
-            [boot.img]="${dist}/boot.img"
-            [vendor_boot.img]="${packaged}/vendor_boot.img"
-            [vendor_dlkm.img]="${packaged}/vendor_dlkm.img"
-            [system_dlkm.img]="${packaged}/system_dlkm.img"
-            ["${flashable_zip}"]="${packaged}/${flashable_zip}"
-          )
-          for artifact in \
-            boot.img \
-            vendor_boot.img \
-            vendor_dlkm.img \
-            system_dlkm.img \
-            "${flashable_zip}"
-          do
-            source="${required_artifacts[${artifact}]}"
-            if [[ ! -f "${source}" ]]; then
-              echo "::error::Required final artifact not found: ${source}"
-              exit 1
-            fi
-            cp "${source}" "${artifact_dir}/${artifact}"
-          done
-
-          find "${artifact_dir}" -type f -printf '%P\n' | sort
-
-      - name: Upload kernel artifacts
+      - name: Upload fastboot kernel artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.device }}-build-${{ github.sha }}
-          path: out/upload/${{ matrix.device }}/
-          if-no-files-found: warn
-          compression-level: 0
-          retention-days: 7
-
-      - name: Upload flashable kernel artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.device }}-flashable-${{ github.sha }}
-          path: out/upload/${{ matrix.device }}/GoRhanHee_Kernel-kalama-${{ matrix.device }}.zip
+          name: ${{ matrix.device }}-fastboot-${{ github.sha }}
+          path: out/${{ matrix.device }}/msm-kalama-kalama-gki/packaged/GoRhanHee_Kernel-kalama-${{ matrix.device }}-fastboot.zip
           if-no-files-found: error
           compression-level: 0
           retention-days: 7

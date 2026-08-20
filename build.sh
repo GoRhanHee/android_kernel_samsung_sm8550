@@ -92,7 +92,6 @@ readonly FAKE_CONFIG_PATCH_TARGETS=(
 
 BUILD_TARGET=""
 MODEL=""
-DEVICE_DISPLAY_NAME=""
 PROJECT_NAME=""
 REGION=""
 CARRIER=""
@@ -120,7 +119,7 @@ PACKAGING_WORK_DIR=""
 PACKAGING_PREBUILTS_DIR=""
 DOWNLOAD_DIR=""
 UNPACK_DIR=""
-FLASHABLE_ZIP=""
+FASTBOOT_PACKAGE=""
 CUSTOM_SYSTEM_DLKM_IMAGE=""
 TMPDIR=""
 DLKM_EXTRACTED_ROOT=""
@@ -202,7 +201,6 @@ select_device_profile() {
         dm1q)
             BUILD_TARGET="dm1q_kor_singlex"
             MODEL="dm1q"
-            DEVICE_DISPLAY_NAME="Galaxy S23"
             STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S911NKSS8FZG1_KOO_OKR/vendor_boot.img"
             STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S911NKSS8FZG1_KOO_OKR/vendor_dlkm.img"
             STOCK_SYSTEM_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S911NKSS8FZG1_KOO_OKR/system_dlkm.img"
@@ -210,7 +208,6 @@ select_device_profile() {
         dm2q)
             BUILD_TARGET="dm2q_kor_singlex"
             MODEL="dm2q"
-            DEVICE_DISPLAY_NAME="Galaxy S23+"
             STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S916NKSS8FZG1_KOO_OKR/vendor_boot.img"
             STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S916NKSS8FZG1_KOO_OKR/vendor_dlkm.img"
             STOCK_SYSTEM_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S916NKSS8FZG1_KOO_OKR/system_dlkm.img"
@@ -218,7 +215,6 @@ select_device_profile() {
         dm3q)
             BUILD_TARGET="dm3q_kor_singlex"
             MODEL="dm3q"
-            DEVICE_DISPLAY_NAME="Galaxy S23 Ultra"
             STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZG1_KOO_OKR/vendor_boot.img"
             STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZG1_KOO_OKR/vendor_dlkm.img"
             STOCK_SYSTEM_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZG1_KOO_OKR/system_dlkm.img"
@@ -226,7 +222,6 @@ select_device_profile() {
         q5q)
             BUILD_TARGET="q5q_kor_singlex"
             MODEL="q5q"
-            DEVICE_DISPLAY_NAME="Galaxy Z Fold5"
             STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZG3_KOO_OKR/vendor_boot.img"
             STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZG3_KOO_OKR/vendor_dlkm.img"
             STOCK_SYSTEM_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZG3_KOO_OKR/system_dlkm.img"
@@ -234,7 +229,6 @@ select_device_profile() {
         b5q)
             BUILD_TARGET="b5q_kor_singlex"
             MODEL="b5q"
-            DEVICE_DISPLAY_NAME="Galaxy Z Flip5"
             STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F731NKSS6GZG4_KOO_OKR/vendor_boot.img"
             STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F731NKSS6GZG4_KOO_OKR/vendor_dlkm.img"
             STOCK_SYSTEM_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F731NKSS6GZG4_KOO_OKR/system_dlkm.img"
@@ -266,11 +260,11 @@ select_device_profile() {
     PACKAGING_PREBUILTS_DIR="${PACKAGING_WORK_DIR}/prebuilts"
     DOWNLOAD_DIR="${TARGET_DOWNLOAD_DIR}/${run_key}"
     UNPACK_DIR="${TARGET_UNPACK_DIR}/${run_key}"
-    FLASHABLE_ZIP="${PACKAGE_DIR}/GoRhanHee_Kernel-${CHIPSET_NAME}-${MODEL}.zip"
+    FASTBOOT_PACKAGE="${PACKAGE_DIR}/GoRhanHee_Kernel-${CHIPSET_NAME}-${MODEL}-fastboot.zip"
     CUSTOM_SYSTEM_DLKM_IMAGE="${PACKAGING_WORK_DIR}/system_dlkm.img"
     TMPDIR="${PACKAGING_WORK_DIR}/process-tmp"
 
-    export BUILD_TARGET MODEL DEVICE_DISPLAY_NAME PROJECT_NAME REGION CARRIER
+    export BUILD_TARGET MODEL PROJECT_NAME REGION CARRIER
     export CHIPSET_NAME TARGET_PRODUCT TARGET_BOARD_PLATFORM
     export STOCK_VENDOR_BOOT_URL STOCK_VENDOR_DLKM_URL STOCK_SYSTEM_DLKM_URL
     export SEC_PROJECT_CONFIG
@@ -957,11 +951,10 @@ validate_collected_dlkm_capacity() {
     )
 }
 
-create_flashable_zip() {
-    "${SOURCE_DIR}/prebuilts/make_flashable_zip.sh" \
-        "${FLASHABLE_ZIP}" \
-        "${PACKAGE_DIR}" \
-        "${DEVICE_DISPLAY_NAME}"
+create_fastboot_package() {
+    "${SOURCE_DIR}/prebuilts/make_fastboot_package.sh" \
+        "${FASTBOOT_PACKAGE}" \
+        "${PACKAGE_DIR}"
 }
 
 collect_packaged_images() {
@@ -978,7 +971,8 @@ collect_packaged_images() {
         "${PACKAGE_DIR}/vendor_boot.img" \
         "${PACKAGE_DIR}/vendor_dlkm.img" \
         "${PACKAGE_DIR}/system_dlkm.img" \
-        "${FLASHABLE_ZIP}"
+        "${FASTBOOT_PACKAGE}" \
+        "${PACKAGE_DIR}/GoRhanHee_Kernel-${CHIPSET_NAME}-${MODEL}.zip"
 
     [[ -f "${boot_image}" ]] || die "built boot.img not found: ${boot_image}"
     [[ -f "${vendor_boot_image}" ]] ||
@@ -1011,7 +1005,7 @@ collect_packaged_images() {
     cp "${vendor_dlkm_image}" "${DIST_DIR}/vendor_dlkm.img"
     cp "${system_dlkm_image}" "${DIST_DIR}/system_dlkm.img"
 
-    create_flashable_zip
+    create_fastboot_package
 }
 
 main() {

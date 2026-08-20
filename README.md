@@ -58,7 +58,7 @@ Supported build targets:
 
 The build flow selects the device profile, applies the common feature patches, merges the custom defconfig, builds the kernel and matching vendor modules, then packages the boot and DLKM images.
 
-## 📦 Output & Flashing
+## 📦 Output & Fastboot 설치
 
 Typical output:
 
@@ -73,13 +73,36 @@ boot.img
 vendor_boot.img
 vendor_dlkm.img
 system_dlkm.img
-GoRhanHee_Kernel-kalama-<model>.zip
+GoRhanHee_Kernel-kalama-<model>-fastboot.zip
 ```
 
 - Flash only to the matching device and firmware family.
-- Flash the kernel and matching DLKM images together.
+- Keep the four images together; `vendor_dlkm.img` and `system_dlkm.img` are matched to the selected device.
 - Keep stock images available for recovery.
 - The Flip5 (`b5q`) build is not currently supported.
+
+### Fastboot 설치
+
+Extract the `-fastboot.zip` package and run the script for your computer from the directory containing all four images:
+
+```text
+Windows: flash_windows.bat
+macOS:   chmod +x flash_macos.sh && ./flash_macos.sh
+Linux:   chmod +x flash_linux.sh && ./flash_linux.sh
+```
+
+The release ZIP contains exactly the four images and three platform-specific flash scripts listed above. The scripts use `fastboot` from the environment when available; otherwise, they automatically download the official Android platform-tools package for Windows, macOS, or Linux.
+
+The four writes are:
+
+```sh
+fastboot flash boot boot.img
+fastboot flash vendor_boot vendor_boot.img
+fastboot flash vendor_dlkm vendor_dlkm.img
+fastboot flash system_dlkm system_dlkm.img
+```
+
+The bootloader must be unlocked and the device must already be in fastbootd before running a script. These scripts do not enter or switch boot modes. Samsung Download Mode/Odin is not used by this package. Flashing is sequential and has no rollback; do not disconnect the device until the script reboots Android.
 
 ## 📚 Credits
 
