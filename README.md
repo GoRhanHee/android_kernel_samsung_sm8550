@@ -58,7 +58,7 @@ Supported build targets:
 
 The build flow selects the device profile, applies the common feature patches, merges the custom defconfig, builds the kernel and matching vendor modules, then packages the boot and DLKM images.
 
-## 📦 Output & Fastboot 설치
+## 📦 Output & Fastboot Installation
 
 Typical output:
 
@@ -81,7 +81,7 @@ GoRhanHee_Kernel-kalama-<model>-fastboot.zip
 - Keep stock images available for recovery.
 - The Flip5 (`b5q`) build is not currently supported.
 
-### Fastboot 설치
+### Fastboot Installation
 
 Extract the `-fastboot.zip` package and run the script for your computer from the directory containing all four images:
 
