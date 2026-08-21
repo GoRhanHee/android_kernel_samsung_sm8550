@@ -34,6 +34,10 @@ fail() {
 write_valid_fixture() {
     fixture="$1"
     printf '%s\n' \
+        'system /system erofs ro wait,logical,first_stage_mount,avb=vbmeta_system' \
+        'system_ext /system_ext erofs ro wait,logical,first_stage_mount,avb=vbmeta_system' \
+        'product /product erofs ro wait,logical,first_stage_mount,avb' \
+        'vendor /vendor erofs ro wait,logical,first_stage_mount,avb' \
         'vendor_dlkm /vendor_dlkm erofs ro wait,logical,first_stage_mount,avb=vbmeta_vendor' \
         'system_dlkm /system_dlkm erofs ro wait,logical,first_stage_mount,avb=vbmeta_system' \
         'system_dlkm /system_dlkm f2fs noatime wait,logical,first_stage_mount,avb' \
@@ -72,17 +76,52 @@ entry_has_avb_count() {
     ' "${fixture}"
 }
 
+fallback_entries_present() {
+    fixture="$1"
+    for partition in system system_ext product vendor; do
+        for filesystem in erofs f2fs ext4; do
+            if ! awk \
+                -v partition="${partition}" \
+                -v filesystem="${filesystem}" \
+                '$1 == partition && $3 == filesystem { count++ }
+                 END { exit !(count == 1) }' \
+                "${fixture}"; then
+                return 1
+            fi
+        done
+    done
+    return 0
+}
+
+fallback_avb_entries_present() {
+    fixture="$1"
+    for partition in system system_ext product vendor; do
+        for filesystem in erofs f2fs ext4; do
+            if ! entry_has_avb_count "${fixture}" "${partition}" "${filesystem}" 1; then
+                return 1
+            fi
+        done
+    done
+    return 0
+}
+
 run_baseline_tests() {
     fixture="${TMP_ROOT}/baseline-happy.fstab"
     write_valid_fixture "${fixture}"
     run_patcher "${fixture}"
     if [ "${PATCH_STATUS}" -eq 0 ] &&
+        fallback_entries_present "${fixture}" &&
+        fallback_avb_entries_present "${fixture}" &&
+        entry_has_avb_count "${fixture}" system erofs 1 &&
+        entry_has_avb_count "${fixture}" system_ext erofs 1 &&
+        entry_has_avb_count "${fixture}" product erofs 1 &&
+        entry_has_avb_count "${fixture}" vendor erofs 1 &&
         entry_has_avb_count "${fixture}" vendor_dlkm erofs 0 &&
         grep -Fq 'metadata' "${fixture}" &&
         grep -Fq 'avb=vbmeta' "${fixture}"; then
-        pass 'vendor_dlkm AVB is removed while unrelated entries remain'
+        pass 'filesystem fallbacks are added and unrelated AVB entries remain'
     else
-        fail 'vendor_dlkm AVB is removed while unrelated entries remain'
+        fail 'filesystem fallbacks are added and unrelated AVB entries remain'
     fi
 
     fixture="${TMP_ROOT}/missing-vendor.fstab"
@@ -99,7 +138,7 @@ run_baseline_tests() {
 
     fixture="${TMP_ROOT}/missing-vendor-avb.fstab"
     write_valid_fixture "${fixture}"
-    sed '1s/,avb=vbmeta_vendor//' "${fixture}" > "${fixture}.new"
+    awk '$1 == "vendor_dlkm" && !done { sub(/,avb=vbmeta_vendor/, ""); done = 1 } { print }' "${fixture}" > "${fixture}.new"
     mv "${fixture}.new" "${fixture}"
     cp "${fixture}" "${fixture}.before"
     run_patcher "${fixture}"
@@ -113,7 +152,7 @@ run_baseline_tests() {
 
     fixture="${TMP_ROOT}/multiple-vendor-avb.fstab"
     write_valid_fixture "${fixture}"
-    sed '1s/$/,avb/' "${fixture}" > "${fixture}.new"
+    awk '$1 == "vendor_dlkm" && !done { $0 = $0 ",avb"; done = 1 } { print }' "${fixture}" > "${fixture}.new"
     mv "${fixture}.new" "${fixture}"
     cp "${fixture}" "${fixture}.before"
     run_patcher "${fixture}"
@@ -162,20 +201,21 @@ run_system_tests() {
 
     fixture="${TMP_ROOT}/duplicate-system-format.fstab"
     write_valid_fixture "${fixture}"
-    sed -n '2p' "${fixture}" >> "${fixture}"
+    awk '$1 == "system_dlkm" && $3 == "erofs" && !done { print; print; done = 1; next } { print }' "${fixture}" > "${fixture}.new"
+    mv "${fixture}.new" "${fixture}"
     expect_system_failure_without_mutation \
         'duplicate system_dlkm filesystem variant fails without mutation' "${fixture}"
 
     fixture="${TMP_ROOT}/missing-system-avb.fstab"
     write_valid_fixture "${fixture}"
-    sed '2s/,avb=vbmeta_system//' "${fixture}" > "${fixture}.new"
+    awk '$1 == "system_dlkm" && $3 == "f2fs" && !done { sub(/,avb$/, ""); done = 1 } { print }' "${fixture}" > "${fixture}.new"
     mv "${fixture}.new" "${fixture}"
     expect_system_failure_without_mutation \
         'missing system_dlkm AVB flag fails without mutation' "${fixture}"
 
     fixture="${TMP_ROOT}/multiple-system-avb.fstab"
     write_valid_fixture "${fixture}"
-    sed '3s/$/,avb=vbmeta_system/' "${fixture}" > "${fixture}.new"
+    awk '$1 == "system_dlkm" && $3 == "f2fs" && !done { $0 = $0 ",avb=vbmeta_system"; done = 1 } { print }' "${fixture}" > "${fixture}.new"
     mv "${fixture}.new" "${fixture}"
     expect_system_failure_without_mutation \
         'multiple system_dlkm AVB flags fail without mutation' "${fixture}"

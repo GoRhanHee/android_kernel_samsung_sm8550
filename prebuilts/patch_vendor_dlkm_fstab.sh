@@ -9,8 +9,92 @@ FSTAB_FILE="${1:?fstab path is required}"
 }
 
 TMP_FILE="$(mktemp "${FSTAB_FILE}.XXXXXX")"
-trap 'rm -f "${TMP_FILE}"' EXIT
+FALLBACK_FILE="$(mktemp "${FSTAB_FILE}.XXXXXX")"
+trap 'rm -f "${TMP_FILE}" "${FALLBACK_FILE}"' EXIT
 chmod --reference="${FSTAB_FILE}" "${TMP_FILE}"
+
+add_filesystem_fallbacks() {
+    local input_file="$1"
+    local output_file="$2"
+
+    awk '
+    BEGIN {
+        OFS = "\t"
+        fallback_partitions[1] = "system"
+        fallback_partitions[2] = "system_ext"
+        fallback_partitions[3] = "product"
+        fallback_partitions[4] = "vendor"
+        fallback_filesystems[1] = "erofs"
+        fallback_filesystems[2] = "f2fs"
+        fallback_filesystems[3] = "ext4"
+    }
+    function is_fallback_partition(partition) {
+        return partition == "system" ||
+            partition == "system_ext" ||
+            partition == "product" ||
+            partition == "vendor"
+    }
+    function normalized_record() {
+        return $1 OFS $2 OFS $3 OFS $4 OFS $5
+    }
+    function change_filesystem(base_record, filesystem, fields, field_count) {
+        field_count = split(base_record, fields, /[[:space:]]+/)
+        return fields[1] OFS fields[2] OFS filesystem OFS fields[4] OFS fields[5]
+    }
+    {
+        record_count++
+        if (is_fallback_partition($1) &&
+            ($3 == "erofs" || $3 == "f2fs" || $3 == "ext4")) {
+            partition = $1
+            filesystem = $3
+            target_record[record_count] = partition
+            key = partition SUBSEP filesystem
+            if (!(key in target_line)) {
+                target_line[key] = normalized_record()
+            }
+            if (!(partition in target_base)) {
+                target_base[partition] = normalized_record()
+            }
+            next
+        }
+        records[record_count] = $0
+    }
+    END {
+        for (partition_index = 1; partition_index <= 4; partition_index++) {
+            partition = fallback_partitions[partition_index]
+            if (!(partition in target_base)) {
+                printf "expected at least one %s fstab entry\n", partition > "/dev/stderr"
+                fatal_status = 1
+            }
+        }
+        if (fatal_status != 0) {
+            exit fatal_status
+        }
+
+        for (record_index = 1; record_index <= record_count; record_index++) {
+            if (!(record_index in target_record)) {
+                print records[record_index]
+                continue
+            }
+            partition = target_record[record_index]
+            if (emitted[partition]) {
+                continue
+            }
+            base_record = target_base[partition]
+            for (filesystem_index = 1; filesystem_index <= 3; filesystem_index++) {
+                filesystem = fallback_filesystems[filesystem_index]
+                key = partition SUBSEP filesystem
+                if (key in target_line) {
+                    print target_line[key]
+                } else {
+                    print change_filesystem(base_record, filesystem)
+                }
+            }
+            emitted[partition] = 1
+        }
+    }
+    ' "${input_file}" > "${output_file}"
+}
 
 awk '
 BEGIN {
@@ -74,6 +158,8 @@ END {
 }
 ' "${FSTAB_FILE}" > "${TMP_FILE}"
 
-touch --reference="${FSTAB_FILE}" "${TMP_FILE}"
-mv "${TMP_FILE}" "${FSTAB_FILE}"
+add_filesystem_fallbacks "${TMP_FILE}" "${FALLBACK_FILE}"
+
+touch --reference="${FSTAB_FILE}" "${FALLBACK_FILE}"
+mv "${FALLBACK_FILE}" "${FSTAB_FILE}"
 trap - EXIT
