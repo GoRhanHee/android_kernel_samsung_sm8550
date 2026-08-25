@@ -73,3 +73,4 @@ __pycache__/
 
 # Local validation scripts
 /tests/
+/prebuilts/tests/
