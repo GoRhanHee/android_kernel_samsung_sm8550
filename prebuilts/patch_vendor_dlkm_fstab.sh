@@ -24,6 +24,7 @@ add_filesystem_fallbacks() {
         fallback_partitions[2] = "system_ext"
         fallback_partitions[3] = "product"
         fallback_partitions[4] = "vendor"
+        fallback_partitions[5] = "odm"
         fallback_filesystems[1] = "erofs"
         fallback_filesystems[2] = "f2fs"
         fallback_filesystems[3] = "ext4"
@@ -32,7 +33,8 @@ add_filesystem_fallbacks() {
         return partition == "system" ||
             partition == "system_ext" ||
             partition == "product" ||
-            partition == "vendor"
+            partition == "vendor" ||
+            partition == "odm"
     }
     function normalized_record() {
         return $1 OFS $2 OFS $3 OFS $4 OFS $5
@@ -60,7 +62,7 @@ add_filesystem_fallbacks() {
         records[record_count] = $0
     }
     END {
-        for (partition_index = 1; partition_index <= 4; partition_index++) {
+        for (partition_index = 1; partition_index <= 5; partition_index++) {
             partition = fallback_partitions[partition_index]
             if (!(partition in target_base)) {
                 printf "expected at least one %s fstab entry\n", partition > "/dev/stderr"
