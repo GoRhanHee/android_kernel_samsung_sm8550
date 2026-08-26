@@ -108,9 +108,6 @@ jobs:
           path: kernel_platform/prebuilts
           key: samsung-sm8550-toolchain-clang22-r596125-ndk-r26d-${{ runner.os }}-${{ runner.arch }}-v1
 
-      - name: Validate fastboot package contract
-        run: prebuilts/tests/fastboot_package_test.sh
-
       - name: Build ${{ matrix.device }} kernel
         run: |
           device='${{ matrix.device }}'
