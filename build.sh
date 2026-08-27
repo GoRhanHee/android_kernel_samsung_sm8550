@@ -200,8 +200,8 @@ update_submodules() {
 
     echo "[submodule] Synchronizing configured URLs"
     git -C "${SOURCE_DIR}" submodule sync --recursive
-    echo "[submodule] Initializing recorded commits"
-    git -C "${SOURCE_DIR}" submodule update --init --recursive --checkout
+    echo "[submodule] Fetching latest configured branches"
+    git -C "${SOURCE_DIR}" submodule update --init --remote --recursive --checkout
 }
 
 select_device_profile() {
