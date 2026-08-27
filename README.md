@@ -93,15 +93,6 @@ Linux:   chmod +x flash_linux.sh && ./flash_linux.sh
 
 The release ZIP contains exactly the four images and three platform-specific flash scripts listed above. The scripts use `fastboot` from the environment when available; otherwise, they automatically download the official Android platform-tools package for Windows, macOS, or Linux.
 
-The four writes are:
-
-```sh
-fastboot flash boot boot.img
-fastboot flash vendor_boot vendor_boot.img
-fastboot flash vendor_dlkm vendor_dlkm.img
-fastboot flash system_dlkm system_dlkm.img
-```
-
 The bootloader must be unlocked and the device must already be in fastbootd before running a script. These scripts do not enter or switch boot modes. Samsung Download Mode/Odin is not used by this package. Flashing is sequential and has no rollback; do not disconnect the device until the script reboots Android.
 
 ## 📚 Credits
