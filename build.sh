@@ -192,6 +192,18 @@ require_command() {
     command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
 
+update_submodules() {
+    require_command git
+
+    git -C "${SOURCE_DIR}" rev-parse --show-toplevel >/dev/null 2>&1 ||
+        die "source directory is not a git worktree: ${SOURCE_DIR}"
+
+    echo "[submodule] Synchronizing configured URLs"
+    git -C "${SOURCE_DIR}" submodule sync --recursive
+    echo "[submodule] Initializing recorded commits"
+    git -C "${SOURCE_DIR}" submodule update --init --recursive --checkout
+}
+
 select_device_profile() {
     local device="$1"
     local output_base
@@ -1027,6 +1039,7 @@ main() {
         return 2
     fi
 
+    update_submodules
     record_common_state
     validate_msm_state
     prepare_target_workspace
