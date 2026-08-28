@@ -36,7 +36,7 @@ def define_kleaf_workspace(common_kernel_package = None):
     # https://docs.bazel.build/versions/main/external.html#non-bazel-projects
     native.new_local_repository(
         name = "prebuilt_ndk",
-        path = "prebuilts/ndk-r23",
+        path = "prebuilts/ndk-r26d",
         build_file = "build/kernel/kleaf/ndk.BUILD",
     )
 

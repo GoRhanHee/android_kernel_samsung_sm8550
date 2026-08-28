@@ -209,7 +209,7 @@ main() {
     local module_root_relative
     local release=""
     local system_map="${kbuild_path}/System.map"
-    local clang_bin="${repo_root}/kernel_platform/prebuilts/clang/host/linux-x86/clang-${TOOLCHAIN_VERSION:-r596125}/bin"
+    local clang_bin="${repo_root}/kernel_platform/prebuilts/clang/host/linux-x86/clang-${TOOLCHAIN_VERSION:-r614150}/bin"
     local strip_tool="${clang_bin}/llvm-strip"
     local objcopy_tool="${clang_bin}/llvm-objcopy"
     local repack_config="${image_tools_dir}/CONFIGS/${partition}_repack.conf"

@@ -32,7 +32,7 @@ separator are allowed.
 Example:
 Given a file `common/build.config.constants` with content
 ```
-    CLANG_VERSION=r433403
+    CLANG_VERSION=r614150
 ```
 
 The workspace file can instantiate a repository rule with
