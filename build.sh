@@ -119,7 +119,7 @@ PACKAGING_WORK_DIR=""
 PACKAGING_PREBUILTS_DIR=""
 DOWNLOAD_DIR=""
 UNPACK_DIR=""
-FASTBOOT_PACKAGE=""
+ANYKERNEL_PACKAGE=""
 CUSTOM_SYSTEM_DLKM_IMAGE=""
 TMPDIR=""
 DLKM_EXTRACTED_ROOT=""
@@ -272,7 +272,7 @@ select_device_profile() {
     PACKAGING_PREBUILTS_DIR="${PACKAGING_WORK_DIR}/prebuilts"
     DOWNLOAD_DIR="${TARGET_DOWNLOAD_DIR}/${run_key}"
     UNPACK_DIR="${TARGET_UNPACK_DIR}/${run_key}"
-    FASTBOOT_PACKAGE="${PACKAGE_DIR}/GoRhanHee_Kernel-${CHIPSET_NAME}-${MODEL}-fastboot.zip"
+    ANYKERNEL_PACKAGE="${PACKAGE_DIR}/GoRhanHee_Kernel-${CHIPSET_NAME}-${MODEL}-AnyKernel3.zip"
     CUSTOM_SYSTEM_DLKM_IMAGE="${PACKAGING_WORK_DIR}/system_dlkm.img"
     TMPDIR="${PACKAGING_WORK_DIR}/process-tmp"
 
@@ -963,14 +963,15 @@ validate_collected_dlkm_capacity() {
     )
 }
 
-create_fastboot_package() {
-    "${SOURCE_DIR}/prebuilts/make_fastboot_package.sh" \
-        "${FASTBOOT_PACKAGE}" \
-        "${PACKAGE_DIR}"
+create_anykernel_package() {
+    "${SOURCE_DIR}/prebuilts/make_anykernel_package.sh" \
+        "${ANYKERNEL_PACKAGE}" \
+        "${PACKAGE_DIR}" \
+        "${MODEL}"
 }
 
 collect_packaged_images() {
-    local boot_image="${DIST_DIR}/boot.img"
+    local kernel_image="${DIST_DIR}/Image"
     local vendor_boot_image="${PACKAGING_WORK_DIR}/vendor_boot.img"
     local stock_vendor_dlkm_image="${PACKAGING_WORK_DIR}/vendor_dlkm.stock.img"
     local vendor_dlkm_image="${PACKAGING_WORK_DIR}/vendor_dlkm.img"
@@ -979,14 +980,14 @@ collect_packaged_images() {
 
     mkdir -p "${PACKAGE_DIR}"
     rm -f -- \
-        "${PACKAGE_DIR}/boot.img" \
+        "${PACKAGE_DIR}/Image" \
         "${PACKAGE_DIR}/vendor_boot.img" \
         "${PACKAGE_DIR}/vendor_dlkm.img" \
         "${PACKAGE_DIR}/system_dlkm.img" \
-        "${FASTBOOT_PACKAGE}" \
+        "${ANYKERNEL_PACKAGE}" \
         "${PACKAGE_DIR}/GoRhanHee_Kernel-${CHIPSET_NAME}-${MODEL}.zip"
 
-    [[ -f "${boot_image}" ]] || die "built boot.img not found: ${boot_image}"
+    [[ -s "${kernel_image}" ]] || die "built Image not found or empty: ${kernel_image}"
     [[ -f "${vendor_boot_image}" ]] ||
         die "rebuilt vendor_boot.img not found: ${vendor_boot_image}"
     [[ -f "${stock_vendor_dlkm_image}" ]] ||
@@ -1009,7 +1010,7 @@ collect_packaged_images() {
         "${stock_system_dlkm_image}" \
         "${system_dlkm_image}" || return 1
 
-    cp "${boot_image}" "${PACKAGE_DIR}/boot.img"
+    cp "${kernel_image}" "${PACKAGE_DIR}/Image"
     cp "${vendor_boot_image}" "${PACKAGE_DIR}/vendor_boot.img"
     cp "${vendor_dlkm_image}" "${PACKAGE_DIR}/vendor_dlkm.img"
     cp "${system_dlkm_image}" "${PACKAGE_DIR}/system_dlkm.img"
@@ -1017,7 +1018,7 @@ collect_packaged_images() {
     cp "${vendor_dlkm_image}" "${DIST_DIR}/vendor_dlkm.img"
     cp "${system_dlkm_image}" "${DIST_DIR}/system_dlkm.img"
 
-    create_fastboot_package
+    create_anykernel_package
 }
 
 main() {

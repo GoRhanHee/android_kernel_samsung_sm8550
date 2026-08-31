@@ -56,9 +56,9 @@ Supported build targets:
 ```
 
 
-The build flow selects the device profile, applies the common feature patches, merges the custom defconfig, builds the kernel and matching vendor modules, then packages the boot and DLKM images.
+The build flow selects the device profile, applies the common feature patches, merges the custom defconfig, builds the kernel and matching vendor modules, then packages `Image` and the matching boot/DLKM images in an AnyKernel3 ZIP.
 
-## 📦 Output & Fastboot Installation
+## 📦 Output & AnyKernel3 Installation
 
 Typical output:
 
@@ -69,11 +69,11 @@ out/<model>/msm-kalama-kalama-gki/
 Main artifacts:
 
 ```text
-boot.img
+Image
 vendor_boot.img
 vendor_dlkm.img
 system_dlkm.img
-GoRhanHee_Kernel-kalama-<model>-fastboot.zip
+GoRhanHee_Kernel-kalama-<model>-AnyKernel3.zip
 ```
 
 - Flash only to the matching device and firmware family.
@@ -81,19 +81,11 @@ GoRhanHee_Kernel-kalama-<model>-fastboot.zip
 - Keep stock images available for recovery.
 - The Flip5 (`b5q`) build is not currently supported.
 
-### Fastboot Installation
+### AnyKernel3 Installation
 
-Extract the `-fastboot.zip` package and run the script for your computer from the directory containing all four images:
+Flash the `-AnyKernel3.zip` package from a custom recovery or another AnyKernel3-compatible flasher. The ZIP contains the AK3 recovery shell, `Image`, `vendor_boot.img`, `vendor_dlkm.img`, and `system_dlkm.img`; the shell repacks and flashes the active `boot` partition and then flashes the three accompanying partitions.
 
-```text
-Windows: flash_windows.bat
-macOS:   chmod +x flash_macos.sh && ./flash_macos.sh
-Linux:   chmod +x flash_linux.sh && ./flash_linux.sh
-```
-
-The release ZIP contains exactly the four images and three platform-specific flash scripts listed above. The scripts use `fastboot` from the environment when available; otherwise, they automatically download the official Android platform-tools package for Windows, macOS, or Linux.
-
-The bootloader must be unlocked and the device must already be in fastbootd before running a script. These scripts do not enter or switch boot modes. Samsung Download Mode/Odin is not used by this package. Flashing is sequential and has no rollback; do not disconnect the device until the script reboots Android.
+The bootloader must be unlocked, and the device must use a recovery/flasher that supports AnyKernel3 update ZIPs. Samsung Download Mode/Odin is not used by this package. Keep a stock backup available because flashing is sequential and has no rollback.
 
 ## 📚 Credits
 
@@ -101,6 +93,7 @@ The bootloader must be unlocked and the device must already be in fastbootd befo
 - [Qualcomm MSM Kernel](https://git.codelinaro.org/clo/la/kernel/msm-5.15) — SM8550 / Kalama platform source.
 - [Samsung Open Source Release Center](https://opensource.samsung.com/) — Samsung device kernel source reference.
 - [KernelSU-Next](https://github.com/KernelSU-Next/KernelSU-Next) — KernelSU-Next root integration.
+- [AnyKernel3](https://github.com/osm0sis/AnyKernel3) — flashable kernel ZIP framework.
 - [Baseband Guard](https://github.com/vc-teahouse/Baseband-guard) — Protected partition write monitoring.
 - [DroidSpaces OSS](https://github.com/ravindu644/Droidspaces-OSS) — Linux container support reference.
 - [Google BBR](https://github.com/google/bbr) — BBR congestion-control reference.

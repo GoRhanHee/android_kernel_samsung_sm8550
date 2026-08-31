@@ -113,30 +113,11 @@ jobs:
           device='${{ matrix.device }}'
           ./build.sh "$device"
 
-      - name: Verify fastboot release package
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          device="${{ matrix.device }}"
-          package="out/${device}/msm-kalama-kalama-gki/packaged/GoRhanHee_Kernel-kalama-${device}-fastboot.zip"
-          [[ -f "${package}" ]] || {
-            echo "::error::Required fastboot package not found: ${package}"
-            exit 1
-          }
-          unzip -t "${package}" >/dev/null
-          entries="$(zipinfo -1 "${package}" | LC_ALL=C sort)"
-          expected="$(printf "%s\n" boot.img vendor_boot.img vendor_dlkm.img system_dlkm.img flash_windows.bat flash_macos.sh flash_linux.sh | LC_ALL=C sort)"
-          [[ "${entries}" == "${expected}" ]] || {
-            echo "::error::Fastboot package must contain exactly four images and three flash scripts"
-            exit 1
-          }
-
-      - name: Upload fastboot kernel artifact
+      - name: Upload AnyKernel3 kernel artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.device }}-fastboot-${{ github.sha }}
-          path: out/${{ matrix.device }}/msm-kalama-kalama-gki/packaged/GoRhanHee_Kernel-kalama-${{ matrix.device }}-fastboot.zip
+          name: ${{ matrix.device }}-anykernel3-${{ github.sha }}
+          path: out/${{ matrix.device }}/msm-kalama-kalama-gki/packaged/GoRhanHee_Kernel-kalama-${{ matrix.device }}-AnyKernel3.zip
           if-no-files-found: error
           compression-level: 0
           retention-days: 7

@@ -6,3 +6,7 @@
 	path = kernel_platform/msm-kernel
 	url = https://github.com/GoRhanHee/android_kernel_samsung_sm8550_msm.git
 	branch = android13-5.15-sm8550
+[submodule "prebuilts/AnyKernel3"]
+	path = prebuilts/AnyKernel3
+	url = https://github.com/osm0sis/AnyKernel3.git
+	branch = master
