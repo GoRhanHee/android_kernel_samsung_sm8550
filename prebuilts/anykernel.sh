@@ -17,9 +17,8 @@ supported.vendorpatchlevels=
 '; } # end properties
 
 ### AnyKernel install
-# The GKI Image is repacked into the active boot partition. The remaining
-# images are flashed by flash_generic in the same order as the reference AK3
-# installer; absent optional partitions are ignored by AnyKernel3.
+# Follow the WildKernels gki-2.0 GKI flow: boot images with no ramdisk
+# (ramdisk stored in vendor_boot) must skip ramdisk unpack/repack.
 BLOCK=/dev/block/by-name/boot;
 IS_SLOT_DEVICE=auto;
 RAMDISK_COMPRESSION=auto;
@@ -30,8 +29,13 @@ NO_VBMETA_PARTITION_PATCH=1;
 # import functions/variables and setup patching - see for reference (DO NOT REMOVE)
 . tools/ak3-core.sh;
 
-dump_boot;
-flash_boot;
-flash_generic vendor_boot;
-flash_generic vendor_dlkm;
-flash_generic system_dlkm;
+split_boot;
+if [ -f "$SPLITIMG/ramdisk.cpio" ]; then
+  unpack_ramdisk;
+  write_boot;
+else
+  flash_boot;
+  flash_generic vendor_boot;
+  flash_generic vendor_dlkm;
+  flash_generic system_dlkm;
+fi;

@@ -8,5 +8,5 @@
 	branch = android13-5.15-sm8550
 [submodule "prebuilts/AnyKernel3"]
 	path = prebuilts/AnyKernel3
-	url = https://github.com/osm0sis/AnyKernel3.git
-	branch = master
+	url = https://github.com/WildKernels/AnyKernel3.git
+	branch = gki-2.0
