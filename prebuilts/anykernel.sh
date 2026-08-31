@@ -29,13 +29,32 @@ NO_VBMETA_PARTITION_PATCH=1;
 # import functions/variables and setup patching - see for reference (DO NOT REMOVE)
 . tools/ak3-core.sh;
 
+prepare_dlkm_partition() {
+  local partition="$1" name;
+
+  # Samsung DLKM partitions are logical partitions in super. Recovery can
+  # leave their device-mapper nodes mounted/read-only, so recreate the
+  # mapping before handing the partition to flash_generic.
+  "$BIN/httools_static" umount "$partition" >/dev/null 2>&1 || true;
+  umount -l "/$partition" >/dev/null 2>&1 || true;
+
+  if [ -e /dev/block/by-name/super -o -e /dev/block/bootdevice/by-name/super ]; then
+    name="$partition$SLOT";
+    "$BIN/lptools_static" unmap "$name" >/dev/null 2>&1 || true;
+    "$BIN/lptools_static" map "$name" ||
+      abort "Mapping $name failed. Aborting...";
+  fi;
+}
+
 split_boot;
 if [ -f "$SPLITIMG/ramdisk.cpio" ]; then
   unpack_ramdisk;
-  write_boot;
-else
-  flash_boot;
-  flash_generic vendor_boot;
-  flash_generic vendor_dlkm;
-  flash_generic system_dlkm;
+  repack_ramdisk;
 fi;
+
+flash_boot;
+flash_generic vendor_boot;
+prepare_dlkm_partition vendor_dlkm;
+flash_generic vendor_dlkm;
+prepare_dlkm_partition system_dlkm;
+flash_generic system_dlkm;
