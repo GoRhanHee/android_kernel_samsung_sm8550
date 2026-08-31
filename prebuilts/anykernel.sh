@@ -20,7 +20,7 @@ supported.vendorpatchlevels=
 # The GKI Image is repacked into the active boot partition. The remaining
 # images are flashed by flash_generic in the same order as the reference AK3
 # installer; absent optional partitions are ignored by AnyKernel3.
-BLOCK=boot;
+BLOCK=/dev/block/by-name/boot;
 IS_SLOT_DEVICE=auto;
 RAMDISK_COMPRESSION=auto;
 PATCH_VBMETA_FLAG=auto;
