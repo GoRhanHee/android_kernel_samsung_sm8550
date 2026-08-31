@@ -25,6 +25,7 @@ IS_SLOT_DEVICE=auto;
 RAMDISK_COMPRESSION=auto;
 PATCH_VBMETA_FLAG=auto;
 NO_MAGISK_CHECK=1;
+NO_VBMETA_PARTITION_PATCH=1;
 
 # import functions/variables and setup patching - see for reference (DO NOT REMOVE)
 . tools/ak3-core.sh;
