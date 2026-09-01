@@ -54,6 +54,11 @@ fi;
 
 flash_boot;
 flash_generic vendor_boot;
+
+# Allow logical DLKM growth to use physical super free space when the group quota is full.
+"$BIN/lptools_static" unlimited-group ||
+  abort "Failed to unlock dynamic partition group size.";
+
 prepare_dlkm_partition vendor_dlkm;
 flash_generic vendor_dlkm;
 prepare_dlkm_partition system_dlkm;
