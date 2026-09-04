@@ -1,4 +1,4 @@
-name: Build SM8550 kernel
+name: Build SM8550 kernels
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   build:
-    name: ${{ matrix.device }} build
+    name: ${{ matrix.device }}-${{ matrix.mode }} build
     runs-on: ubuntu-22.04
     timeout-minutes: 360
     strategy:
@@ -24,6 +24,9 @@ jobs:
           - dm3q
           - q5q
           - b5q
+        mode:
+          - normal
+          - susfs
 
     steps:
       - name: Checkout source
@@ -108,16 +111,17 @@ jobs:
           path: kernel_platform/prebuilts
           key: samsung-sm8550-toolchain-clang23-r614150-ndk-r26d-${{ runner.os }}-${{ runner.arch }}-v1
 
-      - name: Build ${{ matrix.device }} kernel
+      - name: Build ${{ matrix.device }}-${{ matrix.mode }} kernel
         run: |
           device='${{ matrix.device }}'
-          ./build.sh "$device"
+          mode='${{ matrix.mode }}'
+          ./build.sh "$device" "$mode"
 
       - name: Upload AnyKernel3 kernel artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.device }}-anykernel3-${{ github.sha }}
-          path: out/${{ matrix.device }}/msm-kalama-kalama-gki/packaged/GoRhanHee_Kernel-kalama-${{ matrix.device }}-AnyKernel3.zip
+          name: ${{ matrix.device }}-${{ matrix.mode }}-anykernel3-${{ github.sha }}
+          path: out/${{ matrix.device }}/msm-kalama-kalama-gki-${{ matrix.mode }}/packaged/GoRhanHee_Kernel-kalama-${{ matrix.device }}-${{ matrix.mode }}-AnyKernel3.zip
           if-no-files-found: error
           compression-level: 0
           retention-days: 7
