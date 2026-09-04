@@ -1664,7 +1664,7 @@ index 357a1db410ece2a83ed2da2c1ab9f35c1c192b15..b745d63782ac7cfd2c81c7833b873c3c
  int vfs_fstat(int fd, struct kstat *stat)
  {
  	struct fd f;
-@@ -180,10 +211,24 @@ int vfs_fstat(int fd, struct kstat *stat)
+@@ -180,10 +211,20 @@ int vfs_fstat(int fd, struct kstat *stat)
  	if (!f.file)
  		return -EBADF;
  	error = vfs_getattr(&f.file->f_path, stat, STATX_BASIC_STATS, 0);
@@ -1679,11 +1679,7 @@ index 357a1db410ece2a83ed2da2c1ab9f35c1c192b15..b745d63782ac7cfd2c81c7833b873c3c
 +#ifdef CONFIG_KSU_SUSFS
 +extern struct static_key_true ksu_su_compat_enabled;
 +extern bool __ksu_is_allow_uid_for_current(uid_t uid);
-+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
-+extern int ksu_handle_stat(int *dfd, struct filename **filename, int *flags);
-+#else
 +extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);
-+#endif
 +#endif
 +
  /**

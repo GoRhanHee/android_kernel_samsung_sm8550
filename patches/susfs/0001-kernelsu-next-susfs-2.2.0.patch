@@ -1207,21 +1207,19 @@ index e9aab220..32afa965 100644
  	return 0;
  }
  
-@@ -62,6 +77,13 @@ static void __user *userspace_stack_buffer(const void *d, size_t len)
+@@ -62,6 +77,11 @@ static void __user *userspace_stack_buffer(const void *d, size_t len)
  	return copy_to_user(p, d, len) ? NULL : p;
  }
  
 +static char __user *sh_user_path(void)
 +{
-+    static const char sh_path[] = "/system/bin/sh";
-+
 +    return userspace_stack_buffer(sh_path, sizeof(sh_path));
 +}
 +
  static char __user *ksud_user_path(void)
  {
  	static const char ksud_path[] = KSUD_PATH;
-@@ -69,204 +91,190 @@ static char __user *ksud_user_path(void)
+@@ -69,204 +91,208 @@ static char __user *ksud_user_path(void)
  	return userspace_stack_buffer(ksud_path, sizeof(ksud_path));
  }
  
@@ -1518,15 +1516,22 @@ index e9aab220..32afa965 100644
  }
  
 -long ksu_handle_execveat_sucompat(const char __user **filename_user, int orig_nr, struct pt_regs *regs)
-+int ksu_handle_faccessat(int *dfd, struct filename **filename, int *mode,
++int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
 +             int *__unused_flags)
  {
 -	return ksu_handle_execve_sucompat_common(filename_user, (const char __user *const __user *)PT_REGS_PARM3(regs),
 -						 PT_REGS_SYSCALL_PARM4(regs), true, orig_nr, regs);
-+    if (unlikely(IS_ERR(*filename) || (*filename)->name == NULL))
++    char path[sizeof(su_path) + 1];
++    char __user *sh_user;
++
++    if (unlikely(!filename_user || !*filename_user))
 +        return 0;
 +
-+    if (likely(memcmp((*filename)->name, su_path, sizeof(su_path))))
++    memset(path, 0, sizeof(path));
++    if (strncpy_from_user_nofault(path, *filename_user, sizeof(path)) < 0)
++        return 0;
++
++    if (likely(memcmp(path, su_path, sizeof(su_path))))
 +        return 0;
 +
 +    if (current_chrooted())
@@ -1536,15 +1541,24 @@ index e9aab220..32afa965 100644
 +    }
 +    ksu_compat_sulog('s');
 +    pr_info("ksu_handle_faccessat: su->sh!\n");
-+    memcpy((void *)((*filename)->name), sh_path, sizeof(sh_path));
++    sh_user = sh_user_path();
++    if (sh_user)
++        *filename_user = sh_user;
 +    return 0;
 +}
 +
-+int ksu_handle_stat(int *dfd, struct filename **filename, int *flags) {
-+    if (unlikely(IS_ERR(*filename) || (*filename)->name == NULL))
++int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags) {
++    char path[sizeof(su_path) + 1];
++    char __user *sh_user;
++
++    if (unlikely(!filename_user || !*filename_user))
 +        return 0;
 +
-+    if (likely(memcmp((*filename)->name, su_path, sizeof(su_path))))
++    memset(path, 0, sizeof(path));
++    if (strncpy_from_user_nofault(path, *filename_user, sizeof(path)) < 0)
++        return 0;
++
++    if (likely(memcmp(path, su_path, sizeof(su_path))))
 +        return 0;
 +
 +    if (current_chrooted())
@@ -1554,7 +1568,9 @@ index e9aab220..32afa965 100644
 +    }
 +    ksu_compat_sulog('s');
 +    pr_info("ksu_handle_stat: su->sh!\n");
-+    memcpy((void *)((*filename)->name), sh_path, sizeof(sh_path));
++    sh_user = sh_user_path();
++    if (sh_user)
++        *filename_user = sh_user;
 +    return 0;
  }
  
@@ -1588,8 +1604,8 @@ index 5e2cfe11..e4a4cdd3 100644
 -long ksu_handle_execve_sucompat(const char __user **filename_user, int orig_nr, struct pt_regs *regs);
 -long ksu_handle_execveat_sucompat(const char __user **filename_user, int orig_nr, struct pt_regs *regs);
 -
-+int ksu_handle_faccessat(int *dfd, struct filename **filename, int *mode, int *__unused_flags);
-+int ksu_handle_stat(int *dfd, struct filename **filename, int *flags);
++int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode, int *__unused_flags);
++int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);
 +int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
 +                 void *argv_user, void *envp_user,
 +                 int *__never_use_flags);
@@ -3099,4 +3115,3 @@ index fbedd11f..483e5069 100644
  void ksu_supercalls_exit(void);
 -- 
 2.53.0
-
