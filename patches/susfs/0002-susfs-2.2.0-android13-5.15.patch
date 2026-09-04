@@ -3521,7 +3521,7 @@ new file mode 100644
 index 0000000000000000000000000000000000000000..fb55df55495098e876d7c853f3b1e95621b4b364
 --- /dev/null
 +++ b/include/linux/susfs_def.h
-@@ -0,0 +1,127 @@
+@@ -0,0 +1,131 @@
 +#ifndef KSU_SUSFS_DEF_H
 +#define KSU_SUSFS_DEF_H
 +
@@ -3628,6 +3628,10 @@ index 0000000000000000000000000000000000000000..fb55df55495098e876d7c853f3b1e956
 +
 +static inline void susfs_set_current_proc_no_su(void) {
 +	set_thread_flag(TIF_PROC_NO_SU);
++}
++
++static inline bool susfs_is_current_proc_no_su(void) {
++	return (likely(test_thread_flag(TIF_PROC_NO_SU)));
 +}
 +
 +static inline bool susfs_is_current_proc_umounted_app(void) {
