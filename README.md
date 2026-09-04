@@ -26,7 +26,8 @@ The build script contains a `b5q` profile for development, but Galaxy Z Flip5 is
 
 ## ✨ Features
 
-- KernelSU-Next is integrated for kernel-level root management.
+- The `normal` build mode does not include KernelSU-Next or SUSFS.
+- The `susfs` build mode adds KernelSU-Next and SUSFS 2.2.0 for Android 13 / Linux 5.15.
 - Baseband Guard monitors unauthorized writes to protected partition devices.
 - DroidSpaces support enables Linux containers through namespaces, IPC, netfilter, and matching DLKM modules.
 - NTSync provides kernel synchronization primitives for Wine, Winlator, and GameHub.
@@ -49,12 +50,14 @@ git submodule update --init --recursive
 Supported build targets:
 
 ```sh
-./build.sh dm1q
-./build.sh dm2q
-./build.sh dm3q
-./build.sh q5q
+./build.sh dm3q normal
+./build.sh dm3q susfs
+./build.sh dm1q normal
+./build.sh dm2q susfs
+./build.sh q5q susfs
 ```
 
+The second argument selects the kernel mode and defaults to `normal` when omitted. `normal` keeps the common project feature patches but excludes KernelSU-Next/SUSFS. `susfs` imports the pinned KernelSU-Next revision, applies the two patches under `patches/susfs/`, and merges `custom_defconfigs/ksu_defconfig` followed by `custom_defconfigs/susfs_defconfig`. All source patches are reverted when the build exits.
 
 The build flow selects the device profile, applies the common feature patches, merges the custom defconfig, builds the kernel and matching vendor modules, then packages `Image` and the matching boot/DLKM images in an AnyKernel3 ZIP.
 
@@ -63,7 +66,7 @@ The build flow selects the device profile, applies the common feature patches, m
 Typical output:
 
 ```text
-out/<model>/msm-kalama-kalama-gki/
+out/<model>/msm-kalama-kalama-gki-<mode>/
 ```
 
 Main artifacts:
@@ -73,8 +76,10 @@ Image
 vendor_boot.img
 vendor_dlkm.img
 system_dlkm.img
-GoRhanHee_Kernel-kalama-<model>-AnyKernel3.zip
+GoRhanHee_Kernel-kalama-<model>-<mode>-AnyKernel3.zip
 ```
+
+`<mode>` is `normal` or `susfs`; the separate output paths allow both variants to remain available at the same time.
 
 - Flash only to the matching device and firmware family.
 - Keep the four images together; `vendor_dlkm.img` and `system_dlkm.img` are matched to the selected device.
@@ -93,6 +98,8 @@ The bootloader must be unlocked, and the device must use a recovery/flasher that
 - [Qualcomm MSM Kernel](https://git.codelinaro.org/clo/la/kernel/msm-5.15) — SM8550 / Kalama platform source.
 - [Samsung Open Source Release Center](https://opensource.samsung.com/) — Samsung device kernel source reference.
 - [KernelSU-Next](https://github.com/KernelSU-Next/KernelSU-Next) — KernelSU-Next root integration.
+- [SUSFS for KernelSU](https://gitlab.com/simonpunk/susfs4ksu/-/tree/gki-android13-5.15) — Android 13 / Linux 5.15 kernel integration reference.
+- [KernelSU-Next SUSFS reference patch](https://github.com/xfwdrev/android_kernel_samsung_b4q/blob/sixteen/patches/0001-Enable-SuSFS-2.2.0-KSU-Next.patch) — KernelSU-Next-side SUSFS 2.2.0 integration reference.
 - [AnyKernel3](https://github.com/osm0sis/AnyKernel3) — flashable kernel ZIP framework.
 - [Baseband Guard](https://github.com/vc-teahouse/Baseband-guard) — Protected partition write monitoring.
 - [DroidSpaces OSS](https://github.com/ravindu644/Droidspaces-OSS) — Linux container support reference.

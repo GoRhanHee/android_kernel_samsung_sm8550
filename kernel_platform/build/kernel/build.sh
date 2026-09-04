@@ -711,10 +711,21 @@ if [ "${SKIP_DEFCONFIG}" != "1" ] ; then
 fi
 
 # Custom Defconfig
-CUSTOM_DEFCONFIG="${ANDROID_BUILD_TOP:-${ROOT_DIR}/..}/custom_defconfigs/gorhanhee_defconfig"
+CUSTOM_DEFCONFIG="${GKI_CUSTOM_DEFCONFIG:-${ANDROID_BUILD_TOP:-${ROOT_DIR}/..}/custom_defconfigs/gorhanhee_defconfig}"
+CUSTOM_DEFCONFIG_FILES=("${CUSTOM_DEFCONFIG}")
+if [ -n "${GKI_CUSTOM_DEFCONFIG_FRAGMENTS:-}" ]; then
+  read -r -a CUSTOM_DEFCONFIG_FRAGMENTS_ARRAY <<< "${GKI_CUSTOM_DEFCONFIG_FRAGMENTS}"
+  CUSTOM_DEFCONFIG_FILES+=("${CUSTOM_DEFCONFIG_FRAGMENTS_ARRAY[@]}")
+fi
+for custom_defconfig in "${CUSTOM_DEFCONFIG_FILES[@]}"; do
+  [ -f "${custom_defconfig}" ] || {
+    echo "error: custom defconfig not found: ${custom_defconfig}" >&2
+    exit 1
+  }
+done
 echo "========================================================"
 echo " Merging custom defconfig with .config"
-(cd "${OUT_DIR}" && "${MERGE_CONFIG:-${ROOT_DIR}/${KERNEL_DIR}/scripts/kconfig/merge_config.sh}" -m .config "${CUSTOM_DEFCONFIG}")
+(cd "${OUT_DIR}" && "${MERGE_CONFIG:-${ROOT_DIR}/${KERNEL_DIR}/scripts/kconfig/merge_config.sh}" -m .config "${CUSTOM_DEFCONFIG_FILES[@]}")
 (cd "${OUT_DIR}" && make O="${OUT_DIR}" ${TOOL_ARGS} "${MAKE_ARGS[@]}" olddefconfig)
 
 if [ "${KASAN}" = "sw_tags" ]; then

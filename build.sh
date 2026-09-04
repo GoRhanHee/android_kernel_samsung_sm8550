@@ -10,7 +10,13 @@ readonly TOOLCHAIN_VERSION="r614150"
 readonly TOOLCHAIN_URL="https://github.com/GoRhanHee/samsung_sm8550_toolchain/releases/download/clang23-ndk26d/toolchain-clang23-ndk26d.tar.xz"
 readonly CLANG_TOOLCHAIN_DIR="${KERNEL_PLATFORM}/prebuilts/clang/host/linux-x86/clang-${TOOLCHAIN_VERSION}"
 readonly CLANG_BIN="${CLANG_TOOLCHAIN_DIR}/bin/clang"
-readonly KSU_SETUP_URL="https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh"
+readonly KSU_NEXT_REF="36aa55c521e509449bfe48bae0ab8c397174c1cb"
+readonly KSU_SETUP_URL="https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/${KSU_NEXT_REF}/kernel/setup.sh"
+readonly SUSFS_KSU_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0001-kernelsu-next-susfs-2.2.0.patch"
+readonly SUSFS_KERNEL_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0002-susfs-2.2.0-android13-5.15.patch"
+readonly BASE_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/gorhanhee_defconfig"
+readonly KSU_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/ksu_defconfig"
+readonly SUSFS_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/susfs_defconfig"
 readonly JOBS="$(nproc)"
 export TOOLCHAIN_VERSION
 
@@ -91,6 +97,7 @@ readonly FAKE_CONFIG_PATCH_TARGETS=(
 )
 
 BUILD_TARGET=""
+KERNEL_MODE=""
 MODEL=""
 PROJECT_NAME=""
 REGION=""
@@ -110,6 +117,8 @@ ANDROID_BUILD_TOP=""
 ANDROID_PRODUCT_OUT=""
 ANDROID_KERNEL_OUT=""
 OUT_DIR=""
+GKI_CUSTOM_DEFCONFIG=""
+GKI_CUSTOM_DEFCONFIG_FRAGMENTS=""
 DIST_DIR=""
 PACKAGE_DIR=""
 TARGET_TEMP_DIR=""
@@ -129,6 +138,8 @@ KSU_SETUP_SCRIPT=""
 KSU_RESTORE_PATCH=""
 KSU_IMPORT_STARTED=0
 KSU_REUSE_EXISTING=0
+SUSFS_KSU_PATCH_APPLIED=0
+SUSFS_KERNEL_PATCH_APPLIED=0
 COMMON_FEATURE_PATCHES_APPLIED=0
 FAKE_CONFIG_PATCHES_APPLIED=0
 
@@ -151,11 +162,7 @@ select_wlan_profile() {
 usage() {
     cat <<EOF
 Usage:
-  ${SCRIPT_NAME} dm1q
-  ${SCRIPT_NAME} dm2q
-  ${SCRIPT_NAME} dm3q
-  ${SCRIPT_NAME} q5q
-  ${SCRIPT_NAME} b5q
+  ${SCRIPT_NAME} <device> [normal|susfs]
   ${SCRIPT_NAME} -h
   ${SCRIPT_NAME} --help
   ${SCRIPT_NAME} help
@@ -168,11 +175,13 @@ Devices:
   b5q   Samsung Galaxy Z Flip5
 
 Examples:
-  ${SCRIPT_NAME} dm1q
-  ${SCRIPT_NAME} dm2q
-  ${SCRIPT_NAME} dm3q
-  ${SCRIPT_NAME} q5q
-  ${SCRIPT_NAME} b5q
+  ${SCRIPT_NAME} dm3q normal
+  ${SCRIPT_NAME} dm3q susfs
+  ${SCRIPT_NAME} q5q susfs
+
+Kernel modes:
+  normal  Standard kernel build without KernelSU-Next or SUSFS (default)
+  susfs   KernelSU-Next ${KSU_NEXT_REF} + SUSFS 2.2.0 for Android 13 / 5.15
 
 Build profile:
   Source directory  ${SOURCE_DIR}
@@ -190,6 +199,20 @@ die() {
 
 require_command() {
     command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
+}
+
+select_kernel_mode() {
+    case "${1:-normal}" in
+        normal|plain|base)
+            KERNEL_MODE="normal"
+            ;;
+        susfs|ksu-susfs|ksun)
+            KERNEL_MODE="susfs"
+            ;;
+        *)
+            return 2
+            ;;
+    esac
 }
 
 update_submodules() {
@@ -258,10 +281,15 @@ select_device_profile() {
     CHIPSET_NAME="kalama"
     TARGET_PRODUCT="gki"
     TARGET_BOARD_PLATFORM="gki"
+    GKI_CUSTOM_DEFCONFIG="${BASE_DEFCONFIG_FILE}"
+    GKI_CUSTOM_DEFCONFIG_FRAGMENTS=""
+    if [[ "${KERNEL_MODE}" == "susfs" ]]; then
+        GKI_CUSTOM_DEFCONFIG_FRAGMENTS="${KSU_DEFCONFIG_FILE} ${SUSFS_DEFCONFIG_FILE}"
+    fi
     ANDROID_BUILD_TOP="${SOURCE_DIR}"
     output_base="${ANDROID_BUILD_TOP}/out"
-    ANDROID_PRODUCT_OUT="${output_base}/${MODEL}/target/product/${MODEL}"
-    OUT_DIR="${output_base}/${MODEL}/msm-${CHIPSET_NAME}-${CHIPSET_NAME}-${TARGET_PRODUCT}"
+    ANDROID_PRODUCT_OUT="${output_base}/${MODEL}/${KERNEL_MODE}/target/product/${MODEL}"
+    OUT_DIR="${output_base}/${MODEL}/msm-${CHIPSET_NAME}-${CHIPSET_NAME}-${TARGET_PRODUCT}-${KERNEL_MODE}"
     ANDROID_KERNEL_OUT="${OUT_DIR}/android-kernel-out"
     DIST_DIR="${OUT_DIR}/dist"
     PACKAGE_DIR="${OUT_DIR}/packaged"
@@ -272,16 +300,17 @@ select_device_profile() {
     PACKAGING_PREBUILTS_DIR="${PACKAGING_WORK_DIR}/prebuilts"
     DOWNLOAD_DIR="${TARGET_DOWNLOAD_DIR}/${run_key}"
     UNPACK_DIR="${TARGET_UNPACK_DIR}/${run_key}"
-    ANYKERNEL_PACKAGE="${PACKAGE_DIR}/GoRhanHee_Kernel-${CHIPSET_NAME}-${MODEL}-AnyKernel3.zip"
+    ANYKERNEL_PACKAGE="${PACKAGE_DIR}/GoRhanHee_Kernel-${CHIPSET_NAME}-${MODEL}-${KERNEL_MODE}-AnyKernel3.zip"
     CUSTOM_SYSTEM_DLKM_IMAGE="${PACKAGING_WORK_DIR}/system_dlkm.img"
     TMPDIR="${PACKAGING_WORK_DIR}/process-tmp"
 
-    export BUILD_TARGET MODEL PROJECT_NAME REGION CARRIER
+    export BUILD_TARGET KERNEL_MODE MODEL PROJECT_NAME REGION CARRIER
     export CHIPSET_NAME TARGET_PRODUCT TARGET_BOARD_PLATFORM
     export STOCK_VENDOR_BOOT_URL STOCK_VENDOR_DLKM_URL STOCK_SYSTEM_DLKM_URL
     export SEC_PROJECT_CONFIG
     export WLAN_PROFILE WLAN_EXT_MODULE WLAN_BUILT_MODULE WLAN_PACKAGED_MODULE
     export ANDROID_BUILD_TOP ANDROID_PRODUCT_OUT ANDROID_KERNEL_OUT
+    export GKI_CUSTOM_DEFCONFIG GKI_CUSTOM_DEFCONFIG_FRAGMENTS
     export OUT_DIR DIST_DIR CUSTOM_SYSTEM_DLKM_IMAGE TMPDIR
 }
 
@@ -309,10 +338,14 @@ record_common_state() {
     if [[ -d "${common_dir}/KernelSU-Next" ||
           -d "${common_dir}/KernelSU" ||
           -e "${common_dir}/drivers/kernelsu" ]]; then
+        [[ "${KERNEL_MODE}" == "susfs" ]] ||
+            die "normal mode requires a common kernel tree without KernelSU integration"
         KSU_REUSE_EXISTING=1
-        echo "[KernelSU] Reusing the checked-in integration"
+        echo "[KernelSU] Reusing the existing integration for SUSFS mode"
+    elif [[ "${KERNEL_MODE}" == "susfs" ]]; then
+        echo "[KernelSU-Next] A pinned temporary integration will be imported"
     else
-        echo "[KernelSU-Next] A temporary dev-branch integration will be imported"
+        echo "[KernelSU-Next] Disabled for normal mode"
     fi
 
     trap cleanup_common EXIT
@@ -321,6 +354,8 @@ record_common_state() {
 import_kernelsu_next() {
     local common_dir="${KERNEL_PLATFORM}/common"
     local changed_file
+
+    [[ "${KERNEL_MODE}" == "susfs" ]] || return 0
 
     if (( KSU_REUSE_EXISTING == 1 )); then
         return 0
@@ -337,10 +372,10 @@ import_kernelsu_next() {
     curl -fLSs --retry 3 -o "${KSU_SETUP_SCRIPT}" "${KSU_SETUP_URL}"
 
     KSU_IMPORT_STARTED=1
-    echo "[KernelSU-Next] Importing dev branch"
+    echo "[KernelSU-Next] Importing pinned ref ${KSU_NEXT_REF}"
     (
         cd "${common_dir}"
-        bash "${KSU_SETUP_SCRIPT}" dev
+        bash "${KSU_SETUP_SCRIPT}" "${KSU_NEXT_REF}"
     )
 
     git -C "${common_dir}" diff --binary --full-index > "${KSU_RESTORE_PATCH}"
@@ -363,6 +398,50 @@ import_kernelsu_next() {
         die "KernelSU-Next setup did not clone KernelSU-Next"
 
     echo "[KernelSU-Next] Restore patch: ${KSU_RESTORE_PATCH}"
+}
+
+apply_susfs_patches() {
+    local common_dir="${KERNEL_PLATFORM}/common"
+    local kernelsu_dir="${common_dir}/KernelSU-Next"
+
+    [[ "${KERNEL_MODE}" == "susfs" ]] || return 0
+    require_command patch
+    [[ -f "${SUSFS_KSU_PATCH_FILE}" ]] ||
+        die "KernelSU-Next SUSFS patch not found: ${SUSFS_KSU_PATCH_FILE}"
+    [[ -f "${SUSFS_KERNEL_PATCH_FILE}" ]] ||
+        die "kernel SUSFS patch not found: ${SUSFS_KERNEL_PATCH_FILE}"
+    [[ -d "${kernelsu_dir}" ]] ||
+        die "KernelSU-Next tree not found for SUSFS patching: ${kernelsu_dir}"
+
+    echo "[SUSFS] Checking KernelSU-Next 2.2.0 integration"
+    (
+        cd "${kernelsu_dir}"
+        patch --batch --forward --fuzz=0 --no-backup-if-mismatch \
+            --dry-run -p1 < "${SUSFS_KSU_PATCH_FILE}" >/dev/null
+    ) || die "KernelSU-Next SUSFS patch does not apply: ${SUSFS_KSU_PATCH_FILE}"
+
+    echo "[SUSFS] Applying KernelSU-Next 2.2.0 integration"
+    (
+        cd "${kernelsu_dir}"
+        patch --batch --forward --fuzz=0 --no-backup-if-mismatch \
+            -p1 < "${SUSFS_KSU_PATCH_FILE}"
+    )
+    SUSFS_KSU_PATCH_APPLIED=1
+
+    echo "[SUSFS] Checking Android 13 / 5.15 kernel integration"
+    (
+        cd "${common_dir}"
+        patch --batch --forward --fuzz=0 --no-backup-if-mismatch \
+            --dry-run -p1 < "${SUSFS_KERNEL_PATCH_FILE}" >/dev/null
+    ) || die "Android 13 / 5.15 SUSFS patch does not apply: ${SUSFS_KERNEL_PATCH_FILE}"
+
+    echo "[SUSFS] Applying Android 13 / 5.15 kernel integration"
+    (
+        cd "${common_dir}"
+        patch --batch --forward --fuzz=0 --no-backup-if-mismatch \
+            -p1 < "${SUSFS_KERNEL_PATCH_FILE}"
+    )
+    SUSFS_KERNEL_PATCH_APPLIED=1
 }
 
 apply_common_feature_patches() {
@@ -519,6 +598,40 @@ cleanup_kernelsu_next() {
     return "${cleanup_status}"
 }
 
+cleanup_susfs_patches() {
+    local common_dir="${KERNEL_PLATFORM}/common"
+    local kernelsu_dir="${common_dir}/KernelSU-Next"
+    local cleanup_status=0
+
+    (( SUSFS_KSU_PATCH_APPLIED == 1 || SUSFS_KERNEL_PATCH_APPLIED == 1 )) || return 0
+
+    echo "[SUSFS] Restoring build-time SUSFS patches"
+    if (( SUSFS_KERNEL_PATCH_APPLIED == 1 )); then
+        (
+            cd "${common_dir}"
+            patch --batch --fuzz=0 --no-backup-if-mismatch \
+                -R -p1 < "${SUSFS_KERNEL_PATCH_FILE}"
+        ) || cleanup_status=1
+        SUSFS_KERNEL_PATCH_APPLIED=0
+    fi
+
+    if (( SUSFS_KSU_PATCH_APPLIED == 1 )); then
+        if [[ -d "${kernelsu_dir}" ]]; then
+            (
+                cd "${kernelsu_dir}"
+                patch --batch --fuzz=0 --no-backup-if-mismatch \
+                    -R -p1 < "${SUSFS_KSU_PATCH_FILE}"
+            ) || cleanup_status=1
+        else
+            echo "error: KernelSU-Next tree disappeared before SUSFS cleanup" >&2
+            cleanup_status=1
+        fi
+        SUSFS_KSU_PATCH_APPLIED=0
+    fi
+
+    return "${cleanup_status}"
+}
+
 cleanup_common_feature_patches() {
     local common_dir="${KERNEL_PLATFORM}/common"
     local patch_file
@@ -566,6 +679,7 @@ cleanup_common() {
 
     trap - EXIT
     cleanup_fake_config_patch || cleanup_status=1
+    cleanup_susfs_patches || cleanup_status=1
     cleanup_common_feature_patches || cleanup_status=1
     cleanup_kernelsu_next || cleanup_status=1
     verify_common_unchanged || cleanup_status=1
@@ -665,6 +779,7 @@ build() {
 
     echo "[build] BUILD_TARGET=${BUILD_TARGET}"
     echo "[build] MODEL=${MODEL}"
+    echo "[build] KERNEL_MODE=${KERNEL_MODE}"
     echo "[build] OUT_DIR=${OUT_DIR}"
 
     mkdir -p "${ANDROID_PRODUCT_OUT}"
@@ -1031,7 +1146,11 @@ main() {
         esac
     fi
 
-    if [[ $# -ne 1 ]]; then
+    if [[ $# -lt 1 || $# -gt 2 ]]; then
+        usage >&2
+        return 2
+    fi
+    if ! select_kernel_mode "${2:-normal}"; then
         usage >&2
         return 2
     fi
@@ -1045,6 +1164,7 @@ main() {
     validate_msm_state
     prepare_target_workspace
     import_kernelsu_next
+    apply_susfs_patches
     apply_common_feature_patches
     apply_fake_config_patch
     prepare_toolchain
