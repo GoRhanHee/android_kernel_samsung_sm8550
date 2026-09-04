@@ -136,6 +136,9 @@ COMMON_HEAD_BEFORE=""
 COMMON_STATUS_BEFORE=""
 MSM_HEAD_BEFORE=""
 MSM_STATUS_BEFORE=""
+MSM_DEFCONFIG_BACKUP_DIR=""
+MSM_DEFCONFIG_SNAPSHOT_TAKEN=0
+MSM_DEFCONFIG_FILES=()
 KSU_SETUP_SCRIPT=""
 KSU_RESTORE_PATCH=""
 KSU_IMPORT_STARTED=0
@@ -543,6 +546,59 @@ validate_msm_state() {
     fi
 }
 
+snapshot_msm_defconfigs() {
+    local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
+    local relative_path
+    local source_path
+    local backup_path
+
+    MSM_DEFCONFIG_BACKUP_DIR="${PACKAGING_WORK_DIR}/msm-defconfigs.before"
+    mkdir -p "${MSM_DEFCONFIG_BACKUP_DIR}"
+
+    # build.config.msm.common's merge_defconfig_fragments() writes the merged
+    # result into the source-tree defconfig. Preserve every tracked vendor
+    # defconfig so that this build-time artifact cannot leak into the
+    # submodule, including any local changes that existed before the build.
+    while IFS= read -r relative_path; do
+        [[ -n "${relative_path}" ]] || continue
+        source_path="${msm_dir}/${relative_path}"
+        backup_path="${MSM_DEFCONFIG_BACKUP_DIR}/${relative_path}"
+        mkdir -p "$(dirname "${backup_path}")"
+        cp -a -- "${source_path}" "${backup_path}" ||
+            die "failed to snapshot msm-kernel defconfig: ${relative_path}"
+        MSM_DEFCONFIG_FILES+=("${relative_path}")
+    done < <(
+        git -C "${msm_dir}" ls-files -- 'arch/arm64/configs/vendor/*defconfig'
+    )
+
+    MSM_DEFCONFIG_SNAPSHOT_TAKEN=1
+    echo "[submodule] snapshotting msm-kernel defconfigs for build cleanup"
+}
+
+restore_msm_defconfigs() {
+    local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
+    local relative_path
+    local source_path
+    local backup_path
+    local cleanup_status=0
+
+    (( MSM_DEFCONFIG_SNAPSHOT_TAKEN == 1 )) || return 0
+
+    echo "[submodule] restoring msm-kernel defconfigs"
+    for relative_path in "${MSM_DEFCONFIG_FILES[@]}"; do
+        source_path="${msm_dir}/${relative_path}"
+        backup_path="${MSM_DEFCONFIG_BACKUP_DIR}/${relative_path}"
+
+        if [[ -e "${source_path}" || -L "${source_path}" ]]; then
+            rm -f -- "${source_path}" || cleanup_status=1
+        fi
+        cp -a -- "${backup_path}" "${source_path}" || cleanup_status=1
+    done
+
+    MSM_DEFCONFIG_SNAPSHOT_TAKEN=0
+    return "${cleanup_status}"
+}
+
 verify_common_unchanged() {
     local common_dir="${KERNEL_PLATFORM}/common"
     local head_after
@@ -715,6 +771,7 @@ cleanup_common() {
     cleanup_susfs_patches || cleanup_status=1
     cleanup_common_feature_patches || cleanup_status=1
     cleanup_kernelsu_next || cleanup_status=1
+    restore_msm_defconfigs || cleanup_status=1
     verify_common_unchanged || cleanup_status=1
     verify_msm_unchanged || cleanup_status=1
 
@@ -1197,6 +1254,7 @@ main() {
     record_common_state
     validate_msm_state
     prepare_target_workspace
+    snapshot_msm_defconfigs
     import_kernelsu_next
     apply_susfs_patches
     apply_common_feature_patches
