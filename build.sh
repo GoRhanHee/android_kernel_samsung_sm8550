@@ -134,6 +134,8 @@ TMPDIR=""
 DLKM_EXTRACTED_ROOT=""
 COMMON_HEAD_BEFORE=""
 COMMON_STATUS_BEFORE=""
+MSM_HEAD_BEFORE=""
+MSM_STATUS_BEFORE=""
 KSU_SETUP_SCRIPT=""
 KSU_RESTORE_PATCH=""
 KSU_IMPORT_STARTED=0
@@ -516,8 +518,11 @@ validate_msm_state() {
     status="$(
         git -C "${msm_dir}" status --porcelain=v1 --untracked-files=all
     )"
-    [[ -z "${status}" ]] ||
-        die "msm-kernel submodule must be clean before the build"
+    MSM_HEAD_BEFORE="${head}"
+    MSM_STATUS_BEFORE="${status}"
+    if [[ -n "${status}" ]]; then
+        echo "[submodule] preserving pre-existing msm-kernel changes"
+    fi
     configured_branch="$(
         git -C "${SOURCE_DIR}" config -f .gitmodules \
             --get submodule.kernel_platform/msm-kernel.branch 2>/dev/null || true
@@ -528,9 +533,13 @@ validate_msm_state() {
         tracking_head="$(git -C "${msm_dir}" rev-parse "${tracking_ref}")"
         [[ "${head}" == "${tracking_head}" ]] ||
             die "msm-kernel HEAD does not match ${tracking_ref}"
-        echo "[submodule] msm-kernel ${head} matches ${tracking_ref}"
+        if [[ -n "${status}" ]]; then
+            echo "[submodule] msm-kernel ${head} matches ${tracking_ref} with local changes"
+        else
+            echo "[submodule] msm-kernel ${head} matches ${tracking_ref}"
+        fi
     else
-        echo "[submodule] msm-kernel ${head} is initialized and clean"
+        echo "[submodule] msm-kernel ${head} is initialized"
     fi
 }
 
@@ -554,6 +563,30 @@ verify_common_unchanged() {
     if [[ "${head_after}" != "${COMMON_HEAD_BEFORE}" ||
           "${status_after}" != "${COMMON_STATUS_BEFORE}" ]]; then
         echo "error: the build changed kernel_platform/common" >&2
+        return 1
+    fi
+}
+
+verify_msm_unchanged() {
+    local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
+    local head_after
+    local status_after
+
+    [[ -n "${MSM_HEAD_BEFORE}" ]] || return 0
+    head_after="$(git -C "${msm_dir}" rev-parse HEAD 2>/dev/null)" || {
+        echo "error: msm-kernel submodule became unavailable during the build" >&2
+        return 1
+    }
+    status_after="$(
+        git -C "${msm_dir}" status --porcelain=v1 --untracked-files=all
+    )" || {
+        echo "error: msm-kernel submodule status could not be read after the build" >&2
+        return 1
+    }
+
+    if [[ "${head_after}" != "${MSM_HEAD_BEFORE}" ||
+          "${status_after}" != "${MSM_STATUS_BEFORE}" ]]; then
+        echo "error: the build changed kernel_platform/msm-kernel" >&2
         return 1
     fi
 }
@@ -683,6 +716,7 @@ cleanup_common() {
     cleanup_common_feature_patches || cleanup_status=1
     cleanup_kernelsu_next || cleanup_status=1
     verify_common_unchanged || cleanup_status=1
+    verify_msm_unchanged || cleanup_status=1
 
     if (( cleanup_status != 0 )); then
         echo "error: failed to restore build-time kernel changes" >&2
