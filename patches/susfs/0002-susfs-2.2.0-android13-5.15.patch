@@ -404,12 +404,16 @@ diff --git a/fs/namespace.c b/fs/namespace.c
 index 930254f8eee2ba7e5923d5d69da6e0ade7d6f3ec..19915ab55ae3efb51010679eaad7b6f9af5fa9d1 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
-@@ -37,6 +37,10 @@
+@@ -37,6 +37,14 @@
  #include <linux/kdp.h>
  #endif
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +#include <linux/susfs_def.h>
++extern bool susfs_is_current_ksu_domain(void);
++extern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;
++
++#define CL_COPY_MNT_NS BIT(25) /* used by copy_mnt_ns() */
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +
  #include "pnode.h"
@@ -651,16 +655,6 @@ index 930254f8eee2ba7e5923d5d69da6e0ade7d6f3ec..19915ab55ae3efb51010679eaad7b6f9
  	atomic_inc(&sb->s_active);
  	mnt->mnt.mnt_userns = mnt_user_ns(&old->mnt);
  	if (!initial_idmapping(mnt->mnt.mnt_userns))
-@@ -3646,6 +3840,9 @@ static void shrink_submounts(struct mount *mnt)
- 						mnt_expire);
- 			touch_mnt_namespace(m->mnt_ns);
- 			umount_tree(m, UMOUNT_PROPAGATE|UMOUNT_SYNC);
-+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	copy_flags |= CL_COPY_MNT_NS;
-+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
- 		}
- 	}
- }
 @@ -5219,3 +5416,34 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
@@ -3527,7 +3521,7 @@ new file mode 100644
 index 0000000000000000000000000000000000000000..fb55df55495098e876d7c853f3b1e95621b4b364
 --- /dev/null
 +++ b/include/linux/susfs_def.h
-@@ -0,0 +1,122 @@
+@@ -0,0 +1,127 @@
 +#ifndef KSU_SUSFS_DEF_H
 +#define KSU_SUSFS_DEF_H
 +
@@ -3587,6 +3581,7 @@ index 0000000000000000000000000000000000000000..fb55df55495098e876d7c853f3b1e956
 + */
 + // thread_info->flags is unsigned long :D
 +#define TIF_PROC_UMOUNTED 33
++#define TIF_PROC_NO_SU 34
 +
 +#define AS_FLAGS_SUS_PATH 33
 +#define AS_FLAGS_SUS_MOUNT 34
@@ -3629,6 +3624,10 @@ index 0000000000000000000000000000000000000000..fb55df55495098e876d7c853f3b1e956
 +
 +static inline void susfs_set_current_proc_umounted(void) {
 +	set_thread_flag(TIF_PROC_UMOUNTED);
++}
++
++static inline void susfs_set_current_proc_no_su(void) {
++	set_thread_flag(TIF_PROC_NO_SU);
 +}
 +
 +static inline bool susfs_is_current_proc_umounted_app(void) {
