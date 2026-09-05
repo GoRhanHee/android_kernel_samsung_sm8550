@@ -523,11 +523,10 @@ validate_msm_state() {
     status="$(
         git -C "${msm_dir}" status --porcelain=v1 --untracked-files=all
     )"
+    [[ -z "${status}" ]] ||
+        die "msm-kernel submodule must be clean before the build"
     MSM_HEAD_BEFORE="${head}"
     MSM_STATUS_BEFORE="${status}"
-    if [[ -n "${status}" ]]; then
-        echo "[submodule] preserving pre-existing msm-kernel changes"
-    fi
     configured_branch="$(
         git -C "${SOURCE_DIR}" config -f .gitmodules \
             --get submodule.kernel_platform/msm-kernel.branch 2>/dev/null || true
@@ -538,13 +537,9 @@ validate_msm_state() {
         tracking_head="$(git -C "${msm_dir}" rev-parse "${tracking_ref}")"
         [[ "${head}" == "${tracking_head}" ]] ||
             die "msm-kernel HEAD does not match ${tracking_ref}"
-        if [[ -n "${status}" ]]; then
-            echo "[submodule] msm-kernel ${head} matches ${tracking_ref} with local changes"
-        else
-            echo "[submodule] msm-kernel ${head} matches ${tracking_ref}"
-        fi
+        echo "[submodule] msm-kernel ${head} matches ${tracking_ref} and is clean"
     else
-        echo "[submodule] msm-kernel ${head} is initialized"
+        echo "[submodule] msm-kernel ${head} is initialized and clean"
     fi
 }
 
