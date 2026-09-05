@@ -78,6 +78,6 @@ remove_nuked_module "${OUTPUT_DIR}"
 
 (
     cd "${BOOT_EDITOR_DIR}"
-    ./gradlew pack
+    LC_ALL=C.UTF-8 ./gradlew -Dfile.encoding=UTF-8 pack
     cp vendor_boot.img "${REPO_ROOT}/vendor_boot.img"
 )

@@ -139,6 +139,8 @@ MSM_STATUS_BEFORE=""
 MSM_DEFCONFIG_BACKUP_DIR=""
 MSM_DEFCONFIG_SNAPSHOT_TAKEN=0
 MSM_DEFCONFIG_FILES=()
+MSM_WLAN_LINK_PREEXISTING=0
+MSM_WLAN_LINK_TARGET=""
 KSU_SETUP_SCRIPT=""
 KSU_RESTORE_PATCH=""
 KSU_IMPORT_STARTED=0
@@ -546,6 +548,18 @@ validate_msm_state() {
     fi
 }
 
+snapshot_msm_wlan_link() {
+    local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
+    local wlan_link="${msm_dir}/.wlan-qcacld"
+
+    if [[ -L "${wlan_link}" ]]; then
+        MSM_WLAN_LINK_PREEXISTING=1
+        MSM_WLAN_LINK_TARGET="$(readlink -- "${wlan_link}")"
+    elif [[ -e "${wlan_link}" ]]; then
+        die "msm-kernel .wlan-qcacld exists but is not a symlink"
+    fi
+}
+
 snapshot_msm_defconfigs() {
     local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
     local relative_path
@@ -599,6 +613,42 @@ restore_msm_defconfigs() {
     return "${cleanup_status}"
 }
 
+cleanup_msm_wlan_link() {
+    local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
+    local wlan_link="${msm_dir}/.wlan-qcacld"
+    local current_target
+    local cleanup_status=0
+
+    if (( MSM_WLAN_LINK_PREEXISTING == 1 )); then
+        if [[ -L "${wlan_link}" ]]; then
+            current_target="$(readlink -- "${wlan_link}")"
+            if [[ "${current_target}" != "${MSM_WLAN_LINK_TARGET}" ]]; then
+                echo "[submodule] restoring pre-existing msm-kernel WLAN link"
+                rm -- "${wlan_link}" || cleanup_status=1
+                if (( cleanup_status == 0 )); then
+                    ln -s -- "${MSM_WLAN_LINK_TARGET}" "${wlan_link}" ||
+                        cleanup_status=1
+                fi
+            fi
+        elif [[ -e "${wlan_link}" ]]; then
+            echo "error: build replaced the pre-existing msm-kernel WLAN link" >&2
+            cleanup_status=1
+        else
+            echo "[submodule] restoring pre-existing msm-kernel WLAN link"
+            ln -s -- "${MSM_WLAN_LINK_TARGET}" "${wlan_link}" ||
+                cleanup_status=1
+        fi
+    elif [[ -L "${wlan_link}" ]]; then
+        echo "[submodule] removing build-created msm-kernel WLAN link"
+        rm -- "${wlan_link}" || cleanup_status=1
+    elif [[ -e "${wlan_link}" ]]; then
+        echo "error: build created a non-symlink msm-kernel WLAN path; refusing to remove it" >&2
+        cleanup_status=1
+    fi
+
+    return "${cleanup_status}"
+}
+
 verify_common_unchanged() {
     local common_dir="${KERNEL_PLATFORM}/common"
     local head_after
@@ -643,6 +693,24 @@ verify_msm_unchanged() {
     if [[ "${head_after}" != "${MSM_HEAD_BEFORE}" ||
           "${status_after}" != "${MSM_STATUS_BEFORE}" ]]; then
         echo "error: the build changed kernel_platform/msm-kernel" >&2
+        if [[ "${head_after}" != "${MSM_HEAD_BEFORE}" ]]; then
+            echo "error: msm-kernel HEAD before build: ${MSM_HEAD_BEFORE}" >&2
+            echo "error: msm-kernel HEAD after cleanup: ${head_after}" >&2
+        fi
+        if [[ "${status_after}" != "${MSM_STATUS_BEFORE}" ]]; then
+            echo "error: msm-kernel status before build:" >&2
+            if [[ -n "${MSM_STATUS_BEFORE}" ]]; then
+                printf '%s\n' "${MSM_STATUS_BEFORE}" >&2
+            else
+                echo "  (clean)" >&2
+            fi
+            echo "error: msm-kernel status after cleanup:" >&2
+            if [[ -n "${status_after}" ]]; then
+                printf '%s\n' "${status_after}" >&2
+            else
+                echo "  (clean)" >&2
+            fi
+        fi
         return 1
     fi
 }
@@ -772,6 +840,7 @@ cleanup_common() {
     cleanup_common_feature_patches || cleanup_status=1
     cleanup_kernelsu_next || cleanup_status=1
     restore_msm_defconfigs || cleanup_status=1
+    cleanup_msm_wlan_link || cleanup_status=1
     verify_common_unchanged || cleanup_status=1
     verify_msm_unchanged || cleanup_status=1
 
@@ -1026,7 +1095,7 @@ unpack_vendor_boot() {
     (
         cd "${editor_dir}"
         cp "${stock_image}" vendor_boot.img
-        ./gradlew unpack
+        LC_ALL=C.UTF-8 ./gradlew -Dfile.encoding=UTF-8 unpack
     )
 
     modules_dir="${editor_dir}/build/unzip_boot/root.1/lib/modules"
@@ -1253,6 +1322,7 @@ main() {
     update_submodules
     record_common_state
     validate_msm_state
+    snapshot_msm_wlan_link
     prepare_target_workspace
     snapshot_msm_defconfigs
     import_kernelsu_next
