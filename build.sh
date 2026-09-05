@@ -169,7 +169,7 @@ select_wlan_profile() {
 usage() {
     cat <<EOF
 Usage:
-  ${SCRIPT_NAME} <device> [normal|susfs]
+  ${SCRIPT_NAME} <device> [vanilla|susfs]
   ${SCRIPT_NAME} -h
   ${SCRIPT_NAME} --help
   ${SCRIPT_NAME} help
@@ -182,12 +182,12 @@ Devices:
   b5q   Samsung Galaxy Z Flip5
 
 Examples:
-  ${SCRIPT_NAME} dm3q normal
+  ${SCRIPT_NAME} dm3q vanilla
   ${SCRIPT_NAME} dm3q susfs
   ${SCRIPT_NAME} q5q susfs
 
 Kernel modes:
-  normal  Standard kernel build without KernelSU-Next or SUSFS (default)
+  vanilla Standard kernel build without KernelSU-Next or SUSFS (default)
   susfs   KernelSU-Next ${KSU_NEXT_REF} + SUSFS 2.2.0 for Android 13 / 5.15
 
 Build profile:
@@ -209,9 +209,9 @@ require_command() {
 }
 
 select_kernel_mode() {
-    case "${1:-normal}" in
-        normal|plain|base)
-            KERNEL_MODE="normal"
+    case "${1:-vanilla}" in
+        vanilla|plain|base)
+            KERNEL_MODE="vanilla"
             ;;
         susfs|ksu-susfs|ksun)
             KERNEL_MODE="susfs"
@@ -346,13 +346,13 @@ record_common_state() {
           -d "${common_dir}/KernelSU" ||
           -e "${common_dir}/drivers/kernelsu" ]]; then
         [[ "${KERNEL_MODE}" == "susfs" ]] ||
-            die "normal mode requires a common kernel tree without KernelSU integration"
+            die "vanilla mode requires a common kernel tree without KernelSU integration"
         KSU_REUSE_EXISTING=1
         echo "[KernelSU] Reusing the existing integration for SUSFS mode"
     elif [[ "${KERNEL_MODE}" == "susfs" ]]; then
         echo "[KernelSU-Next] A pinned temporary integration will be imported"
     else
-        echo "[KernelSU-Next] Disabled for normal mode"
+        echo "[KernelSU-Next] Disabled for vanilla mode"
     fi
 
     trap cleanup_common EXIT
@@ -1305,7 +1305,7 @@ main() {
         usage >&2
         return 2
     fi
-    if ! select_kernel_mode "${2:-normal}"; then
+    if ! select_kernel_mode "${2:-vanilla}"; then
         usage >&2
         return 2
     fi

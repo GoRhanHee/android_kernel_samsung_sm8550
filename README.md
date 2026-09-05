@@ -26,7 +26,7 @@ The build script contains a `b5q` profile for development, but Galaxy Z Flip5 is
 
 ## ✨ Features
 
-- The `normal` build mode does not include KernelSU-Next or SUSFS.
+- The `vanilla` build mode does not include KernelSU-Next or SUSFS.
 - The `susfs` build mode adds KernelSU-Next and SUSFS 2.2.0 for Android 13 / Linux 5.15.
 - Baseband Guard monitors unauthorized writes to protected partition devices.
 - DroidSpaces support enables Linux containers through namespaces, IPC, netfilter, and matching DLKM modules.
@@ -50,14 +50,14 @@ git submodule update --init --recursive
 Supported build targets:
 
 ```sh
-./build.sh dm3q normal
+./build.sh dm3q vanilla
 ./build.sh dm3q susfs
-./build.sh dm1q normal
+./build.sh dm1q vanilla
 ./build.sh dm2q susfs
 ./build.sh q5q susfs
 ```
 
-The second argument selects the kernel mode and defaults to `normal` when omitted. `normal` keeps the common project feature patches but excludes KernelSU-Next/SUSFS. `susfs` imports the pinned KernelSU-Next revision, applies the two patches under `patches/susfs/`, and merges `custom_defconfigs/ksu_defconfig` followed by `custom_defconfigs/susfs_defconfig`. All source patches are reverted when the build exits.
+The second argument selects the kernel mode and defaults to `vanilla` when omitted. `vanilla` keeps the common project feature patches but excludes KernelSU-Next/SUSFS. `susfs` imports the pinned KernelSU-Next revision, applies the two patches under `patches/susfs/`, and merges `custom_defconfigs/ksu_defconfig` followed by `custom_defconfigs/susfs_defconfig`. All source patches are reverted when the build exits.
 
 The build flow selects the device profile, applies the common feature patches, merges the custom defconfig, builds the kernel and matching vendor modules, then packages `Image` and the matching boot/DLKM images in an AnyKernel3 ZIP.
 
@@ -79,7 +79,7 @@ system_dlkm.img
 GoRhanHee_Kernel-kalama-<model>-<mode>-AnyKernel3.zip
 ```
 
-`<mode>` is `normal` or `susfs`; the separate output paths allow both variants to remain available at the same time.
+`<mode>` is `vanilla` or `susfs`; the separate output paths allow both variants to remain available at the same time.
 
 - Flash only to the matching device and firmware family.
 - Keep the four images together; `vendor_dlkm.img` and `system_dlkm.img` are matched to the selected device.
