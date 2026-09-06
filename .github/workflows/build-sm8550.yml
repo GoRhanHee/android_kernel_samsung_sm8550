@@ -26,6 +26,7 @@ jobs:
           - b5q
         mode:
           - vanilla
+          - ksun
           - susfs
 
     steps:

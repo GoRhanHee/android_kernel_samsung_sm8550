@@ -169,7 +169,7 @@ select_wlan_profile() {
 usage() {
     cat <<EOF
 Usage:
-  ${SCRIPT_NAME} <device> [vanilla|susfs]
+  ${SCRIPT_NAME} <device> [vanilla|ksun|susfs]
   ${SCRIPT_NAME} -h
   ${SCRIPT_NAME} --help
   ${SCRIPT_NAME} help
@@ -183,11 +183,13 @@ Devices:
 
 Examples:
   ${SCRIPT_NAME} dm3q vanilla
+  ${SCRIPT_NAME} dm3q ksun
   ${SCRIPT_NAME} dm3q susfs
   ${SCRIPT_NAME} q5q susfs
 
 Kernel modes:
   vanilla Standard kernel build without KernelSU-Next or SUSFS (default)
+  ksun    KernelSU-Next ${KSU_NEXT_REF} without SUSFS
   susfs   KernelSU-Next ${KSU_NEXT_REF} + SUSFS 2.2.0 for Android 13 / 5.15
 
 Build profile:
@@ -213,7 +215,10 @@ select_kernel_mode() {
         vanilla|plain|base)
             KERNEL_MODE="vanilla"
             ;;
-        susfs|ksu-susfs|ksun)
+        ksun|ksu)
+            KERNEL_MODE="ksun"
+            ;;
+        susfs|ksu-susfs)
             KERNEL_MODE="susfs"
             ;;
         *)
@@ -290,9 +295,14 @@ select_device_profile() {
     TARGET_BOARD_PLATFORM="gki"
     GKI_CUSTOM_DEFCONFIG="${BASE_DEFCONFIG_FILE}"
     GKI_CUSTOM_DEFCONFIG_FRAGMENTS=""
-    if [[ "${KERNEL_MODE}" == "susfs" ]]; then
-        GKI_CUSTOM_DEFCONFIG_FRAGMENTS="${KSU_DEFCONFIG_FILE} ${SUSFS_DEFCONFIG_FILE}"
-    fi
+    case "${KERNEL_MODE}" in
+        ksun)
+            GKI_CUSTOM_DEFCONFIG_FRAGMENTS="${KSU_DEFCONFIG_FILE}"
+            ;;
+        susfs)
+            GKI_CUSTOM_DEFCONFIG_FRAGMENTS="${KSU_DEFCONFIG_FILE} ${SUSFS_DEFCONFIG_FILE}"
+            ;;
+    esac
     ANDROID_BUILD_TOP="${SOURCE_DIR}"
     output_base="${ANDROID_BUILD_TOP}/out"
     ANDROID_PRODUCT_OUT="${output_base}/${MODEL}/${KERNEL_MODE}/target/product/${MODEL}"
@@ -345,11 +355,11 @@ record_common_state() {
     if [[ -d "${common_dir}/KernelSU-Next" ||
           -d "${common_dir}/KernelSU" ||
           -e "${common_dir}/drivers/kernelsu" ]]; then
-        [[ "${KERNEL_MODE}" == "susfs" ]] ||
+        [[ "${KERNEL_MODE}" != "vanilla" ]] ||
             die "vanilla mode requires a common kernel tree without KernelSU integration"
         KSU_REUSE_EXISTING=1
-        echo "[KernelSU] Reusing the existing integration for SUSFS mode"
-    elif [[ "${KERNEL_MODE}" == "susfs" ]]; then
+        echo "[KernelSU] Reusing the existing integration for ${KERNEL_MODE} mode"
+    elif [[ "${KERNEL_MODE}" != "vanilla" ]]; then
         echo "[KernelSU-Next] A pinned temporary integration will be imported"
     else
         echo "[KernelSU-Next] Disabled for vanilla mode"
@@ -362,7 +372,7 @@ import_kernelsu_next() {
     local common_dir="${KERNEL_PLATFORM}/common"
     local changed_file
 
-    [[ "${KERNEL_MODE}" == "susfs" ]] || return 0
+    [[ "${KERNEL_MODE}" != "vanilla" ]] || return 0
 
     if (( KSU_REUSE_EXISTING == 1 )); then
         return 0
