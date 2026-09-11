@@ -18,11 +18,11 @@
 | `dm2q` | Galaxy S23+ | ✅ Supported |
 | `dm3q` | Galaxy S23 Ultra | ✅ Supported |
 | `q5q` | Galaxy Z Fold5 | ✅ Supported |
-| `b5q` | Galaxy Z Flip5 | ❌ Not supported |
+| `b5q` | Galaxy Z Flip5 | ✅ Supported |
 
-Global and international variants using the same device codename are supported when firmware and partition layouts match.
-
-The build script contains a `b5q` profile for development, but Galaxy Z Flip5 is currently excluded from supported devices.
+Korean and European variants use the same universal kernel. Device-specific
+DTB/DTBO outputs remain separated so overlapping Qualcomm board IDs are never
+combined into one ambiguous image.
 
 ## ✨ Features
 
@@ -47,48 +47,47 @@ cd android_kernel_samsung_sm8550
 git submodule update --init --recursive
 ```
 
-Supported build targets:
+The source is compiled once per kernel mode:
 
 ```sh
-./build.sh dm3q vanilla
-./build.sh dm3q susfs
-./build.sh dm1q vanilla
-./build.sh dm2q susfs
-./build.sh q5q susfs
+./build.sh vanilla
+./build.sh ksun
+./build.sh susfs
 ```
 
-The second argument selects the kernel mode and defaults to `vanilla` when omitted. `vanilla` keeps the common project feature patches but excludes KernelSU-Next/SUSFS. `susfs` imports the pinned KernelSU-Next revision, applies the two patches under `patches/susfs/`, and merges `custom_defconfigs/ksu_defconfig` followed by `custom_defconfigs/susfs_defconfig`. All source patches are reverted when the build exits.
+The argument selects the kernel mode and defaults to `vanilla` when omitted. `vanilla` keeps the common project feature patches but excludes KernelSU-Next/SUSFS. `ksun` adds the pinned KernelSU-Next revision without SUSFS. `susfs` also applies the two patches under `patches/susfs/` and merges `custom_defconfigs/ksu_defconfig` followed by `custom_defconfigs/susfs_defconfig`. All temporary source patches are reverted when the build exits.
 
-The build flow selects the device profile, applies the common feature patches, merges the custom defconfig, builds the kernel and matching vendor modules, then packages `Image` and the matching boot/DLKM images in an AnyKernel3 ZIP.
+The universal config builds the union of device drivers and all product DTS targets. The build creates `vendor_dlkm` and `system_dlkm` directly from the newly built modules; it does not download or repack stock DLKM images.
 
 ## 📦 Output & AnyKernel3 Installation
 
 Typical output:
 
 ```text
-out/<model>/msm-kalama-kalama-gki-<mode>/
+out/universal/msm-kalama-kalama-gki-<mode>/
 ```
 
 Main artifacts:
 
 ```text
 Image
-vendor_boot.img
-vendor_dlkm.img
+vendor_ramdisk/
+vendor_dlkm_qca6490.img
+vendor_dlkm_kiwi_v2.img
 system_dlkm.img
-GoRhanHee_Kernel-kalama-<model>-<mode>-AnyKernel3.zip
+GoRhanHee_Kernel-kalama-universal-<mode>-AnyKernel3.zip
 ```
 
-`<mode>` is `vanilla` or `susfs`; the separate output paths allow both variants to remain available at the same time.
+`dist/device-trees/base` contains the common Qualcomm base DTBs. Each product
+profile below `dist/device-trees/` has separate `dtb` and `dtbo` directories.
+The two vendor DLKM images differ only in the mutually exclusive WLAN driver;
+AnyKernel3 chooses the correct one at install time.
 
-- Flash only to the matching device and firmware family.
-- Keep the four images together; `vendor_dlkm.img` and `system_dlkm.img` are matched to the selected device.
 - Keep stock images available for recovery.
-- The Flip5 (`b5q`) build is not currently supported.
 
 ### AnyKernel3 Installation
 
-Flash the `-AnyKernel3.zip` package from a custom recovery or another AnyKernel3-compatible flasher. The ZIP contains the AK3 recovery shell, `Image`, `vendor_boot.img`, `vendor_dlkm.img`, and `system_dlkm.img`; the shell repacks and flashes the active `boot` partition and then flashes the three accompanying partitions.
+Flash the `-AnyKernel3.zip` package from a custom recovery or another AnyKernel3-compatible flasher. The installer detects the device, flashes the common `Image`, unpacks that device's existing `vendor_boot`, replaces its kernel modules and patches the DLKM AVB fstab flags, then repacks it while retaining the stock DTB, bootconfig, and other ramdisk content. It selects and flashes the matching WLAN `vendor_dlkm` together with the common `system_dlkm`.
 
 The bootloader must be unlocked, and the device must use a recovery/flasher that supports AnyKernel3 update ZIPs. Samsung Download Mode/Odin is not used by this package. Keep a stock backup available because flashing is sequential and has no rollback.
 

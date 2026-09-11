@@ -105,14 +105,12 @@ CARRIER=""
 CHIPSET_NAME=""
 TARGET_PRODUCT=""
 TARGET_BOARD_PLATFORM=""
-STOCK_VENDOR_BOOT_URL=""
-STOCK_VENDOR_DLKM_URL=""
-STOCK_SYSTEM_DLKM_URL=""
 SEC_PROJECT_CONFIG=""
-WLAN_PROFILE=""
-WLAN_EXT_MODULE=""
-WLAN_BUILT_MODULE=""
-WLAN_PACKAGED_MODULE=""
+readonly WLAN_PROFILES=(qca6490 kiwi_v2)
+readonly WLAN_EXT_MODULES=(
+    "../vendor/qcom/opensource/wlan/qcacld-3.0/.qca6490"
+    "../vendor/qcom/opensource/wlan/qcacld-3.0/.kiwi_v2"
+)
 ANDROID_BUILD_TOP=""
 ANDROID_PRODUCT_OUT=""
 ANDROID_KERNEL_OUT=""
@@ -123,15 +121,10 @@ DIST_DIR=""
 PACKAGE_DIR=""
 TARGET_TEMP_DIR=""
 TARGET_DOWNLOAD_DIR=""
-TARGET_UNPACK_DIR=""
 PACKAGING_WORK_DIR=""
-PACKAGING_PREBUILTS_DIR=""
 DOWNLOAD_DIR=""
-UNPACK_DIR=""
 ANYKERNEL_PACKAGE=""
-CUSTOM_SYSTEM_DLKM_IMAGE=""
 TMPDIR=""
-DLKM_EXTRACTED_ROOT=""
 COMMON_HEAD_BEFORE=""
 COMMON_STATUS_BEFORE=""
 MSM_HEAD_BEFORE=""
@@ -150,42 +143,18 @@ SUSFS_KERNEL_PATCH_APPLIED=0
 COMMON_FEATURE_PATCHES_APPLIED=0
 FAKE_CONFIG_PATCHES_APPLIED=0
 
-select_wlan_profile() {
-    local project_config="${KERNEL_PLATFORM}/msm-kernel/arch/arm64/configs/vendor/${SEC_PROJECT_CONFIG}_project.config"
-
-    [[ -f "${project_config}" ]] ||
-        die "project config not found: ${project_config}"
-
-    WLAN_PROFILE="kiwi_v2"
-    if grep -Eq '^CONFIG_SEC_(DM1Q|DM2Q|Q5Q|B5Q)_PROJECT=y$' "${project_config}"; then
-        WLAN_PROFILE="qca6490"
-    fi
-
-    WLAN_EXT_MODULE="../vendor/qcom/opensource/wlan/qcacld-3.0/.${WLAN_PROFILE}"
-    WLAN_BUILT_MODULE="${WLAN_PROFILE}.ko"
-    WLAN_PACKAGED_MODULE="qca_cld3_${WLAN_PROFILE}.ko"
-}
-
 usage() {
     cat <<EOF
 Usage:
-  ${SCRIPT_NAME} <device> [vanilla|ksun|susfs]
+  ${SCRIPT_NAME} [vanilla|ksun|susfs]
   ${SCRIPT_NAME} -h
   ${SCRIPT_NAME} --help
   ${SCRIPT_NAME} help
 
-Devices:
-  dm1q  Samsung Galaxy S23
-  dm2q  Samsung Galaxy S23+
-  dm3q  Samsung Galaxy S23 Ultra
-  q5q   Samsung Galaxy Z Fold5
-  b5q   Samsung Galaxy Z Flip5
-
 Examples:
-  ${SCRIPT_NAME} dm3q vanilla
-  ${SCRIPT_NAME} dm3q ksun
-  ${SCRIPT_NAME} dm3q susfs
-  ${SCRIPT_NAME} q5q susfs
+  ${SCRIPT_NAME} vanilla
+  ${SCRIPT_NAME} ksun
+  ${SCRIPT_NAME} susfs
 
 Kernel modes:
   vanilla Standard kernel build without KernelSU-Next or SUSFS (default)
@@ -235,61 +204,20 @@ update_submodules() {
 
     echo "[submodule] Synchronizing configured URLs"
     git -C "${SOURCE_DIR}" submodule sync --recursive
-    echo "[submodule] Fetching latest configured branches"
+    echo "[submodule] Updating configured branches"
     git -C "${SOURCE_DIR}" submodule update --init --remote --recursive --checkout
 }
 
-select_device_profile() {
-    local device="$1"
+select_universal_profile() {
     local output_base
     local run_key="run-${BASHPID}"
 
-    case "${device}" in
-        dm1q)
-            BUILD_TARGET="dm1q_kor_singlex"
-            MODEL="dm1q"
-            STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S911NKSS8FZG1_KOO_OKR/vendor_boot.img"
-            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S911NKSS8FZG1_KOO_OKR/vendor_dlkm.img"
-            STOCK_SYSTEM_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S911NKSS8FZG1_KOO_OKR/system_dlkm.img"
-            ;;
-        dm2q)
-            BUILD_TARGET="dm2q_kor_singlex"
-            MODEL="dm2q"
-            STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S916NKSS8FZG1_KOO_OKR/vendor_boot.img"
-            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S916NKSS8FZG1_KOO_OKR/vendor_dlkm.img"
-            STOCK_SYSTEM_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S916NKSS8FZG1_KOO_OKR/system_dlkm.img"
-            ;;
-        dm3q)
-            BUILD_TARGET="dm3q_kor_singlex"
-            MODEL="dm3q"
-            STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZG1_KOO_OKR/vendor_boot.img"
-            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZG1_KOO_OKR/vendor_dlkm.img"
-            STOCK_SYSTEM_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/S918NKSS8FZG1_KOO_OKR/system_dlkm.img"
-            ;;
-        q5q)
-            BUILD_TARGET="q5q_kor_singlex"
-            MODEL="q5q"
-            STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZG3_KOO_OKR/vendor_boot.img"
-            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZG3_KOO_OKR/vendor_dlkm.img"
-            STOCK_SYSTEM_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F946NKSS6GZG3_KOO_OKR/system_dlkm.img"
-            ;;
-        b5q)
-            BUILD_TARGET="b5q_kor_singlex"
-            MODEL="b5q"
-            STOCK_VENDOR_BOOT_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F731NKSS6GZG4_KOO_OKR/vendor_boot.img"
-            STOCK_VENDOR_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F731NKSS6GZG4_KOO_OKR/vendor_dlkm.img"
-            STOCK_SYSTEM_DLKM_URL="https://github.com/GoRhanHee/Firmware_Samsung/releases/download/F731NKSS6GZG4_KOO_OKR/system_dlkm.img"
-            ;;
-        *)
-            return 2
-            ;;
-    esac
-
-    PROJECT_NAME="${MODEL}"
-    SEC_PROJECT_CONFIG="${MODEL}"
-    select_wlan_profile
-    REGION="kor"
-    CARRIER="singlex"
+    BUILD_TARGET="universal"
+    MODEL="universal"
+    PROJECT_NAME="universal"
+    SEC_PROJECT_CONFIG="universal"
+    REGION="universal"
+    CARRIER="universal"
     CHIPSET_NAME="kalama"
     TARGET_PRODUCT="gki"
     TARGET_BOARD_PLATFORM="gki"
@@ -312,23 +240,17 @@ select_device_profile() {
     PACKAGE_DIR="${OUT_DIR}/packaged"
     TARGET_TEMP_DIR="${OUT_DIR}/tmp"
     TARGET_DOWNLOAD_DIR="${OUT_DIR}/downloads"
-    TARGET_UNPACK_DIR="${OUT_DIR}/unpack"
     PACKAGING_WORK_DIR="${TARGET_TEMP_DIR}/${run_key}"
-    PACKAGING_PREBUILTS_DIR="${PACKAGING_WORK_DIR}/prebuilts"
     DOWNLOAD_DIR="${TARGET_DOWNLOAD_DIR}/${run_key}"
-    UNPACK_DIR="${TARGET_UNPACK_DIR}/${run_key}"
     ANYKERNEL_PACKAGE="${PACKAGE_DIR}/GoRhanHee_Kernel-${CHIPSET_NAME}-${MODEL}-${KERNEL_MODE}-AnyKernel3.zip"
-    CUSTOM_SYSTEM_DLKM_IMAGE="${PACKAGING_WORK_DIR}/system_dlkm.img"
     TMPDIR="${PACKAGING_WORK_DIR}/process-tmp"
 
     export BUILD_TARGET KERNEL_MODE MODEL PROJECT_NAME REGION CARRIER
     export CHIPSET_NAME TARGET_PRODUCT TARGET_BOARD_PLATFORM
-    export STOCK_VENDOR_BOOT_URL STOCK_VENDOR_DLKM_URL STOCK_SYSTEM_DLKM_URL
     export SEC_PROJECT_CONFIG
-    export WLAN_PROFILE WLAN_EXT_MODULE WLAN_BUILT_MODULE WLAN_PACKAGED_MODULE
     export ANDROID_BUILD_TOP ANDROID_PRODUCT_OUT ANDROID_KERNEL_OUT
     export GKI_CUSTOM_DEFCONFIG GKI_CUSTOM_DEFCONFIG_FRAGMENTS
-    export OUT_DIR DIST_DIR CUSTOM_SYSTEM_DLKM_IMAGE TMPDIR
+    export OUT_DIR DIST_DIR TMPDIR
 }
 
 record_common_state() {
@@ -898,7 +820,8 @@ build() {
         ${OUT_DIR%/*}/vendor/qcom/opensource/securemsm-kernel/Module.symvers \
 		${OUT_DIR%/*}/vendor/qcom/opensource/graphics-kernel/Module.symvers \
 		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet/core/Module.symvers \
-		${OUT_DIR%/*}/${WLAN_EXT_MODULE#../}/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/wlan/qcacld-3.0/.qca6490/Module.symvers \
+		${OUT_DIR%/*}/vendor/qcom/opensource/wlan/qcacld-3.0/.kiwi_v2/Module.symvers \
 		${OUT_DIR%/*}/vendor/qcom/opensource/wlan/platform/Module.symvers \
 		${OUT_DIR%/*}/vendor/qcom/opensource/camera-kernel/Module.symvers \
 		${OUT_DIR%/*}/vendor/qcom/opensource/eva-kernel/Module.symvers \
@@ -939,7 +862,7 @@ build() {
         ../vendor/qcom/opensource/eva-kernel \
         ../vendor/qcom/opensource/wlan/platform \
         ../vendor/qcom/opensource/bt-kernel \
-        ${WLAN_EXT_MODULE} \
+        ${WLAN_EXT_MODULES[*]} \
     "  
 
     echo "[build] BUILD_TARGET=${BUILD_TARGET}"
@@ -955,26 +878,19 @@ build() {
             ./kernel_platform/build/android/prepare_vendor.sh sec "${TARGET_PRODUCT}"
     )
 
-    [[ -f "${DIST_DIR}/${WLAN_BUILT_MODULE}" ]] ||
-        die "built WLAN module not found: ${DIST_DIR}/${WLAN_BUILT_MODULE}"
-    cp "${DIST_DIR}/${WLAN_BUILT_MODULE}" \
-        "${DIST_DIR}/${WLAN_PACKAGED_MODULE}"
+    local wlan_profile
+    for wlan_profile in "${WLAN_PROFILES[@]}"; do
+        [[ -f "${DIST_DIR}/${wlan_profile}.ko" ]] ||
+            die "built WLAN module not found: ${DIST_DIR}/${wlan_profile}.ko"
+        cp "${DIST_DIR}/${wlan_profile}.ko" \
+            "${DIST_DIR}/qca_cld3_${wlan_profile}.ko"
+    done
 
     echo "[build] Artifacts: ${OUT_DIR}/dist"
 }
 
 require_packaging_command() {
     require_command "$1"
-}
-
-run_privileged() {
-    if (( EUID == 0 )); then
-        "$@"
-    elif sudo -n true 2>/dev/null; then
-        sudo "$@"
-    else
-        env AIT_ALLOW_ROOTLESS_FUSE=1 "$@"
-    fi
 }
 
 prepare_target_workspace() {
@@ -989,16 +905,14 @@ prepare_target_workspace() {
     [[ "${TMPDIR}" == "${PACKAGING_WORK_DIR}/"* ]] ||
         die "TMPDIR must be scoped beneath the packaging workspace"
 
-    for path in "${PACKAGING_WORK_DIR}" "${DOWNLOAD_DIR}" "${UNPACK_DIR}"; do
+    for path in "${PACKAGING_WORK_DIR}" "${DOWNLOAD_DIR}"; do
         [[ ! -e "${path}" ]] ||
             die "target workspace already exists: ${path}"
     done
 
     mkdir -p \
         "${ANDROID_KERNEL_OUT}" \
-        "${PACKAGING_PREBUILTS_DIR}" \
         "${DOWNLOAD_DIR}" \
-        "${UNPACK_DIR}" \
         "${TMPDIR}" \
         "${clang_parent}"
 
@@ -1017,286 +931,73 @@ prepare_target_workspace() {
     ln -s \
         "${CLANG_TOOLCHAIN_DIR}" \
         "${clang_parent}/clang-${TOOLCHAIN_VERSION}"
-    ln -s \
-        "${SOURCE_DIR}/prebuilts/patch_vendor_dlkm_fstab.sh" \
-        "${PACKAGING_PREBUILTS_DIR}/patch_vendor_dlkm_fstab.sh"
-    ln -s \
-        "${SOURCE_DIR}/prebuilts/vendor_dlkm_file_contexts" \
-        "${PACKAGING_PREBUILTS_DIR}/vendor_dlkm_file_contexts"
-    ln -s \
-        "${SOURCE_DIR}/prebuilts/vendor_dlkm_capacity.sh" \
-        "${PACKAGING_PREBUILTS_DIR}/vendor_dlkm_capacity.sh"
-    ln -s \
-        "${SOURCE_DIR}/prebuilts/dlkm_capacity.sh" \
-        "${PACKAGING_PREBUILTS_DIR}/dlkm_capacity.sh"
-    ln -s \
-        "${SOURCE_DIR}/prebuilts/build_dlkm.sh" \
-        "${PACKAGING_PREBUILTS_DIR}/build_dlkm.sh"
-    ln -s \
-        "${SOURCE_DIR}/prebuilts/system_dlkm_file_contexts" \
-        "${PACKAGING_PREBUILTS_DIR}/system_dlkm_file_contexts"
 }
 
 prepare_packaging_tools() {
-    local prebuilts_dir="${PACKAGING_PREBUILTS_DIR}"
-    local image_tools_dir
-    local image_tools_commit="46a3c6a2b4413bc4570836ae0e3ab2d9de0c15e2"
-    local lkm_tools_dir="${prebuilts_dir}/LKM_Tools"
-    local lkm_tools_commit="a27baca7ba68348608b397ea0a4a307f84ff5e0c"
-
-    require_packaging_command git
-    require_packaging_command wget
+    require_packaging_command depmod
+    require_packaging_command fsck.erofs
+    require_packaging_command mkfs.erofs
+    require_packaging_command modinfo
     require_packaging_command zip
-
-    git init -q "${lkm_tools_dir}"
-    git -C "${lkm_tools_dir}" remote add origin \
-        https://github.com/ravindu644/LKM_Tools.git
-    git -C "${lkm_tools_dir}" fetch --depth=1 origin \
-        "${lkm_tools_commit}"
-    git -C "${lkm_tools_dir}" checkout -q --detach FETCH_HEAD
-    git clone --depth=1 \
-        https://github.com/cfig/Android_boot_image_editor.git \
-        "${prebuilts_dir}/vendor_boot_unpack"
-    for image_tools_dir in \
-        "${prebuilts_dir}/vendor_dlkm_unpack" \
-        "${prebuilts_dir}/system_dlkm_unpack"; do
-        git init -q "${image_tools_dir}"
-        git -C "${image_tools_dir}" remote add origin \
-            https://github.com/ravindu644/Android_Image_Tools.git
-        git -C "${image_tools_dir}" fetch --depth=1 origin \
-            "${image_tools_commit}"
-        git -C "${image_tools_dir}" checkout -q --detach FETCH_HEAD
-        git -C "${image_tools_dir}" apply \
-            "${SOURCE_DIR}/prebuilts/patches/android-image-tools-wait-checksum.patch"
-        git -C "${image_tools_dir}" apply \
-            "${SOURCE_DIR}/prebuilts/patches/android-image-tools-rootless-fuse.patch"
-    done
 }
 
-write_module_metadata() {
-    local modules_dir="$1"
-    local metadata_dir="$2"
-    local modules_dep="${modules_dir}/modules.dep"
-    local modules_load="${modules_dir}/modules.load"
-
-    [[ -f "${modules_dep}" ]] || die "modules.dep not found: ${modules_dep}"
-    [[ -f "${modules_load}" ]] || die "modules.load not found: ${modules_load}"
-
-    mkdir -p "${metadata_dir}"
-    bash "${PACKAGING_PREBUILTS_DIR}/LKM_Tools/01.module_dep.sh" \
-        "${modules_dep}" "${metadata_dir}"
-    cp "${modules_load}" "${metadata_dir}/modules.load"
-}
-
-unpack_vendor_boot() {
-    local editor_dir="${PACKAGING_PREBUILTS_DIR}/vendor_boot_unpack"
-    local stock_image="${PACKAGING_WORK_DIR}/vendor_boot.stock.img"
-    local modules_dir
-
-    wget -q --show-progress \
-        -O "${stock_image}" "${STOCK_VENDOR_BOOT_URL}"
-    [[ -s "${stock_image}" ]] || die "vendor_boot.img download is empty"
-
-    (
-        cd "${editor_dir}"
-        cp "${stock_image}" vendor_boot.img
-        LC_ALL=C.UTF-8 ./gradlew -Dfile.encoding=UTF-8 unpack
-    )
-
-    modules_dir="${editor_dir}/build/unzip_boot/root.1/lib/modules"
-    write_module_metadata \
-        "${modules_dir}" \
-        "${PACKAGING_PREBUILTS_DIR}/LKM_Tools/vendor_boot"
-}
-
-extract_dlkm_image() {
-    local partition="$1"
-    local stock_url="$2"
-    local image_tools_dir="${PACKAGING_PREBUILTS_DIR}/${partition}_unpack"
-    local stock_image="${PACKAGING_WORK_DIR}/${partition}.stock.img"
-    local output_dir="${image_tools_dir}/EXTRACTED_IMAGES/extracted_${partition}"
-    local rootless_marker="${image_tools_dir}/.rootless-erofs-extract"
-    local config_file="${image_tools_dir}/CONFIGS/${partition}_unpack.conf"
-
-    case "${partition}" in
-        vendor_dlkm|system_dlkm)
-            ;;
-        *)
-            die "unsupported DLKM extraction partition: ${partition}"
-            ;;
-    esac
-
-    wget -q --show-progress \
-        -O "${stock_image}" "${stock_url}"
-    [[ -s "${stock_image}" ]] || die "${partition}.img download is empty"
-
-    mkdir -p "${image_tools_dir}/INPUT_IMAGES" "${image_tools_dir}/CONFIGS"
-    cp "${stock_image}" \
-        "${image_tools_dir}/INPUT_IMAGES/${partition}.img"
-    printf '%s\n' \
-        'ACTION=unpack' \
-        "INPUT_IMAGE=${partition}.img" \
-        "EXTRACT_DIR=extracted_${partition}" \
-        > "${config_file}"
-
-    if (( EUID == 0 )) || sudo -n true 2>/dev/null || \
-        command -v erofsfuse >/dev/null 2>&1; then
-        (
-            cd "${image_tools_dir}"
-            run_privileged ./android_image_tools.sh \
-                --conf="${config_file}" --quiet
-        )
-        if (( EUID != 0 )) && sudo -n true 2>/dev/null; then
-            sudo chown -R "$(id -u):$(id -g)" "${image_tools_dir}"
-        fi
-    else
-        require_packaging_command fsck.erofs
-        echo "[packaging] Extracting ${partition} with fsck.erofs"
-        mkdir -p "${output_dir}" "${image_tools_dir}/REPACKED_IMAGES"
-        fsck.erofs \
-            --extract="${output_dir}" \
-            --xattrs \
-            --no-preserve-owner \
-            --no-preserve-perms \
-            "${image_tools_dir}/INPUT_IMAGES/${partition}.img"
-        touch "${rootless_marker}"
-    fi
-
-    DLKM_EXTRACTED_ROOT="${output_dir}"
-}
-
-unpack_vendor_dlkm() {
-    extract_dlkm_image vendor_dlkm "${STOCK_VENDOR_DLKM_URL}"
-    write_module_metadata \
-        "${DLKM_EXTRACTED_ROOT}/lib/modules" \
-        "${PACKAGING_PREBUILTS_DIR}/LKM_Tools/vendor_dlkm"
-}
-
-find_system_module_root() {
-    local modules_base="$1"
-    local -a module_roots=()
-    local module_root_name
-
-    if [[ -d "${modules_base}" ]]; then
-        mapfile -d '' module_roots < <(
-            find "${modules_base}" -mindepth 1 -maxdepth 1 -type d -print0
-        )
-    fi
-    (( ${#module_roots[@]} == 1 )) ||
-        die "expected exactly one versioned system_dlkm module directory, found ${#module_roots[@]}"
-
-    module_root_name="$(basename "${module_roots[0]}")"
-    [[ "${module_root_name}" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?[-._+[:alnum:]]*$ ]] ||
-        die "invalid system_dlkm module directory: ${module_root_name}"
-    printf '%s\n' "${module_roots[0]}"
-}
-
-unpack_system_dlkm() {
-    local modules_dir
-    local blocklist_source="${DIST_DIR}/system_dlkm.modules.blocklist"
-    local blocklist_destination="${PACKAGING_PREBUILTS_DIR}/LKM_Tools/system_dlkm/modules.blocklist"
-
-    extract_dlkm_image system_dlkm "${STOCK_SYSTEM_DLKM_URL}"
-    modules_dir="$(find_system_module_root "${DLKM_EXTRACTED_ROOT}/lib/modules")"
-    write_module_metadata \
-        "${modules_dir}" \
-        "${PACKAGING_PREBUILTS_DIR}/LKM_Tools/system_dlkm"
-    rm -f -- "${blocklist_destination}"
-    if [[ -s "${blocklist_source}" ]]; then
-        cp -- "${blocklist_source}" "${blocklist_destination}"
-    fi
-}
-
-build_vendor_boot() {
-    env SCRIPT_DIR="${PACKAGING_WORK_DIR}" \
+stage_vendor_ramdisk() {
+    env REPO_ROOT="${SOURCE_DIR}" \
         DIST_DIR="${DIST_DIR}" \
+        OUTPUT_DIR="${PACKAGE_DIR}/vendor_ramdisk" \
         OUT_DIR="${OUT_DIR}" \
-        "${SCRIPT_DIR}/prebuilts/build_vendor_boot.sh"
+        TMPDIR="${TMPDIR}" \
+        "${SOURCE_DIR}/prebuilts/build_vendor_ramdisk.sh"
 }
 
 build_vendor_dlkm() {
-    env SCRIPT_DIR="${PACKAGING_WORK_DIR}" \
+    local wlan_profile="$1"
+
+    env SCRIPT_DIR="${SOURCE_DIR}" \
+        REPO_ROOT="${SOURCE_DIR}" \
         DIST_DIR="${DIST_DIR}" \
         OUT_DIR="${OUT_DIR}" \
-        "${SCRIPT_DIR}/prebuilts/build_vendor_dlkm.sh"
+        OUTPUT_IMAGE="${PACKAGE_DIR}/vendor_dlkm_${wlan_profile}.img" \
+        WLAN_PROFILE="${wlan_profile}" \
+        TMPDIR="${TMPDIR}" \
+        "${SOURCE_DIR}/prebuilts/build_vendor_dlkm.sh"
 }
 
 build_system_dlkm() {
-    env SCRIPT_DIR="${PACKAGING_WORK_DIR}" \
+    env SCRIPT_DIR="${SOURCE_DIR}" \
+        REPO_ROOT="${SOURCE_DIR}" \
         DIST_DIR="${DIST_DIR}" \
         OUT_DIR="${OUT_DIR}" \
-        "${SCRIPT_DIR}/prebuilts/build_system_dlkm.sh"
-}
-
-validate_collected_dlkm_capacity() {
-    local partition="$1"
-    local stock_image="$2"
-    local rebuilt_image="$3"
-    local helper="${SOURCE_DIR}/prebuilts/dlkm_capacity.sh"
-
-    [[ -f "${helper}" ]] || die "DLKM capacity helper not found: ${helper}"
-    (
-        # shellcheck source=/dev/null
-        source "${helper}"
-        dlkm_capacity_validate \
-            "${partition}" "${stock_image}" "${rebuilt_image}"
-    )
+        OUTPUT_IMAGE="${PACKAGE_DIR}/system_dlkm.img" \
+        WLAN_PROFILE= \
+        TMPDIR="${TMPDIR}" \
+        "${SOURCE_DIR}/prebuilts/build_system_dlkm.sh"
 }
 
 create_anykernel_package() {
     "${SOURCE_DIR}/prebuilts/make_anykernel_package.sh" \
         "${ANYKERNEL_PACKAGE}" \
-        "${PACKAGE_DIR}" \
-        "${MODEL}"
+        "${PACKAGE_DIR}"
 }
 
 collect_packaged_images() {
     local kernel_image="${DIST_DIR}/Image"
-    local vendor_boot_image="${PACKAGING_WORK_DIR}/vendor_boot.img"
-    local stock_vendor_dlkm_image="${PACKAGING_WORK_DIR}/vendor_dlkm.stock.img"
-    local vendor_dlkm_image="${PACKAGING_WORK_DIR}/vendor_dlkm.img"
-    local stock_system_dlkm_image="${PACKAGING_WORK_DIR}/system_dlkm.stock.img"
-    local system_dlkm_image="${CUSTOM_SYSTEM_DLKM_IMAGE}"
+    local wlan_profile
 
     mkdir -p "${PACKAGE_DIR}"
     rm -f -- \
         "${PACKAGE_DIR}/Image" \
-        "${PACKAGE_DIR}/vendor_boot.img" \
-        "${PACKAGE_DIR}/vendor_dlkm.img" \
-        "${PACKAGE_DIR}/system_dlkm.img" \
         "${ANYKERNEL_PACKAGE}" \
         "${PACKAGE_DIR}/GoRhanHee_Kernel-${CHIPSET_NAME}-${MODEL}.zip"
 
     [[ -s "${kernel_image}" ]] || die "built Image not found or empty: ${kernel_image}"
-    [[ -f "${vendor_boot_image}" ]] ||
-        die "rebuilt vendor_boot.img not found: ${vendor_boot_image}"
-    [[ -f "${stock_vendor_dlkm_image}" ]] ||
-        die "stock vendor_dlkm.img not found: ${stock_vendor_dlkm_image}"
-    [[ -f "${vendor_dlkm_image}" ]] ||
-        die "rebuilt vendor_dlkm.img not found: ${vendor_dlkm_image}"
-    [[ -f "${stock_system_dlkm_image}" ]] ||
-        die "stock system_dlkm.img not found: ${stock_system_dlkm_image}"
-    [[ -s "${system_dlkm_image}" ]] ||
-        die "rebuilt system_dlkm.img not found or empty: ${system_dlkm_image}"
-    [[ "${system_dlkm_image}" != "${DIST_DIR}/system_dlkm.img" ]] ||
-        die "custom system_dlkm.img must not use the kernel DIST_DIR path"
-
-    echo "[packaging] Validating vendor_dlkm capacity against stock image"
-    validate_collected_dlkm_capacity vendor_dlkm \
-        "${stock_vendor_dlkm_image}" \
-        "${vendor_dlkm_image}" || return 1
-    echo "[packaging] Validating system_dlkm capacity against stock image"
-    validate_collected_dlkm_capacity system_dlkm \
-        "${stock_system_dlkm_image}" \
-        "${system_dlkm_image}" || return 1
-
     cp "${kernel_image}" "${PACKAGE_DIR}/Image"
-    cp "${vendor_boot_image}" "${PACKAGE_DIR}/vendor_boot.img"
-    cp "${vendor_dlkm_image}" "${PACKAGE_DIR}/vendor_dlkm.img"
-    cp "${system_dlkm_image}" "${PACKAGE_DIR}/system_dlkm.img"
-    cp "${vendor_boot_image}" "${DIST_DIR}/vendor_boot.img"
-    cp "${vendor_dlkm_image}" "${DIST_DIR}/vendor_dlkm.img"
-    cp "${system_dlkm_image}" "${DIST_DIR}/system_dlkm.img"
+
+    stage_vendor_ramdisk
+    for wlan_profile in "${WLAN_PROFILES[@]}"; do
+        build_vendor_dlkm "${wlan_profile}"
+    done
+    build_system_dlkm
 
     create_anykernel_package
 }
@@ -1311,18 +1012,15 @@ main() {
         esac
     fi
 
-    if [[ $# -lt 1 || $# -gt 2 ]]; then
+    if [[ $# -gt 1 ]]; then
         usage >&2
         return 2
     fi
-    if ! select_kernel_mode "${2:-vanilla}"; then
+    if ! select_kernel_mode "${1:-vanilla}"; then
         usage >&2
         return 2
     fi
-    if ! select_device_profile "$1"; then
-        usage >&2
-        return 2
-    fi
+    select_universal_profile
 
     update_submodules
     record_common_state
@@ -1337,12 +1035,6 @@ main() {
     prepare_toolchain
     build
     prepare_packaging_tools
-    unpack_vendor_boot
-    unpack_vendor_dlkm
-    unpack_system_dlkm
-    build_vendor_boot
-    build_vendor_dlkm
-    build_system_dlkm
     collect_packaged_images
 }
 

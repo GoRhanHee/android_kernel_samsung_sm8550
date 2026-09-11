@@ -12,17 +12,18 @@ STAGE_DIR=""
 usage() {
     cat <<EOF
 Usage:
-  ${SCRIPT_NAME} OUTPUT_ZIP IMAGE_DIR DEVICE_NAME
+  ${SCRIPT_NAME} OUTPUT_ZIP IMAGE_DIR
 
 IMAGE_DIR must contain:
   Image
-  vendor_boot.img
-  vendor_dlkm.img
+  vendor_ramdisk/
+  vendor_dlkm_qca6490.img
+  vendor_dlkm_kiwi_v2.img
   system_dlkm.img
 
 Example:
-  ${SCRIPT_NAME} out/GoRhanHee_Kernel-kalama-dm3q-AnyKernel3.zip \\
-    out/msm-kalama-kalama-gki/packaged dm3q
+  ${SCRIPT_NAME} out/GoRhanHee_Kernel-kalama-universal-AnyKernel3.zip \\
+    out/universal/msm-kalama-kalama-gki/packaged
 EOF
 }
 
@@ -50,14 +51,13 @@ cleanup() {
 }
 
 main() {
-    [[ $# -eq 3 ]] || {
+    [[ $# -eq 2 ]] || {
         usage >&2
         exit 2
     }
 
     local output_zip="$1"
     local image_dir="$2"
-    local device_name="$3"
     local output_dir
     local image
 
@@ -78,9 +78,6 @@ main() {
         die "AnyKernel3 installer template not found: ${SCRIPT_TEMPLATE}"
     [[ -d "${image_dir}" ]] ||
         die "image directory not found: ${image_dir}"
-    [[ "${device_name}" =~ ^[a-z0-9][a-z0-9_-]*$ ]] ||
-        die "invalid device name: ${device_name}"
-
     output_dir="$(dirname "${output_zip}")"
     mkdir -p "${output_dir}"
     rm -f -- "${output_zip}"
@@ -94,17 +91,16 @@ main() {
     done
 
     cp "${SCRIPT_TEMPLATE}" "${STAGE_DIR}/anykernel.sh"
-    sed -i "s/@@DEVICE_NAME@@/${device_name}/g" \
-        "${STAGE_DIR}/anykernel.sh"
-    grep -Fq '@@DEVICE_NAME@@' "${STAGE_DIR}/anykernel.sh" &&
-        die "device name placeholder was not fully replaced"
 
-    for image in Image vendor_boot.img vendor_dlkm.img system_dlkm.img; do
+    for image in Image vendor_dlkm_qca6490.img vendor_dlkm_kiwi_v2.img system_dlkm.img; do
         [[ -s "${image_dir}/${image}" ]] ||
             die "required image is missing or empty: ${image_dir}/${image}"
         cp "${image_dir}/${image}" "${STAGE_DIR}/${image}"
         chmod 0644 "${STAGE_DIR}/${image}"
     done
+    [[ -d "${image_dir}/vendor_ramdisk/ramdisk/lib/modules" ]] ||
+        die "staged vendor ramdisk modules are missing: ${image_dir}/vendor_ramdisk"
+    cp -a "${image_dir}/vendor_ramdisk" "${STAGE_DIR}/vendor_ramdisk"
 
     chmod 0755 \
         "${STAGE_DIR}/anykernel.sh" \
@@ -120,8 +116,9 @@ main() {
             tools \
             anykernel.sh \
             Image \
-            vendor_boot.img \
-            vendor_dlkm.img \
+            vendor_ramdisk \
+            vendor_dlkm_qca6490.img \
+            vendor_dlkm_kiwi_v2.img \
             system_dlkm.img
     )
 
