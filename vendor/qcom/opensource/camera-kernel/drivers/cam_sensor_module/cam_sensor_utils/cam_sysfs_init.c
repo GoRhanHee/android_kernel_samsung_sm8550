@@ -896,8 +896,11 @@ static ssize_t front_paf_cal_check_show(struct device *dev,
 	return 0;
 }
 
-#if !defined(CONFIG_SAMSUNG_FRONT_TOP_EEPROM)
+#if !defined(CONFIG_SAMSUNG_FRONT_TOP_EEPROM) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 char front_af_cal_str[MAX_AF_CAL_STR_SIZE] = "";
+#endif
+
+#if !defined(CONFIG_SAMSUNG_FRONT_TOP_EEPROM)
 static ssize_t front_afcal_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
