@@ -55,6 +55,16 @@ The source is compiled once per kernel mode:
 ./build.sh susfs
 ```
 
+Before fetching submodules or compiling, `build.sh` checks that the EROFS
+tools can create and verify both DLKM images. If the tools are missing or
+incompatible, it builds pinned erofs-utils 1.8.10 in `.cache/erofs-utils`,
+adds its `bin` directory to the build's PATH, and checks it again. Later
+builds reuse this installation. Local builds and GitHub Actions use the
+same setup; no manual EROFS installation or PATH export is needed.
+Building these tools requires `autoconf`, `automake`, `libtool`,
+`pkg-config`, a C compiler and make, plus LZ4, SELinux and UUID development
+libraries (`liblz4-dev`, `libselinux1-dev`, and `uuid-dev` on Ubuntu/Debian).
+
 The argument selects the kernel mode and defaults to `vanilla` when omitted. `vanilla` keeps the common project feature patches but excludes KernelSU-Next/SUSFS. `ksun` adds the pinned KernelSU-Next revision without SUSFS. `susfs` also applies the two patches under `patches/susfs/` and merges `custom_defconfigs/ksu_defconfig` followed by `custom_defconfigs/susfs_defconfig`. All temporary source patches are reverted when the build exits.
 
 The universal config builds the union of device drivers and the enabled product DTS targets. The build creates `vendor_dlkm` and `system_dlkm` directly from the newly built modules; it does not download or repack stock DLKM images.

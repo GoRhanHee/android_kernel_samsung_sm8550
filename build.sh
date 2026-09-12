@@ -944,10 +944,28 @@ prepare_target_workspace() {
 
 prepare_packaging_tools() {
     require_packaging_command depmod
-    require_packaging_command fsck.erofs
-    require_packaging_command mkfs.erofs
     require_packaging_command modinfo
     require_packaging_command zip
+
+    local erofs_install_dir="${SOURCE_DIR}/.cache/erofs-utils"
+    local erofs_check="${SOURCE_DIR}/prebuilts/erofs_image.sh"
+
+    if "${erofs_check}" --check >/dev/null 2>&1; then
+        echo "[packaging] Existing EROFS tools passed image checks"
+        return 0
+    fi
+
+    if PATH="${erofs_install_dir}/bin:${PATH}" \
+        "${erofs_check}" --check >/dev/null 2>&1; then
+        export PATH="${erofs_install_dir}/bin:${PATH}"
+        echo "[packaging] Using cached EROFS tools: ${erofs_install_dir}/bin"
+        return 0
+    fi
+
+    echo "[packaging] EROFS tools are missing or incompatible; installing pinned tools"
+    "${SOURCE_DIR}/prebuilts/install_erofs_utils.sh" "${erofs_install_dir}"
+    export PATH="${erofs_install_dir}/bin:${PATH}"
+    "${erofs_check}" --check
 }
 
 stage_vendor_ramdisk() {
@@ -1030,7 +1048,6 @@ main() {
         return 2
     fi
     prepare_packaging_tools
-    "${SOURCE_DIR}/prebuilts/erofs_image.sh" --check
     select_universal_profile
     update_submodules
     record_common_state
