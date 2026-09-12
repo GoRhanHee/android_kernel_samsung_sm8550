@@ -91,6 +91,7 @@ main() {
     done
 
     cp "${SCRIPT_TEMPLATE}" "${STAGE_DIR}/anykernel.sh"
+    cp "${SCRIPT_DIR}/sm8550-repack.sh" "${STAGE_DIR}/tools/sm8550-repack.sh"
 
     for image in Image vendor_dlkm_qca6490.img vendor_dlkm_kiwi_v2.img system_dlkm.img; do
         [[ -s "${image_dir}/${image}" ]] ||
@@ -100,7 +101,8 @@ main() {
     done
     [[ -d "${image_dir}/vendor_ramdisk/ramdisk/lib/modules" ]] ||
         die "staged vendor ramdisk modules are missing: ${image_dir}/vendor_ramdisk"
-    cp -a "${image_dir}/vendor_ramdisk" "${STAGE_DIR}/vendor_ramdisk"
+    # Avoid gki-2.0 setup_ak automatically moving Image and vendor_ramdisk.
+    cp -a "${image_dir}/vendor_ramdisk" "${STAGE_DIR}/sm8550_ramdisk"
 
     chmod 0755 \
         "${STAGE_DIR}/anykernel.sh" \
@@ -116,7 +118,7 @@ main() {
             tools \
             anykernel.sh \
             Image \
-            vendor_ramdisk \
+            sm8550_ramdisk \
             vendor_dlkm_qca6490.img \
             vendor_dlkm_kiwi_v2.img \
             system_dlkm.img

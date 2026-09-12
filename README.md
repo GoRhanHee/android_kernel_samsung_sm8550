@@ -110,7 +110,7 @@ AnyKernel3 chooses the correct one at install time.
 
 ### AnyKernel3 Installation
 
-Flash the `-AnyKernel3.zip` package from a custom recovery or another AnyKernel3-compatible flasher. The installer detects the device, flashes the common `Image`, unpacks that device's existing `vendor_boot`, replaces its kernel modules and patches the DLKM AVB fstab flags, then repacks it while retaining the stock DTB, bootconfig, and other ramdisk content. It selects and flashes the matching WLAN `vendor_dlkm` together with the common `system_dlkm`.
+The `-AnyKernel3.zip` package uses the configured `gki-2.0` tools. Its separate `sm8550_ramdisk/` payload avoids the core's automatic multi-partition relocation. The installer prepares the common `Image` in the stock boot image, then uses `magiskboot unpack -n` on the device's existing `vendor_boot`. It updates module entries and DLKM AVB fstab flags in the CPIO fragment containing `first_stage_ramdisk/fstab.qcom`; other fragments retain their original compressed bytes. `magiskboot repack` retains the stock DTB, bootconfig and v4 table metadata while updating fragment sizes and offsets. Both prepared physical images must fit before flashing begins. The installer also selects the matching WLAN `vendor_dlkm` and common `system_dlkm`.
 
 The bootloader must be unlocked, and the device must use a recovery/flasher that supports AnyKernel3 update ZIPs. Samsung Download Mode/Odin is not used by this package. Keep a stock backup available because flashing is sequential and has no rollback.
 
