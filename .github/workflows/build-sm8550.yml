@@ -81,6 +81,9 @@ jobs:
           path: kernel_platform/prebuilts
           key: samsung-sm8550-toolchain-clang23-r614150-ndk-r26d-${{ runner.os }}-${{ runner.arch }}-v1
 
+      - name: Check external module load order
+        run: bash prebuilts/tests/external_module_order_test.sh
+
       - name: Build universal-${{ matrix.mode }} kernel
         run: |
           mode='${{ matrix.mode }}'

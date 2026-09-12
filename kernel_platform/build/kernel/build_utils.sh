@@ -177,7 +177,9 @@ function create_modules_staging() {
     
     # Check if we have modules.order files for external modules. This is
     # supported in android-mainline since 5.16 and androidX-5.15
-    FIND_OUT=$(find ${dest_dir}/extra -name modules.order.* -print -quit)
+    # INSTALL_MOD_DIR=extra/../vendor/... installs outside extra/. Search the
+    # whole release directory so these modules retain their recorded order.
+    local FIND_OUT=$(find "${dest_dir}" -type f -name 'modules.order.*' -print -quit)
     if [[ -n "${EXT_MODULES}" ]] && [[ "${FIND_OUT}" =~ modules.order ]]; then
       # If EXT_MODULES is defined and we have modules.order.* files for
       # external modules, then we should follow this module load order:
@@ -190,21 +192,28 @@ function create_modules_staging() {
         # full name of the modules.order file. This is complicated because we
         # set M=... to a relative path which can't easily be calculated here
         # when using kleaf due to sandboxing.
-        modules_order_file=$(ls ${dest_dir}/extra/${EXT_MOD}/modules.order.*)
-        if [[ -f "${modules_order_file}" ]]; then
-          cat ${modules_order_file} >> ${dest_dir}/modules.order
+        local modules_order_files=( "${dest_dir}/extra/${EXT_MOD}"/modules.order.* )
+        if [[ ${#modules_order_files[@]} == 1 && -f "${modules_order_files[0]}" ]]; then
+          # Match paths used by find/depmod and the trimming step: keeping
+          # extra/../vendor here would cause requested modules to be removed.
+          local module_path
+          while IFS= read -r module_path || [[ -n "${module_path}" ]]; do
+            if [[ -n "${module_path}" ]]; then
+              realpath -m --relative-to="${dest_dir}" "${dest_dir}/${module_path}"
+            fi
+          done < "${modules_order_files[0]}" >> "${dest_dir}/modules.order"
         else
           # We need to fail here; otherwise, you risk the module(s) not getting
           # included in modules.load.
-          echo "Failed to find ${modules_order_file}" >&2
+          echo "Expected one modules.order.* in ${dest_dir}/extra/${EXT_MOD}" >&2
           exit 1
         fi
       done
     else
       # TODO: can we retain modules.order when using EXT_MODULES_MAKEFILE? For
       # now leave this alone since EXT_MODULES_MAKEFILE isn't support in v5.13+.
-      (cd ${dest_dir}/ && \
-        find extra -type f -name "*.ko" | sort >> modules.order)
+      (cd "${dest_dir}" && \
+        find . -type f -name '*.ko' ! -path './kernel/*' -printf '%P\n' | sort >> modules.order)
     fi
   fi
 
