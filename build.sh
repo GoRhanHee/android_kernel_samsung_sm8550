@@ -1048,6 +1048,8 @@ main() {
         usage >&2
         return 2
     fi
+    echo "[modules] Checking external module load order"
+    bash "${SOURCE_DIR}/prebuilts/tests/external_module_order_test.sh"
     prepare_packaging_tools
     select_universal_profile
     update_submodules
