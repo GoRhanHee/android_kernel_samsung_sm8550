@@ -204,6 +204,15 @@ update_submodules() {
 
     echo "[submodule] Synchronizing configured URLs"
     git -C "${SOURCE_DIR}" submodule sync --recursive
+    echo "[submodule] Initializing recorded revisions"
+    git -C "${SOURCE_DIR}" submodule update --init --recursive --checkout
+
+    # A depth-limited checkout tracks only the remote's default branch. Restore
+    # all branch refspecs so --remote can resolve .gitmodules branches such as
+    # msm-kernel's universal branch, including in an existing shallow checkout.
+    echo "[submodule] Enabling configured branch fetches"
+    git -C "${SOURCE_DIR}" submodule foreach --recursive \
+        'git config --replace-all remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"'
     echo "[submodule] Updating configured branches"
     git -C "${SOURCE_DIR}" submodule update --init --remote --recursive --checkout
 }
