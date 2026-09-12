@@ -50,13 +50,13 @@ jobs:
             build-essential \
             cpio \
             e2fsprogs \
-            erofs-utils \
             flex \
             git \
             kmod \
             libelf-dev \
             liblz4-dev \
             libncurses5 \
+            libselinux1-dev \
             libssl-dev \
             libtinfo5 \
             libtool \
@@ -73,9 +73,15 @@ jobs:
             zlib1g-dev \
             zstd
 
-          command -v mkfs.erofs
-          command -v fsck.erofs
           command -v depmod
+
+      - name: Install pinned EROFS tools and check packaging
+        run: |
+          erofs_install_dir="${RUNNER_TEMP}/sm8550-erofs-utils"
+          ./prebuilts/install_erofs_utils.sh "$erofs_install_dir"
+          export PATH="${erofs_install_dir}/bin:$PATH"
+          echo "${erofs_install_dir}/bin" >> "$GITHUB_PATH"
+          ./prebuilts/erofs_image.sh --check
 
       - name: Restore Clang23 and NDK r26d toolchain
         uses: actions/cache@v6

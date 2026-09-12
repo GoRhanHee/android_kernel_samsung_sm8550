@@ -2,6 +2,8 @@
 
 set -Eeuo pipefail
 
+readonly BUILD_DLKM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 die() {
     echo "error: $*" >&2
     exit 1
@@ -174,17 +176,9 @@ main() {
 
     mkdir -p "$(dirname "${output_image}")"
     rm -f -- "${output_image}"
-    mkfs.erofs \
-        -zlz4hc,level=12 \
-        -E^xattr-name-filter \
-        -T"${epoch}" \
-        --all-time \
-        --all-root \
-        -U"${uuid}" \
-        -L "${partition}" \
-        --file-contexts="${file_contexts}" \
-        "${output_image}" "${root_dir}"
-    fsck.erofs -p "${output_image}"
+    "${BUILD_DLKM_DIR}/erofs_image.sh" \
+        "${output_image}" "${root_dir}" "${partition}" "${uuid}" \
+        "${epoch}" "${file_contexts}"
 
     echo "[packaging] Created ${output_image}"
 }

@@ -1029,8 +1029,9 @@ main() {
         usage >&2
         return 2
     fi
+    prepare_packaging_tools
+    "${SOURCE_DIR}/prebuilts/erofs_image.sh" --check
     select_universal_profile
-
     update_submodules
     record_common_state
     validate_msm_state
@@ -1043,7 +1044,6 @@ main() {
     apply_fake_config_patch
     prepare_toolchain
     build
-    prepare_packaging_tools
     collect_packaged_images
 }
 
