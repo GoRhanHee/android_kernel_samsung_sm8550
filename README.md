@@ -69,6 +69,12 @@ The argument selects the kernel mode and defaults to `vanilla` when omitted. `va
 
 The universal config builds the union of device drivers and the enabled product DTS targets. The build creates `vendor_dlkm` and `system_dlkm` directly from the newly built modules; it does not download or repack stock DLKM images.
 
+Packaging uses the common GKI build's `kernel.release`, recorded in `dist`,
+for module directories instead of reading one module's vermagic. Its system
+modules are restored after the mixed build to replace same-name device modules.
+Signed modules are copied unchanged so their signatures remain valid; only
+unsigned modules have debug and BTF sections removed.
+
 The MSM option `CONFIG_SM8550_DTBO` defaults to `n`. Set
 `CONFIG_SM8550_DTBO=y` in
 `kernel_platform/msm-kernel/arch/arm64/configs/vendor/universal_project.config`

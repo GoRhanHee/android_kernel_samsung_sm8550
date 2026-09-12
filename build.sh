@@ -887,6 +887,8 @@ build() {
             ./kernel_platform/build/android/prepare_vendor.sh sec "${TARGET_PRODUCT}"
     )
 
+    "${SOURCE_DIR}/prebuilts/stage_gki_artifacts.sh" "${OUT_DIR}"
+
     local wlan_profile
     for wlan_profile in "${WLAN_PROFILES[@]}"; do
         [[ -f "${DIST_DIR}/${wlan_profile}.ko" ]] ||
@@ -944,7 +946,6 @@ prepare_target_workspace() {
 
 prepare_packaging_tools() {
     require_packaging_command depmod
-    require_packaging_command modinfo
     require_packaging_command zip
 
     local erofs_install_dir="${SOURCE_DIR}/.cache/erofs-utils"

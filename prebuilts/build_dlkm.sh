@@ -45,16 +45,6 @@ resolve_module() {
     printf '%s\n' "${matches[0]}"
 }
 
-kernel_release_from_module() {
-    local module="$1"
-    local release
-
-    release="$(modinfo -F vermagic -- "${module}" | awk 'NR == 1 { print $1 }')"
-    [[ -n "${release}" && "${release}" != */* ]] ||
-        die "could not determine kernel release from ${module}"
-    printf '%s\n' "${release}"
-}
-
 main() {
     (( $# == 1 )) || die "usage: build_dlkm.sh <vendor_dlkm|system_dlkm>"
 
@@ -77,7 +67,6 @@ main() {
     local inventory_list
     local raw_inventory
     local excluded_modules
-    local reference_module
     local release
     local module_name
     local source_module
@@ -103,7 +92,6 @@ main() {
     require_command depmod
     require_command fsck.erofs
     require_command mkfs.erofs
-    require_command modinfo
     [[ -d "${dist_dir}" ]] || die "kernel dist directory not found: ${dist_dir}"
     [[ -s "${list_file}" ]] || die "module load list not found: ${list_file}"
     [[ -s "${system_map}" ]] || die "System.map not found: ${system_map}"
@@ -136,8 +124,7 @@ main() {
     fi
     [[ -s "${inventory_list}" ]] || die "${partition} module inventory is empty"
 
-    reference_module="$(resolve_module "${dist_dir}" "$(head -n 1 "${inventory_list}")")"
-    release="$(kernel_release_from_module "${reference_module}")"
+    release="$("${BUILD_DLKM_DIR}/kernel_release.sh" "${dist_dir}/kernel.release")"
     versioned_modules_dir="${root_dir}/lib/modules/${release}"
     mkdir -p "${versioned_modules_dir}"
 
@@ -147,9 +134,7 @@ main() {
     done <"${inventory_list}"
 
     while IFS= read -r -d '' source_module; do
-        "${objcopy_tool}" --remove-section=.BTF --remove-section=.BTF.ext \
-            "${source_module}"
-        "${strip_tool}" --strip-debug "${source_module}"
+        "${BUILD_DLKM_DIR}/prepare_module.sh" "${source_module}" "${clang_bin}"
     done < <(find "${versioned_modules_dir}" -type f -name '*.ko' -print0)
 
     depmod -b "${root_dir}" -F "${system_map}" "${release}"

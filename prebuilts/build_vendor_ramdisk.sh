@@ -2,6 +2,8 @@
 
 set -Eeuo pipefail
 
+readonly BUILD_VENDOR_RAMDISK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 die() {
     echo "error: $*" >&2
     exit 1
@@ -49,13 +51,11 @@ main() {
     local normal_list
     local recovery_list
     local raw_inventory
-    local reference_module
     local release
     local module_name
     local source_module
 
     command -v depmod >/dev/null 2>&1 || die "required command not found: depmod"
-    command -v modinfo >/dev/null 2>&1 || die "required command not found: modinfo"
     [[ -s "${system_map}" ]] || die "System.map not found: ${system_map}"
     for source_module in "${early_list}" "${vendor_list}" "${system_list}"; do
         [[ -s "${source_module}" ]] || die "module list not found: ${source_module}"
@@ -74,10 +74,7 @@ main() {
         | sort -u >"${raw_inventory}"
     normalize_module_lists "${raw_inventory}" >"${recovery_list}"
 
-    reference_module="$(resolve_module "${dist_dir}" "$(head -n 1 "${recovery_list}")")"
-    release="$(modinfo -F vermagic -- "${reference_module}" | awk 'NR == 1 { print $1 }')"
-    [[ -n "${release}" && "${release}" != */* ]] ||
-        die "could not determine kernel release from ${reference_module}"
+    release="$("${BUILD_VENDOR_RAMDISK_DIR}/kernel_release.sh" "${dist_dir}/kernel.release")"
     versioned_modules_dir="${root_dir}/lib/modules/${release}"
     mkdir -p "${versioned_modules_dir}"
 
@@ -87,9 +84,7 @@ main() {
     done <"${recovery_list}"
 
     while IFS= read -r -d '' source_module; do
-        "${objcopy_tool}" --remove-section=.BTF --remove-section=.BTF.ext \
-            "${source_module}"
-        "${strip_tool}" --strip-debug "${source_module}"
+        "${BUILD_VENDOR_RAMDISK_DIR}/prepare_module.sh" "${source_module}" "${clang_bin}"
     done < <(find "${versioned_modules_dir}" -type f -name '*.ko' -print0)
 
     depmod -b "${root_dir}" -F "${system_map}" "${release}"
