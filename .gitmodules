@@ -9,4 +9,4 @@
 [submodule "prebuilts/AnyKernel3"]
 	path = prebuilts/AnyKernel3
 	url = https://github.com/WildKernels/AnyKernel3.git
-	branch = master
+	branch = gki-2.0
