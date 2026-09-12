@@ -31,6 +31,10 @@
 
 #define CAM_COMMON_NS_PER_MS              1000000ULL
 
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+int cam_common_get_camera_id(int csiphy_num);
+#endif
+
 #if defined(CONFIG_SAMSUNG_DEBUG_HW_INFO)
 #if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT)
 #define WIDE_CAM 1

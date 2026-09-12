@@ -17,6 +17,10 @@
 #include "cam_debug_util.h"
 #include "cam_presil_hw_access.h"
 #include "cam_hw.h"
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+#include <linux/of.h>
+#include "cam_sensor_cmn_header.h"
+#endif
 #if IS_REACHABLE(CONFIG_QCOM_VA_MINIDUMP)
 #include <soc/qcom/minidump.h>
 static  struct cam_common_mini_dump_dev_info g_minidump_dev_info;
@@ -29,8 +33,56 @@ static struct cam_common_err_inject_info g_err_inject_info;
 static uint timeout_multiplier = 1;
 module_param(timeout_multiplier, uint, 0644);
 
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+int cam_common_get_camera_id(int csiphy_num)
+{
+	struct device_node *node;
+	u32 phy, camera_id;
+
+	if (csiphy_num < 0)
+		return -EINVAL;
+
+	/* PHY wiring differs between products; use the installed sensor DT. */
+	for_each_node_with_property(node, "csiphy-sd-index") {
+		if (!of_device_is_available(node) ||
+			of_property_read_u32(node, "csiphy-sd-index", &phy) ||
+			phy != (u32)csiphy_num ||
+			of_property_read_u32(node, "cell-index", &camera_id))
+			continue;
+
+		/* Full-resolution nodes share the same physical front camera. */
+		if (camera_id == SEC_FRONT_FULL_SENSOR)
+			camera_id = SEC_FRONT_SENSOR;
+		else if (camera_id == SEC_FRONT_TOP_FULL_SENSOR)
+			camera_id = SEC_FRONT_TOP_SENSOR;
+		else if (camera_id == SEC_TELE_BINNING_SENSOR)
+			camera_id = SEC_TELE_SENSOR;
+
+		switch (camera_id) {
+		case SEC_WIDE_SENSOR:
+		case SEC_ULTRA_WIDE_SENSOR:
+		case SEC_TELE_SENSOR:
+		case SEC_TELE2_SENSOR:
+		case SEC_FRONT_SENSOR:
+		case SEC_FRONT_TOP_SENSOR:
+		case SEC_FRONT_AUX1_SENSOR:
+			of_node_put(node);
+			return camera_id;
+		default:
+			break;
+		}
+	}
+
+	return -EINVAL;
+}
+#endif
+
 #if defined(CONFIG_SAMSUNG_DEBUG_HW_INFO)
 void cam_check_error_sensor_type(int csiphy_num) {
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+	CAM_INFO(CAM_ISP, "[MIPI_DBG] camera id %d mipi error!! (csiphy %d)",
+		cam_common_get_camera_id(csiphy_num), csiphy_num);
+#else
 	if (csiphy_num == WIDE_CAM)
 		CAM_INFO(CAM_ISP, "[MIPI_DBG] WIDE_CAM mipi error!! (csiphy %d)", csiphy_num);
 	else if (csiphy_num == UW_CAM)
@@ -47,6 +99,7 @@ void cam_check_error_sensor_type(int csiphy_num) {
                 CAM_INFO(CAM_ISP, "[MIPI_DBG] COVER_CAM mipi error!! (csiphy %d)", csiphy_num);
 	else
 		CAM_INFO(CAM_ISP, "[MIPI_DBG] Unknown camera mipi error!! (csiphy %d)", csiphy_num);
+#endif
 }
 #endif
 

@@ -226,6 +226,9 @@ struct cam_ois_ctrl_t {
 	struct adc_temperature_table *adc_temperature_table;
 	uint32_t adc_arr_size;
 	bool sysfs_ois_init;
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+	uint32_t prev_adc_value;
+#endif
 #endif
 #endif
 };

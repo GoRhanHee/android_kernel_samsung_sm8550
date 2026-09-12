@@ -5,6 +5,7 @@
  */
 
 #include "cam_hw_bigdata.h"
+#include "cam_common_util.h"
 
 #define REAR_OIS_X_Y_ERR_REG  0x0600
 #define REAR3_OIS_X_Y_ERR_REG 0x1800
@@ -249,6 +250,9 @@ void hw_bigdata_i2c_from_ois_error_reg(uint32_t err_reg)
 }
 
 int get_camera_id(int csiphy_num) {
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+	return cam_common_get_camera_id(csiphy_num);
+#else
 	int cameraid = -1;
 
 	switch (csiphy_num) {
@@ -279,14 +283,19 @@ int get_camera_id(int csiphy_num) {
 	}
 
   return cameraid;
+#endif
 }
 
 void hw_bigdata_mipi_from_ife_csid_ver2(int csiphy_num)
 {
 	struct cam_hw_param *hw_param = NULL;
 	uint32_t hw_param_id;
+	int camera_id = get_camera_id(csiphy_num);
 
-	hw_param_id = hw_bigdata_get_hw_param_id(get_camera_id(csiphy_num));
+	if (camera_id < 0)
+		return;
+
+	hw_param_id = hw_bigdata_get_hw_param_id(camera_id);
 
 	if (!hw_bigdata_get_hw_param(&hw_param, hw_param_id))
 	{

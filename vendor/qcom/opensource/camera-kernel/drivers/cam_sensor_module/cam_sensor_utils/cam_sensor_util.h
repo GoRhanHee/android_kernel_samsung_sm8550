@@ -37,7 +37,7 @@
 
 #define SENSOR_ID_HI847_HI1337 0x2000  // HI847 and HI1337 have same sensor id.
 
-#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) || defined(CONFIG_SEC_GTS9_PROJECT) || defined(CONFIG_SEC_GTS9P_PROJECT) || defined(CONFIG_SEC_GTS9U_PROJECT)
+/* Sensor identities are also used by diagnostics without adaptive MIPI. */
 #define SENSOR_ID_S5KGN3 0x08E3
 #define SENSOR_ID_S5K3K1 0x30B1
 #define SENSOR_ID_IMX754 0x0754
@@ -50,6 +50,7 @@
 #define SENSOR_ID_S5K2LD 0x20CD
 #define SENSOR_ID_S5K3J1 0x30A1
 
+#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) || defined(CONFIG_SEC_GTS9_PROJECT) || defined(CONFIG_SEC_GTS9P_PROJECT) || defined(CONFIG_SEC_GTS9U_PROJECT)
 #define INVALID_MIPI_INDEX -1
 #endif
 

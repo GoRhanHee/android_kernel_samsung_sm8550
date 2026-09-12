@@ -7,6 +7,35 @@
 #include "camera_kunit_main.h"
 #include "cam_hw_bigdata_test.h"
 
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+#include <linux/of.h>
+
+static int hw_bigdata_test_csiphy(struct kunit *test, u32 camera_id)
+{
+	struct device_node *node;
+	u32 id, phy;
+
+	for_each_node_with_property(node, "csiphy-sd-index") {
+		if (of_device_is_available(node) &&
+			!of_property_read_u32(node, "cell-index", &id) &&
+			id == camera_id &&
+			!of_property_read_u32(node, "csiphy-sd-index", &phy)) {
+			of_node_put(node);
+			return phy;
+		}
+	}
+
+	kunit_skip(test, "Camera %u is not present in the installed DT", camera_id);
+	return -EINVAL;
+}
+
+#define WIDE_CAM hw_bigdata_test_csiphy(test, SEC_WIDE_SENSOR)
+#define UW_CAM hw_bigdata_test_csiphy(test, SEC_ULTRA_WIDE_SENSOR)
+#define TELE1_CAM hw_bigdata_test_csiphy(test, SEC_TELE_SENSOR)
+#define TELE2_CAM hw_bigdata_test_csiphy(test, SEC_TELE2_SENSOR)
+#define FRONT_CAM hw_bigdata_test_csiphy(test, SEC_FRONT_SENSOR)
+#endif
+
 #define REAR_OIS_X_Y_ERR_REG  0x0600
 #define REAR3_OIS_X_Y_ERR_REG 0x1800
 #define REAR4_OIS_X_Y_ERR_REG 0x6000

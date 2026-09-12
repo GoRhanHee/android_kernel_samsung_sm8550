@@ -4097,7 +4097,9 @@ int get_ois_adc_value(struct cam_ois_ctrl_t *o_ctrl,
 	uint32_t *result)
 {
 	int rc = 0;
-#if defined(CONFIG_SEC_B5Q_PROJECT)
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+	uint32_t prev_result;
+#elif defined(CONFIG_SEC_B5Q_PROJECT)
 	static uint32_t	prev_result = 1897; //default ois_adc value
 #elif defined(CONFIG_SEC_Q5Q_PROJECT)
 	static uint32_t	prev_result = 1954; //default ois_adc value
@@ -4105,6 +4107,11 @@ int get_ois_adc_value(struct cam_ois_ctrl_t *o_ctrl,
 
 	if (!o_ctrl)
 		return -1;
+
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+	/* Zero means no prior sample; the temperature caller handles it. */
+	prev_result = o_ctrl->prev_adc_value;
+#endif
 
 	if (!o_ctrl->is_power_up) {
 		CAM_INFO(CAM_OIS, "ois is not power up");
@@ -4148,6 +4155,9 @@ int get_ois_adc_value(struct cam_ois_ctrl_t *o_ctrl,
  	}
 
 	prev_result = *result;
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+	o_ctrl->prev_adc_value = prev_result;
+#endif
 	return rc;
 
 ois_mcu_init_failed:
