@@ -205,7 +205,7 @@ update_submodules() {
     echo "[submodule] Synchronizing configured URLs"
     git -C "${SOURCE_DIR}" submodule sync --recursive
     echo "[submodule] Initializing recorded revisions"
-    git -C "${SOURCE_DIR}" submodule update --init --recursive --checkout
+    git -C "${SOURCE_DIR}" submodule update --init --depth=1 --recursive --checkout
 
     # A depth-limited checkout tracks only the remote's default branch. Restore
     # all branch refspecs so --remote can resolve .gitmodules branches such as
@@ -214,7 +214,7 @@ update_submodules() {
     git -C "${SOURCE_DIR}" submodule foreach --recursive \
         'git config --replace-all remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"'
     echo "[submodule] Updating configured branches"
-    git -C "${SOURCE_DIR}" submodule update --init --remote --recursive --checkout
+    git -C "${SOURCE_DIR}" submodule update --init --remote --depth=1 --recursive --checkout
 }
 
 select_universal_profile() {
