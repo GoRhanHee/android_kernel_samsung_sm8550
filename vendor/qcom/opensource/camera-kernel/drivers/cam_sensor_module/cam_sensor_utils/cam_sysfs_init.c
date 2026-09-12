@@ -13,6 +13,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include "cam_sysfs_init.h"
+#include "cam_sec_project.h"
 #include "cam_ois_core.h"
 #include "cam_eeprom_dev.h"
 #include "cam_actuator_core.h"
@@ -356,6 +357,25 @@ static ssize_t rear_type_show(struct device *dev,
 {
 	int rc = 0;
 
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+	const char *cam_type = "UNKNOWN\n";
+
+	switch (cam_sec_get_project()) {
+	case CAM_SEC_PROJECT_DM3Q:
+		cam_type = "SLSI_S5KHP2\n";
+		break;
+	case CAM_SEC_PROJECT_DM1Q:
+	case CAM_SEC_PROJECT_DM2Q:
+	case CAM_SEC_PROJECT_Q5Q:
+		cam_type = "SLSI_S5KGN3\n";
+		break;
+	case CAM_SEC_PROJECT_B5Q:
+		cam_type = "SLSI_S5K2LD\n";
+		break;
+	default:
+		break;
+	}
+#else
 #if defined(CONFIG_SEC_DM3Q_PROJECT)
 	char cam_type[] = "SLSI_S5KHP2\n";
 #elif defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
@@ -366,6 +386,7 @@ static ssize_t rear_type_show(struct device *dev,
 	char cam_type[] = "HYNIX_HI1337\n";
 #else
 	char cam_type[] = "SONY_IMX555\n";
+#endif
 #endif
 
 	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
@@ -379,6 +400,25 @@ static ssize_t front_camera_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	int rc = 0;
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+	const char *cam_type = "UNKNOWN\n";
+
+	switch (cam_sec_get_project()) {
+	case CAM_SEC_PROJECT_DM1Q:
+	case CAM_SEC_PROJECT_DM2Q:
+	case CAM_SEC_PROJECT_DM3Q:
+		cam_type = "SLSI_S5K3LU\n";
+		break;
+	case CAM_SEC_PROJECT_Q5Q:
+		cam_type = "SONY_IMX471\n";
+		break;
+	case CAM_SEC_PROJECT_B5Q:
+		cam_type = "SLSI_S5K3J1\n";
+		break;
+	default:
+		break;
+	}
+#else
 #if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT)
 	char cam_type[] = "SLSI_S5K3LU\n";
 #elif defined(CONFIG_SEC_GTS9_PROJECT) || defined(CONFIG_SEC_GTS9P_PROJECT) || defined(CONFIG_SEC_GTS9U_PROJECT)
@@ -389,6 +429,7 @@ static ssize_t front_camera_type_show(struct device *dev,
 	char cam_type[] = "SLSI_S5K3J1\n";
 #else
 	char cam_type[] = "SONY_IMX374\n";
+#endif
 #endif
 	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
 	if (rc)
@@ -482,7 +523,7 @@ static ssize_t rear_firmware_factory_store(struct device *dev,
 	return size;
 }
 
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
+#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 static ssize_t rear3_firmware_user_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -1750,12 +1791,23 @@ static ssize_t rear3_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	int rc = 0;
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+	const char *cam_type = "UNKNOWN\n";
+	enum cam_sec_project project = cam_sec_get_project();
+
+	if (project == CAM_SEC_PROJECT_DM3Q)
+		cam_type = "SONY_IMX754\n";
+	else if (project == CAM_SEC_PROJECT_DM1Q ||
+		 project == CAM_SEC_PROJECT_DM2Q || project == CAM_SEC_PROJECT_Q5Q)
+		cam_type = "SLSI_S5K3K1\n";
+#else
 #if defined(CONFIG_SEC_DM3Q_PROJECT)
 	char cam_type[] = "SONY_IMX754\n";
 #elif defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
 	char cam_type[] = "SLSI_S5K3K1\n";
 #else
 	char cam_type[] = "SLSI_S5KGW2\n";
+#endif
 #endif
 
 	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
@@ -1855,7 +1907,7 @@ static ssize_t rear3_tilt_show(struct device *dev,
 	return 0;
 }
 
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
+#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 static ssize_t rear3_moduleid_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -1888,7 +1940,7 @@ static ssize_t rear3_module_info_store(struct device *dev,
 #endif
 
 #if defined(CONFIG_SAMSUNG_REAR_DUAL)
-#if defined(CONFIG_SEC_DM3Q_PROJECT)
+#if defined(CONFIG_SEC_DM3Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 char rear2_af_cal_str[MAX_AF_CAL_STR_SIZE] = "";
 static ssize_t rear2_afcal_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -2149,12 +2201,23 @@ static ssize_t rear2_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	int rc = 0;
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+	const char *cam_type = "UNKNOWN\n";
+	enum cam_sec_project project = cam_sec_get_project();
+
+	if (project == CAM_SEC_PROJECT_Q5Q || project == CAM_SEC_PROJECT_B5Q)
+		cam_type = "SONY_IMX258\n";
+	else if (project == CAM_SEC_PROJECT_DM1Q ||
+		 project == CAM_SEC_PROJECT_DM2Q || project == CAM_SEC_PROJECT_DM3Q)
+		cam_type = "SONY_IMX564\n";
+#else
 #if defined(CONFIG_SEC_GTS9P_PROJECT) || defined(CONFIG_SEC_GTS9U_PROJECT)
 	char cam_type[] = "HYNIX_HI847\n";
 #elif defined(CONFIG_SEC_Q5Q_PROJECT) || defined(CONFIG_SEC_B5Q_PROJECT)
 	char cam_type[] = "SONY_IMX258\n";
 #else
 	char cam_type[] = "SONY_IMX564\n";
+#endif
 #endif
 	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
 	if (rc)
@@ -3032,7 +3095,7 @@ static DEVICE_ATTR(rear3_camfw, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear3_firmware_show, rear3_firmware_store);
 static DEVICE_ATTR(rear3_camfw_full, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear3_firmware_full_show, rear3_firmware_full_store);
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
+#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 static DEVICE_ATTR(rear3_checkfw_user, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear3_firmware_user_show, rear3_firmware_user_store);
 static DEVICE_ATTR(rear3_checkfw_factory, S_IRUGO|S_IWUSR|S_IWGRP,
@@ -3054,13 +3117,13 @@ static DEVICE_ATTR(rear3_dualcal_size, S_IRUGO, rear3_dual_cal_size_show, NULL);
 static DEVICE_ATTR(rear3_tilt, S_IRUGO, rear3_tilt_show, NULL);
 static DEVICE_ATTR(rear3_paf_cal_check, S_IRUGO,
 	rear3_paf_cal_check_show, NULL);
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
+#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 static DEVICE_ATTR(rear3_moduleid, S_IRUGO, rear3_moduleid_show, NULL);
 static DEVICE_ATTR(SVC_rear_module3, S_IRUGO, rear3_moduleid_show, NULL);
 #endif
 #endif
 #if defined(CONFIG_SAMSUNG_REAR_DUAL)
-#if defined(CONFIG_SEC_DM3Q_PROJECT)
+#if defined(CONFIG_SEC_DM3Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 static DEVICE_ATTR(rear2_afcal, S_IRUGO, rear2_afcal_show, NULL);
 static DEVICE_ATTR(rear2_paf_cal_check, S_IRUGO,
 	rear2_paf_cal_check_show, NULL);
@@ -3283,7 +3346,7 @@ const struct device_attribute *rear_attrs[] = {
 	&dev_attr_rear3_dualcal,
 	&dev_attr_rear3_dualcal_size,
 	&dev_attr_rear3_paf_cal_check,
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
+#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 	&dev_attr_rear3_moduleid,
 	&dev_attr_rear3_checkfw_user,
 	&dev_attr_rear3_checkfw_factory,
@@ -3298,7 +3361,7 @@ const struct device_attribute *rear_attrs[] = {
 	&dev_attr_rear2_camfw,
 	&dev_attr_rear2_checkfw_user,
 	&dev_attr_rear2_checkfw_factory,
-#if defined(CONFIG_SEC_DM3Q_PROJECT)
+#if defined(CONFIG_SEC_DM3Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 	&dev_attr_rear2_afcal,
 	&dev_attr_rear2_paf_cal_check,
 #endif
@@ -3455,7 +3518,7 @@ static struct attribute *svc_cam_attrs[] = {
 #if defined(CONFIG_SAMSUNG_REAR_DUAL)
 	&dev_attr_SVC_rear_module2.attr,
 #endif
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
+#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 	&dev_attr_SVC_rear_module3.attr,
 #endif
 #if defined(CONFIG_SAMSUNG_REAR_QUADRA)

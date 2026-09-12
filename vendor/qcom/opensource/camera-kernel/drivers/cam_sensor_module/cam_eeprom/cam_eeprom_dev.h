@@ -382,7 +382,7 @@ extern DualTilt_t rear4_dual;
 
 extern char cal_crc[SYSFS_FW_VER_SIZE];
 #if defined(CONFIG_SAMSUNG_REAR_DUAL)
-#if defined(CONFIG_SEC_DM3Q_PROJECT)
+#if defined(CONFIG_SEC_DM3Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 extern char rear2_af_cal_str[MAX_AF_CAL_STR_SIZE];
 extern uint32_t rear2_paf_err_data_result;
 #endif

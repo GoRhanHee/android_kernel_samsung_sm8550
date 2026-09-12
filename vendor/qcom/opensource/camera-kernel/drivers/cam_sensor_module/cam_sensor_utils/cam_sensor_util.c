@@ -7,6 +7,7 @@
 #include <linux/kernel.h>
 #include <clocksource/arm_arch_timer.h>
 #include "cam_sensor_util.h"
+#include "cam_sec_project.h"
 #include "cam_mem_mgr.h"
 #include "cam_res_mgr_api.h"
 
@@ -2389,7 +2390,10 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 						rc);
 
 					soc_info->rgltr[vreg_idx] = NULL;
-#if !defined(CONFIG_SEC_Q5Q_PROJECT)
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+					if (cam_sec_get_project() != CAM_SEC_PROJECT_Q5Q)
+						goto power_up_failed;
+#elif !defined(CONFIG_SEC_Q5Q_PROJECT)
 					goto power_up_failed;
 #endif
 				}
@@ -2413,7 +2417,10 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 					CAM_ERR(CAM_SENSOR,
 						"Reg Enable failed for %s",
 						soc_info->rgltr_name[vreg_idx]);
-#if !defined(CONFIG_SEC_Q5Q_PROJECT)
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+					if (cam_sec_get_project() != CAM_SEC_PROJECT_Q5Q)
+						goto power_up_failed;
+#elif !defined(CONFIG_SEC_Q5Q_PROJECT)
 					goto power_up_failed;
 #endif
 				}
@@ -2430,7 +2437,10 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 			if (rc < 0) {
 				CAM_ERR(CAM_SENSOR,
 					"Error in handling VREG GPIO");
-#if !defined(CONFIG_SEC_Q5Q_PROJECT)
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+				if (cam_sec_get_project() != CAM_SEC_PROJECT_Q5Q)
+					goto power_up_failed;
+#elif !defined(CONFIG_SEC_Q5Q_PROJECT)
 				goto power_up_failed;
 #endif
 			}

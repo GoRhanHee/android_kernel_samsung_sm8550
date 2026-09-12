@@ -10,6 +10,7 @@
 #include <media/cam_sensor.h>
 
 #include "cam_sec_eeprom_core.h"
+#include "cam_sec_project.h"
 #include "cam_eeprom_soc.h"
 #include "cam_debug_util.h"
 #include "cam_common_util.h"
@@ -38,7 +39,7 @@ char camera_info[MAX_EEP_CAMID][10] = { "Rear", "Front", "Rear2", "Rear3", "Rear
 char bokeh_module_fw_ver[FROM_MODULE_FW_INFO_SIZE+1];
 #endif
 
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
+#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 char rear3_module_fw_ver[FROM_MODULE_FW_INFO_SIZE+1];
 #endif
 
@@ -1123,7 +1124,7 @@ static int cam_sec_eeprom_module_info_set_load_version(int rev, struct cam_eepro
 	sprintf(cam_fw_full_ver[EEP_REAR3], "%s %s %s\n", bokeh_module_fw_ver, bokeh_module_fw_ver,bokeh_module_fw_ver);
 #endif
 
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
+#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 	if (mInfo->type == SEC_TELE_SENSOR) {
 		ConfIdx = ADDR_M_FW_VER;
 		memset(rear3_module_fw_ver, 0x00, sizeof(rear3_module_fw_ver));
@@ -1383,17 +1384,19 @@ static int cam_sec_eeprom_module_info_set_dual_tilt(eDualTiltMode tiltMode, uint
 				offset_max_err          = 0x07E4;
 				offset_avg_err          = 0x07E8;
 				offset_project_cal_type = 0x0108;
-#if defined(CONFIG_SEC_B5Q_PROJECT)
-				offset_dll_ver			= 0x007A;
-				offset_x				= 0x00B8;
-				offset_y				= 0x00BC;
-				offset_z				= 0x00C0;
-				offset_sx				= 0x00DC;
-				offset_sy				= 0x00E0;
-				offset_range			= 0x02D2;
-				offset_max_err			= 0x02D6;
-				offset_avg_err			= 0x02DA;
-				offset_project_cal_type = 0x02DE;
+#if defined(CONFIG_SEC_B5Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+				if (cam_sec_get_project() == CAM_SEC_PROJECT_B5Q) {
+					offset_dll_ver			= 0x007A;
+					offset_x				= 0x00B8;
+					offset_y				= 0x00BC;
+					offset_z				= 0x00C0;
+					offset_sx				= 0x00DC;
+					offset_sy				= 0x00E0;
+					offset_range			= 0x02D2;
+					offset_max_err			= 0x02D6;
+					offset_avg_err			= 0x02DA;
+					offset_project_cal_type = 0x02DE;
+				}
 #endif
 
 				break;
@@ -1676,6 +1679,9 @@ static int cam_sec_eeprom_module_info_tof(uint8_t *pMapData, char *log_str,
 int cam_sec_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 {
 	int             rc = 0;
+#if defined(CONFIG_SEC_DM3Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+	enum cam_sec_project project = cam_sec_get_project();
+#endif
 
 	uint32_t        ConfAddr 	  = 0;
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE) || defined(CONFIG_SAMSUNG_REAR_TOF) || defined(CONFIG_SAMSUNG_FRONT_TOF) || defined(CONFIG_SAMSUNG_REAR_QUADRA)
@@ -1713,7 +1719,7 @@ int cam_sec_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 			mInfo.mVer.cam_cal_ack             = cam_cal_check[EEP_REAR];
 			break;
 
-#if defined(CONFIG_SEC_DM1Q_PROJECT)|| defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
+#if defined(CONFIG_SEC_DM1Q_PROJECT)|| defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 		case SEC_TELE_SENSOR:
 			cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_REAR3);
 			mInfo.mVer.cam_cal_ack			   = cam_cal_check[EEP_REAR3];
@@ -1772,15 +1778,16 @@ int cam_sec_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 	cam_sec_eeprom_module_info_set_load_version(rev, e_ctrl, &mInfo);
 
 	if (e_ctrl->soc_info.index == SEC_FRONT_SENSOR) {
-#if !defined(CONFIG_SAMSUNG_FRONT_TOP_EEPROM)
-		/* front af cal*/
-        AfIdx_t front_idx[] = {
-            {AF_CAL_NEAR_IDX, AF_CAL_NEAR_OFFSET_FROM_AF},
-            {AF_CAL_FAR_IDX, AF_CAL_FAR_OFFSET_FROM_AF}
-        };
+#if !defined(CONFIG_SAMSUNG_FRONT_TOP_EEPROM) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+		if (cam_sec_get_project() != CAM_SEC_PROJECT_Q5Q) {
+			AfIdx_t front_idx[] = {
+				{AF_CAL_NEAR_IDX, AF_CAL_NEAR_OFFSET_FROM_AF},
+				{AF_CAL_FAR_IDX, AF_CAL_FAR_OFFSET_FROM_AF}
+			};
 
-        cam_sec_eeprom_module_info_set_afcal(ADDR_M_AF, front_idx, sizeof(front_idx)/sizeof(front_idx[0]),
-            e_ctrl->cal_data.mapdata, front_af_cal_str, sizeof(front_af_cal_str));
+			cam_sec_eeprom_module_info_set_afcal(ADDR_M_AF, front_idx, ARRAY_SIZE(front_idx),
+				e_ctrl->cal_data.mapdata, front_af_cal_str, sizeof(front_af_cal_str));
+		}
 #endif //!defined(CONFIG_SAMSUNG_FRONT_TOP_EEPROM)
 
 		/* front mtf exif */
@@ -1828,7 +1835,17 @@ int cam_sec_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 #endif //!defined(CONFIG_SAMSUNG_FRONT_TOP_EEPROM)
 	}
 #endif //#if defined(CONFIG_SAMSUNG_FRONT_TOP)
-#if defined(CONFIG_SEC_DM3Q_PROJECT)
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+	else if (e_ctrl->soc_info.index == SEC_WIDE_SENSOR ||
+		 ((project == CAM_SEC_PROJECT_DM1Q ||
+		   project == CAM_SEC_PROJECT_DM2Q ||
+		   project == CAM_SEC_PROJECT_Q5Q) &&
+		  e_ctrl->soc_info.index == SEC_TELE_SENSOR) ||
+		 (project == CAM_SEC_PROJECT_DM3Q &&
+		  (e_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR ||
+		   e_ctrl->soc_info.index == SEC_TELE_SENSOR ||
+		   e_ctrl->soc_info.index == SEC_TELE2_SENSOR)))
+#elif defined(CONFIG_SEC_DM3Q_PROJECT)
 	else if ((e_ctrl->soc_info.index == SEC_WIDE_SENSOR)
 		|| (e_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR)
 		|| (e_ctrl->soc_info.index == SEC_TELE_SENSOR)
@@ -1877,7 +1894,14 @@ int cam_sec_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 #endif
 
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE) || defined(CONFIG_SAMSUNG_REAR_QUADRA)
-#if defined(CONFIG_SEC_DM3Q_PROJECT)
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+		if ((project == CAM_SEC_PROJECT_DM3Q &&
+		     SEC_TELE2_SENSOR == e_ctrl->soc_info.index) ||
+		    ((project == CAM_SEC_PROJECT_DM1Q ||
+		      project == CAM_SEC_PROJECT_DM2Q ||
+		      project == CAM_SEC_PROJECT_Q5Q) &&
+		     SEC_TELE_SENSOR == e_ctrl->soc_info.index))
+#elif defined(CONFIG_SEC_DM3Q_PROJECT)
 		if (SEC_TELE2_SENSOR == e_ctrl->soc_info.index)
 #elif defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
 		if (SEC_TELE_SENSOR == e_ctrl->soc_info.index)
@@ -1901,7 +1925,7 @@ int cam_sec_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 
 		CAM_DBG(CAM_EEPROM, "[CAL] index:%d valid(%d, %d)", e_ctrl->soc_info.index, isValidIdx(ADDR_M_AF, &ConfAddr), isValidIdx(ADDR_S0_AF, &ConfAddr));
 		{
-#if defined(CONFIG_SEC_DM3Q_PROJECT)
+#if defined(CONFIG_SEC_DM3Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 			AfIdx_t rear_idx[] = {
 				{AF_CAL_NEAR_IDX, AF_CAL_NEAR_OFFSET_FROM_AF},
 				{AF_CAL_FAR_IDX, AF_CAL_FAR_OFFSET_FROM_AF},
@@ -1909,22 +1933,36 @@ int cam_sec_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 				{AF_CAL_M2_IDX, AF_CAL_M2_OFFSET_FROM_AF},
 			};
 
-			if (e_ctrl->soc_info.index == SEC_WIDE_SENSOR) {
-				cam_sec_eeprom_module_info_set_afcal(ADDR_M_AF, rear_idx, sizeof(rear_idx)/sizeof(rear_idx[0]),
-					e_ctrl->cal_data.mapdata, rear_af_cal_str, sizeof(rear_af_cal_str));
-			}
-			else if (e_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR) {
-				cam_sec_eeprom_module_info_set_afcal(ADDR_M_AF, rear_idx, sizeof(rear_idx)/sizeof(rear_idx[0]),
-					e_ctrl->cal_data.mapdata, rear2_af_cal_str, sizeof(rear2_af_cal_str));
-			}
-			else if (e_ctrl->soc_info.index == SEC_TELE_SENSOR) {
-				cam_sec_eeprom_module_info_set_afcal(ADDR_S0_AF, rear_idx, sizeof(rear_idx)/sizeof(rear_idx[0]),
-					e_ctrl->cal_data.mapdata, rear3_af_cal_str, sizeof(rear3_af_cal_str));
-			}
+			if (project == CAM_SEC_PROJECT_DM3Q) {
+				if (e_ctrl->soc_info.index == SEC_WIDE_SENSOR) {
+					cam_sec_eeprom_module_info_set_afcal(ADDR_M_AF, rear_idx, sizeof(rear_idx)/sizeof(rear_idx[0]),
+						e_ctrl->cal_data.mapdata, rear_af_cal_str, sizeof(rear_af_cal_str));
+				}
+				else if (e_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR) {
+					cam_sec_eeprom_module_info_set_afcal(ADDR_M_AF, rear_idx, sizeof(rear_idx)/sizeof(rear_idx[0]),
+						e_ctrl->cal_data.mapdata, rear2_af_cal_str, sizeof(rear2_af_cal_str));
+				}
+				else if (e_ctrl->soc_info.index == SEC_TELE_SENSOR) {
+					cam_sec_eeprom_module_info_set_afcal(ADDR_S0_AF, rear_idx, sizeof(rear_idx)/sizeof(rear_idx[0]),
+						e_ctrl->cal_data.mapdata, rear3_af_cal_str, sizeof(rear3_af_cal_str));
+				}
 #if defined(CONFIG_SAMSUNG_REAR_QUADRA)
-			else if (e_ctrl->soc_info.index == SEC_TELE2_SENSOR) {
-				cam_sec_eeprom_module_info_set_afcal(ADDR_S0_AF, rear_idx, sizeof(rear_idx)/sizeof(rear_idx[0]),
-					e_ctrl->cal_data.mapdata, rear4_af_cal_str, sizeof(rear4_af_cal_str));
+				else if (e_ctrl->soc_info.index == SEC_TELE2_SENSOR) {
+					cam_sec_eeprom_module_info_set_afcal(ADDR_S0_AF, rear_idx, sizeof(rear_idx)/sizeof(rear_idx[0]),
+						e_ctrl->cal_data.mapdata, rear4_af_cal_str, sizeof(rear4_af_cal_str));
+				}
+#endif
+			}
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+			else {
+				uint32_t count = project == CAM_SEC_PROJECT_B5Q ?
+					2 : ARRAY_SIZE(rear_idx);
+
+				cam_sec_eeprom_module_info_set_afcal(ADDR_M_AF, rear_idx, count,
+					e_ctrl->cal_data.mapdata, rear_af_cal_str, sizeof(rear_af_cal_str));
+				if (project != CAM_SEC_PROJECT_B5Q)
+					cam_sec_eeprom_module_info_set_afcal(ADDR_S0_AF, rear_idx, count,
+						e_ctrl->cal_data.mapdata, rear3_af_cal_str, sizeof(rear3_af_cal_str));
 			}
 #endif
 #else       //  #if defined(CONFIG_SEC_DM3Q_PROJECT)
@@ -1942,6 +1980,15 @@ int cam_sec_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 				e_ctrl->cal_data.mapdata, rear3_af_cal_str, sizeof(rear3_af_cal_str));
 #endif      //  #if defined(CONFIG_SEC_DM3Q_PROJECT)
 		}
+
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+		if (project == CAM_SEC_PROJECT_B5Q) {
+			mInfo.mVer.dual_cal = rear2_dual_cal;
+			mInfo.mVer.DualTilt = &rear2_dual;
+			cam_sec_eeprom_module_info_set_dual_tilt(DUAL_TILT_REAR_UW, ADDR_M_DUAL_CAL,
+				SIZE_M_DUAL_CAL, e_ctrl->cal_data.mapdata, "rear2 uw", &mInfo);
+		}
+#endif
 
 #elif defined(CONFIG_SAMSUNG_REAR_DUAL)     //  #if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
 		/* AF Cal. data read */
@@ -2028,20 +2075,22 @@ int cam_sec_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 		}
 #endif
 
-#if defined(CONFIG_SEC_DM3Q_PROJECT)
-		if (e_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR) {
-			if (isValidIdx(ADDR_M0_PAF, &ConfAddr) == 1)
-			{
-				ConfAddr += PAF_CAL_ERR_CHECK_OFFSET;
-				memcpy(&rear2_paf_err_data_result, &e_ctrl->cal_data.mapdata[ConfAddr], 4);
+#if defined(CONFIG_SEC_DM3Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+		if (project == CAM_SEC_PROJECT_DM3Q) {
+			if (e_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR) {
+				if (isValidIdx(ADDR_M0_PAF, &ConfAddr) == 1)
+				{
+					ConfAddr += PAF_CAL_ERR_CHECK_OFFSET;
+					memcpy(&rear2_paf_err_data_result, &e_ctrl->cal_data.mapdata[ConfAddr], 4);
+				}
 			}
-		}
 
-		if (e_ctrl->soc_info.index == SEC_TELE2_SENSOR) {
-			if (isValidIdx(ADDR_S0_PAF, &ConfAddr) == 1)
-			{
-				ConfAddr += PAF_CAL_ERR_CHECK_OFFSET;
-				memcpy(&rear4_paf_err_data_result, &e_ctrl->cal_data.mapdata[ConfAddr], 4);
+			if (e_ctrl->soc_info.index == SEC_TELE2_SENSOR) {
+				if (isValidIdx(ADDR_S0_PAF, &ConfAddr) == 1)
+				{
+					ConfAddr += PAF_CAL_ERR_CHECK_OFFSET;
+					memcpy(&rear4_paf_err_data_result, &e_ctrl->cal_data.mapdata[ConfAddr], 4);
+				}
 			}
 		}
 #endif
@@ -2188,8 +2237,9 @@ int cam_sec_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 	}
 
 	// Probe Timing different for each model
-#if defined(CONFIG_SEC_DM3Q_PROJECT)
-	if (SEC_TELE2_SENSOR == e_ctrl->soc_info.index)
+#if defined(CONFIG_SEC_DM3Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+	if (project == CAM_SEC_PROJECT_DM3Q &&
+	    SEC_TELE2_SENSOR == e_ctrl->soc_info.index)
 	{
 		is_eeprom_wacom_update_notifier();
 	}

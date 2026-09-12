@@ -9,6 +9,7 @@
 
 #include "cam_sensor_cmn_header.h"
 #include "cam_ois_core.h"
+#include "cam_sec_project.h"
 #include "cam_ois_soc.h"
 #include "cam_sensor_util.h"
 #include "cam_debug_util.h"
@@ -22,7 +23,10 @@
 #include <linux/slab.h>
 #endif
 
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)\
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+#define OIS_OUTPUT_SEL_FOR_FACTORY \
+	(cam_sec_get_project() == CAM_SEC_PROJECT_DM3Q ? 0x7 : 0x3)
+#elif defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)\
 	|| defined(CONFIG_SEC_B5Q_PROJECT)
 #define OIS_OUTPUT_SEL_FOR_FACTORY        0x3
 #elif defined(CONFIG_SEC_DM3Q_PROJECT)

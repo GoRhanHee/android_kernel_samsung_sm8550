@@ -26,6 +26,7 @@
 #include "cam_ois_mcu_stm32g.h"
 #include "cam_ois_thread.h"
 #include "cam_ois_core.h"
+#include "cam_sec_project.h"
 #include "cam_eeprom_dev.h"
 #include "cam_actuator_core.h"
 #include "cam_hw_bigdata.h"
@@ -3455,7 +3456,7 @@ int cam_ois_write_dual_cal(struct cam_ois_ctrl_t *o_ctrl)
 	uint8_t* cal_mark[MAX_MODULE_NUM]      = { &ois_m1_cal_mark,	&ois_m2_cal_mark,    &ois_m3_cal_mark };
 	uint8_t* center_shift[MAX_MODULE_NUM]  = { ois_m1_center_shift, ois_m2_center_shift, ois_m3_center_shift };
 #endif
-#if defined(CONFIG_SEC_DM3Q_PROJECT)
+#if defined(CONFIG_SEC_DM3Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 	uint32_t i = 0, j = 0;
 	uint32_t XCOFFSET_ADDR[MAX_MODULE_NUM] = { XCOFFSET_M1,         XCOFFSET_M2,         XCOFFSET_M3 };
 	uint32_t efs_index = 0;
@@ -3480,10 +3481,10 @@ int cam_ois_write_dual_cal(struct cam_ois_ctrl_t *o_ctrl)
 	}
 #endif
 
-#if defined(CONFIG_SEC_DM3Q_PROJECT)
+#if defined(CONFIG_SEC_DM3Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 	efs_index = 2;
 
-	if (0 != o_ctrl->efs_cal) {
+	if (cam_sec_get_project() == CAM_SEC_PROJECT_DM3Q && o_ctrl->efs_cal) {
 		for (i = 0; i < OIS_CENTER_SHIFT_SIZE; i++)
 		{
 			efs_center_shift[i] = 0xFF & (o_ctrl->efs_cal >> ((OIS_CENTER_SHIFT_SIZE - (i + 1)) * 8));

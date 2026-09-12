@@ -11,6 +11,7 @@
 #include <cam_sensor_io.h>
 #include <cam_req_mgr_util.h>
 #include "cam_actuator_soc.h"
+#include "cam_sec_project.h"
 #include "cam_soc_util.h"
 
 int32_t cam_actuator_parse_dt(struct cam_actuator_ctrl_t *a_ctrl,
@@ -86,18 +87,17 @@ int32_t cam_actuator_parse_dt(struct cam_actuator_ctrl_t *a_ctrl,
 		soc_info->rgltr[i] = devm_regulator_get(soc_info->dev,
 					soc_info->rgltr_name[i]);
 		if (IS_ERR_OR_NULL(soc_info->rgltr[i])) {
-#if defined(CONFIG_SEC_Q5Q_PROJECT)
-			CAM_WARN(CAM_ACTUATOR,"get failed for regulator %s %d",
-				soc_info->rgltr_name[i], rc);
-			soc_info->rgltr[i] = NULL;		
-#else
-
-			rc = PTR_ERR(soc_info->rgltr[i]);
-			rc = rc ? rc : -EINVAL;
-			CAM_ERR(CAM_ACTUATOR, "get failed for regulator %s %d",
-				 soc_info->rgltr_name[i], rc);
-			return rc;
-#endif
+			if (cam_sec_get_project() == CAM_SEC_PROJECT_Q5Q) {
+				CAM_WARN(CAM_ACTUATOR, "get failed for regulator %s %ld",
+					soc_info->rgltr_name[i], PTR_ERR(soc_info->rgltr[i]));
+				soc_info->rgltr[i] = NULL;
+			} else {
+				rc = PTR_ERR(soc_info->rgltr[i]);
+				rc = rc ? rc : -EINVAL;
+				CAM_ERR(CAM_ACTUATOR, "get failed for regulator %s %d",
+					soc_info->rgltr_name[i], rc);
+				return rc;
+			}
 		}
 		CAM_DBG(CAM_ACTUATOR, "get for regulator %s",
 			soc_info->rgltr_name[i]);
