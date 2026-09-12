@@ -1064,6 +1064,8 @@ main() {
     apply_fake_config_patch
     prepare_toolchain
     build
+    bash "${SOURCE_DIR}/prebuilts/check_display_panels.sh" \
+        "${DIST_DIR}/msm_drm.ko" "${CLANG_TOOLCHAIN_DIR}/bin/llvm-nm"
     collect_packaged_images
 }
 

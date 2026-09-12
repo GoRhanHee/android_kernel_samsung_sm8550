@@ -882,7 +882,7 @@ static void ss_read_flash(struct samsung_display_driver_data *vdd, u32 raddr, u3
 	return;
 }
 
-bool spsram_recovered; /* whole display recovery (off->on) is operated to retry spsram read */
+static bool spsram_recovered; /* whole display recovery (off->on) is operated to retry spsram read */
 
 static int ss_debug_gamma_comp(struct samsung_display_driver_data *vdd)
 {
