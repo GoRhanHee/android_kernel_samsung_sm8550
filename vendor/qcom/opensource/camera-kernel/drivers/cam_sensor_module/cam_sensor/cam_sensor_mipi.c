@@ -16,11 +16,16 @@
 #include <linux/kernel.h>
 #include <linux/dev_ril_bridge.h>
 #include "cam_sensor_mipi.h"
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+#include "cam_sensor_mipi_universal.h"
+#include "cam_sec_project.h"
+#else
 #include "cam_sensor_adaptive_mipi_wide.h"
 #include "cam_sensor_adaptive_mipi_uw.h"
 #include "cam_sensor_adaptive_mipi_tele.h"
 #include "cam_sensor_adaptive_mipi_front.h"
 #include "cam_sensor_adaptive_mipi_front_top.h"
+#endif
 #include "cam_sensor_dev.h"
 
 static int adaptive_mipi_mode;
@@ -110,8 +115,18 @@ void cam_mipi_register_ril_notifier(void)
 		mutex_init(&g_mipi_mutex);
 		memset(&g_cp_noti_info, 0, sizeof(struct cam_cp_noti_info));
 
-		register_dev_ril_bridge_event_notifier(&g_ril_notifier_block);
-		g_init_notifier = true;
+		if (!register_dev_ril_bridge_event_notifier(&g_ril_notifier_block))
+			g_init_notifier = true;
+		else
+			CAM_ERR(CAM_SENSOR, "[AM_DBG] failed to register ril notifier");
+	}
+}
+
+void cam_mipi_unregister_ril_notifier(void)
+{
+	if (g_init_notifier) {
+		unregister_dev_ril_bridge_event_notifier(&g_ril_notifier_block);
+		g_init_notifier = false;
 	}
 }
 
@@ -218,16 +233,47 @@ int32_t cam_check_sensor_type(uint16_t sensor_id)
 	return sensor_type;
 }
 
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+static const struct cam_mipi_sensor_mode *cam_mipi_sensor_mode(struct cam_sensor_ctrl_t *s_ctrl)
+{
+	u8 mode = s_ctrl->sensor_mode;
+
+	switch (s_ctrl->sensordata->slave_info.sensor_id) {
+	case SENSOR_ID_S5KGN3: return cam_mipi_s5kgn3_mode(mode);
+	case SENSOR_ID_S5KHP2: return cam_mipi_s5khp2_mode(mode);
+	case SENSOR_ID_S5K2LD: return cam_mipi_s5k2ld_mode(mode);
+	case SENSOR_ID_IMX564: return cam_mipi_imx564_mode(mode);
+	case SENSOR_ID_IMX258:
+		if (cam_sec_get_project() == CAM_SEC_PROJECT_B5Q)
+			return cam_mipi_imx258_b5_mode(mode);
+		if (cam_sec_get_project() == CAM_SEC_PROJECT_Q5Q)
+			return cam_mipi_imx258_mode(mode);
+		return NULL;
+	case SENSOR_ID_S5K3K1: return cam_mipi_s5k3k1_mode(mode);
+	case SENSOR_ID_IMX754: return cam_mipi_imx754_mode(mode);
+	case SENSOR_ID_S5K3LU: return cam_mipi_s5k3lu_mode(mode);
+	case SENSOR_ID_IMX374: return cam_mipi_imx374_mode(mode);
+	case SENSOR_ID_S5K3J1: return cam_mipi_s5k3j1_mode(mode);
+	case SENSOR_ID_IMX471: return cam_mipi_imx471_mode(mode);
+	default: return NULL;
+	}
+}
+#endif
+
 void cam_mipi_init_setting(struct cam_sensor_ctrl_t *s_ctrl)
 {
-	const struct cam_mipi_sensor_mode *cur_mipi_sensor_mode;
+#if !IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 	int32_t sensor_type = cam_check_sensor_type(s_ctrl->sensordata->slave_info.sensor_id);
+#endif
 
 #if defined(CONFIG_CAMERA_FRS_DRAM_TEST)
 	extern long rear_frs_test_mode;
 
 	if (rear_frs_test_mode == 0) {
 #endif
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+	s_ctrl->mipi_info = cam_mipi_sensor_mode(s_ctrl);
+#else
 	if (sensor_type == WIDE) {
 		CAM_INFO(CAM_SENSOR, "[AM_DBG] Wide sensor_mode : %d / %d", s_ctrl->sensor_mode, num_wide_mipi_setting);
 		if (s_ctrl->sensor_mode == 0) {
@@ -303,7 +349,7 @@ void cam_mipi_init_setting(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_ERR(CAM_SENSOR, "[AM_DBG] Not support sensor_type : %d", sensor_type);
 		s_ctrl->mipi_info = sensor_wide_mipi_A_mode;
 	}
-	cur_mipi_sensor_mode = &(s_ctrl->mipi_info[0]);
+#endif
  #if defined(CONFIG_CAMERA_FRS_DRAM_TEST)
 	}
 #endif
@@ -317,7 +363,9 @@ void cam_mipi_update_info(struct cam_sensor_ctrl_t *s_ctrl)
 	const struct cam_mipi_sensor_mode *cur_mipi_sensor_mode;
 	int found = -1;
 
-	cur_mipi_sensor_mode = &(s_ctrl->mipi_info[0]);
+	if (!s_ctrl->mipi_info)
+		return;
+	cur_mipi_sensor_mode = &s_ctrl->mipi_info[0];
 
 	CAM_DBG(CAM_SENSOR, "[AM_DBG] cur rat : %d", cur_mipi_sensor_mode->mipi_channel->rat_band);
 	CAM_DBG(CAM_SENSOR, "[AM_DBG] cur channel_min : %d", cur_mipi_sensor_mode->mipi_channel->channel_min);
@@ -346,7 +394,11 @@ void cam_mipi_update_info(struct cam_sensor_ctrl_t *s_ctrl)
 #endif
 
 	if (adaptive_mipi_mode > 0) {
-		s_ctrl->mipi_clock_index_new = adaptive_mipi_mode - 10;
+		if (adaptive_mipi_mode >= 10 &&
+		    adaptive_mipi_mode - 10 < cur_mipi_sensor_mode->sensor_setting_size)
+			s_ctrl->mipi_clock_index_new = adaptive_mipi_mode - 10;
+		else
+			CAM_ERR(CAM_SENSOR, "[AM_DBG] invalid adaptive mode: %d", adaptive_mipi_mode);
 		CAM_INFO(CAM_SENSOR, "[AM_DBG] test adaptive mode : %d", s_ctrl->mipi_clock_index_new);
 	}
 }
@@ -355,9 +407,13 @@ void cam_mipi_get_clock_string(struct cam_sensor_ctrl_t *s_ctrl)
 {
 	const struct cam_mipi_sensor_mode *cur_mipi_sensor_mode;
 
-	cur_mipi_sensor_mode = &(s_ctrl->mipi_info[0]);
+	if (!s_ctrl->mipi_info)
+		return;
+	cur_mipi_sensor_mode = &s_ctrl->mipi_info[0];
 
-	sprintf(mipi_string, "%s",
+	if (s_ctrl->mipi_clock_index_new >= cur_mipi_sensor_mode->sensor_setting_size)
+		return;
+	snprintf(mipi_string, 20, "%s",
 		cur_mipi_sensor_mode->mipi_setting[s_ctrl->mipi_clock_index_new].str_mipi_clk);
 
 	CAM_DBG(CAM_SENSOR, "[AM_DBG] cam_mipi_get_clock_string : %d", s_ctrl->mipi_clock_index_new);

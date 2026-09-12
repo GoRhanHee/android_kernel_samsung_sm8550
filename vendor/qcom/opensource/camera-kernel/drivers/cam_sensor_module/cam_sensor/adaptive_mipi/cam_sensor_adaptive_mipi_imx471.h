@@ -15,7 +15,7 @@
 
 #include "cam_sensor_dev.h"
 
-int num_front_top_mipi_setting = 1;
+static int num_front_top_mipi_setting = 1;
 
 /*************************************/
 /* ========== Mode A =============== */
@@ -28,19 +28,19 @@ enum {
 	CAM_IMX471_SET_A_Full_774p4_MHZ = 3,
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FULL_793p6_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FULL_793p6_MHZ_REG_ARRAY[] = {
     {0x030F, 0xF8, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FULL_723p2_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FULL_723p2_MHZ_REG_ARRAY[] = {
     {0x030F, 0xE2, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FULL_771p2_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FULL_771p2_MHZ_REG_ARRAY[] = {
     {0x030F, 0xF1, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FULL_774p4_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FULL_774p4_MHZ_REG_ARRAY[] = {
     {0x030F, 0xF2, 0x00, 0x00},
 };
 
@@ -369,7 +369,7 @@ enum {
 	CAM_FRONT_TOP_SET_DUMMY_MHZ = 0,
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FRONT_TOP_DUMMY_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FRONT_TOP_DUMMY_MHZ_REG_ARRAY[] = {
 };
 
 static const struct cam_sensor_i2c_reg_setting sensor_front_top_setfile_dummy_mhz[] = {

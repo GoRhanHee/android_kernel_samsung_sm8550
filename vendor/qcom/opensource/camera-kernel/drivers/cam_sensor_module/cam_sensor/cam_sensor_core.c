@@ -48,7 +48,6 @@ module_param(frame_cnt_dbg, int, 0644);
 static int disable_sensor_retention;
 module_param(disable_sensor_retention, int, 0644);
 
-static int check_stream_on = -1;
 #endif
 
 #if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
@@ -146,7 +145,9 @@ int cam_sensor_apply_adaptive_mipi_settings(struct cam_sensor_ctrl_t *s_ctrl)
  	}
 
 	if (cam_check_stream_on(s_ctrl)
+		&& s_ctrl->mipi_info
 		&& s_ctrl->mipi_clock_index_new != INVALID_MIPI_INDEX
+		&& s_ctrl->mipi_clock_index_new < s_ctrl->mipi_info[0].sensor_setting_size
 		&& s_ctrl->i2c_data.streamon_settings.is_settings_valid) {
 		CAM_DBG(CAM_SENSOR, "[AM_DBG] Write MIPI setting before Stream On setting. mipi_index : %d",
 			s_ctrl->mipi_clock_index_new);
@@ -320,8 +321,10 @@ static int32_t cam_sensor_is_need_to_read_otp(struct cam_sensor_ctrl_t *s_ctrl, 
 
 	rc = camera_io_dev_read(&s_ctrl->io_master_info, SENSOR_REVISION_ADDR, &read_value,
 		CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD, false);
-	if (rc < 0)
+	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR, "Failed to read SENSOR_REVISION_ADDR");
+		return 0;
+	}
 
 	CAM_INFO(CAM_SENSOR, "[BPC] Revision read_value = 0x%x", read_value);
 	*sensor_revision = read_value;
@@ -528,249 +531,111 @@ int cam_sensor_read_bpc_from_otp(struct cam_sensor_ctrl_t *s_ctrl, uint32_t sens
 }
 #endif
 
-#if defined(CONFIG_SENSOR_RETENTION)
-uint8_t sensor_retention_mode = RETENTION_INIT;
-
-int cam_sensor_write_retention_setting(
+#if defined(CONFIG_SENSOR_RETENTION) || defined(CONFIG_CAMERA_HYPERLAPSE_300X)
+static int cam_sensor_write_retention_setting(
 	struct camera_io_master *io_master_info,
-	struct cam_sensor_i2c_reg_setting* settings,
-	uint32_t settings_size)
+	const struct cam_sensor_i2c_reg_setting *settings, u32 settings_size)
 {
-	int32_t rc = 0;
-	uint32_t i = 0, size = 0;
-	struct cam_sensor_i2c_reg_setting reg_setting;
+	u32 i;
+	int rc;
 
 	for (i = 0; i < settings_size; i++) {
-		if (size < settings[i].size)
-			size = settings[i].size;
+		struct cam_sensor_i2c_reg_setting reg_setting = settings[i];
+
+		reg_setting.reg_setting = kmemdup(settings[i].reg_setting,
+			settings[i].size * sizeof(*reg_setting.reg_setting), GFP_KERNEL);
+		if (!reg_setting.reg_setting)
+			return -ENOMEM;
+		rc = camera_io_dev_write(io_master_info, &reg_setting);
+		kfree(reg_setting.reg_setting);
+		if (rc < 0)
+			return rc;
 	}
-
-	reg_setting.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array) * size, GFP_KERNEL);
-	if (reg_setting.reg_setting != NULL) {
-		for (i = 0; i < settings_size; i++) {
-			size = settings[i].size;
-			memcpy(reg_setting.reg_setting,
-				settings[i].reg_setting,
-				sizeof(struct cam_sensor_i2c_reg_array) * size);
-			reg_setting.size = size;
-			reg_setting.addr_type = settings[i].addr_type;
-			reg_setting.data_type = settings[i].data_type;
-			reg_setting.delay = settings[i].delay;
-
-
-#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
-			if (i2c_debug_cnt > 0) {
-				int32_t k;
-
-				for (k = 0; k < reg_setting.size && k < i2c_debug_cnt; k++) {
-					if (k == 0) {
-						CAM_INFO(CAM_SENSOR,
-							"[I2C_DBG] ====== size : %d ======",
-							reg_setting.size);
-					}
-					CAM_INFO(CAM_SENSOR,
-						"[I2C_DBG] [%d] addr : 0x%04X, data : 0x%04X", k,
-						reg_setting.reg_setting[k].reg_addr,
-						reg_setting.reg_setting[k].reg_data);
-				}
-			}
-#endif
-
-			rc = camera_io_dev_write(io_master_info,
-				&reg_setting);
-			if (rc < 0)
-				CAM_ERR(CAM_SENSOR,
-					"Failed to random write I2C settings[%d]: %d", i, rc);
-		}
-
-		if (reg_setting.reg_setting) {
-			kfree(reg_setting.reg_setting);
-			reg_setting.reg_setting = NULL;
-		}
-	}
-	else {
-		CAM_ERR(CAM_SENSOR,"[RET_DBG] out of memory");
-	}
-
-	return rc;
+	return 0;
 }
 
-void cam_sensor_read_retention_status(struct cam_sensor_ctrl_t *s_ctrl, uint32_t expect_value)
-{
-	uint32_t read_value = 0xBEEF;
-	int32_t rc = 0;
+#endif
 
-	rc = camera_io_dev_read(&s_ctrl->io_master_info, 0x6F12, &read_value,
+#if defined(CONFIG_SENSOR_RETENTION)
+static int cam_sensor_write_retention_step(struct cam_sensor_ctrl_t *s_ctrl,
+	enum cam_retention_step step)
+{
+	const struct cam_retention_profile *profile = cam_sensor_retention_profile(s_ctrl);
+
+	if (!profile || disable_sensor_retention > 0)
+		return 0;
+	return cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
+		profile->settings[step], profile->count[step]);
+}
+
+static int cam_sensor_retention_ready(struct cam_sensor_ctrl_t *s_ctrl)
+{
+	u32 value;
+	int rc = cam_sensor_write_retention_step(s_ctrl, CAM_RETENTION_READY);
+
+	if (rc < 0)
+		return rc;
+	usleep_range(10000, 11000);
+	rc = camera_io_dev_read(&s_ctrl->io_master_info, 0x6F12, &value,
 		CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD, false);
-
-	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "read failed rc %d", rc);
-	} else {
-		if (read_value == expect_value) {
-			CAM_INFO(CAM_SENSOR, "[RET_DBG] Pass retention status : 0x%x", expect_value);
-		} else {
-			CAM_WARN(CAM_SENSOR, "[RET_DBG] Fail retention status (0x%x != 0x%x)", expect_value, read_value);
-		}
-	}
+	if (rc < 0)
+		return rc;
+	return value == 0x0100 ? 0 : -EINVAL;
 }
 
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)	|| defined(CONFIG_SEC_B5Q_PROJECT)
 int cam_sensor_retention_calc_checksum(struct cam_sensor_ctrl_t *s_ctrl)
 {
-	uint32_t read_value = 0xBEEF;
-	uint8_t read_cnt = 0;
-	int rc = -1;
-	uint32_t sensor_id = 0;
+	u32 read_value = 0;
+	u16 sensor_id = s_ctrl->sensordata->slave_info.sensor_id;
+	int retry, rc;
 
-	sensor_id = s_ctrl->sensordata->slave_info.sensor_id;
+	if (!cam_sensor_has_retention(s_ctrl) || disable_sensor_retention > 0 ||
+	    s_ctrl->retention_mode != RETENTION_ON)
+		return -EINVAL;
 
-	// Not retention sensor - Always write init settings
-	if (sensor_id != RETENTION_SENSOR_ID)
-		return rc;
-
-	if (disable_sensor_retention > 0) {
-		CAM_INFO(CAM_SENSOR, "[RET_DBG] retention disabled");
-		return rc;
-	}
-
-	// Retention sensor, but Not retention - write init settings
-	if (sensor_retention_mode != RETENTION_ON)
-		return rc;
-
-	CAM_INFO(CAM_SENSOR, "[RET_DBG] cam_sensor_retention_calc_checksum");
-	for (read_cnt = 0; read_cnt < SENSOR_RETENTION_READ_RETRY_CNT; read_cnt++) {
-
-#if defined(CONFIG_SEC_B5Q_PROJECT)
-		// 1. Wait - 10ms delay
-		usleep_range(10000, 11000);
-
-		// 2. Check result for checksum test - read addr: 0x100E
-		rc = camera_io_dev_read(&s_ctrl->io_master_info, 0x100E, &read_value,
-			CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD, false);
-		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "Failed to read");
-#else
-		usleep_range(15000, 15100);
-
-		// 1. Check result for retention mode - read addr: 0x010E
-		rc = camera_io_dev_read(&s_ctrl->io_master_info, 0x010E, &read_value,
-			CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD, false);
-		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR, "Failed to read");
+	for (retry = 0; retry < SENSOR_RETENTION_READ_RETRY_CNT; retry++) {
+		if (sensor_id == SENSOR_ID_S5KHP2) {
+			usleep_range(30000, 31000);
+			rc = cam_sensor_write_retention_step(s_ctrl, CAM_RETENTION_CHECKSUM);
+			if (rc < 0)
+				return rc;
+			rc = camera_io_dev_read(&s_ctrl->io_master_info, 0x6F12, &read_value,
+				CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD, false);
+		} else if (sensor_id == SENSOR_ID_S5K2LD) {
+			usleep_range(10000, 11000);
+			rc = camera_io_dev_read(&s_ctrl->io_master_info, 0x100E, &read_value,
+				CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD, false);
 		} else {
-			if (read_value == 0x0000) {
-				CAM_INFO(CAM_SENSOR, "[RET_DBG] Pass retention mode check");
-				rc = 0;
-			} else {
-				CAM_WARN(CAM_SENSOR, "[RET_DBG] Fail retention mode check retry : %d", read_cnt);
+			usleep_range(15000, 15100);
+			rc = camera_io_dev_read(&s_ctrl->io_master_info, 0x010E, &read_value,
+				CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD, false);
+			if (rc < 0)
+				return rc;
+			if (read_value != 0)
 				continue;
-			}
+			rc = camera_io_dev_read(&s_ctrl->io_master_info, 0x19C2, &read_value,
+				CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD, false);
 		}
-
-		// 2. Check result for checksum test - read addr: 0x19C2
-		rc = camera_io_dev_read(&s_ctrl->io_master_info, 0x19C2, &read_value,
-			CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD, false);
 		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "Failed to read");
-#endif
-
+			return rc;
 		if (read_value == 0x0100) {
-			CAM_INFO(CAM_SENSOR, "[RET_DBG] Pass checksum test");
-			rc = 0;
-			break;
-		} else {
-			CAM_ERR(CAM_SENSOR, "[RET_DBG] Fail checksum test (read_value = 0x%x, retry cnt : %d)", read_value, read_cnt);
+			if (sensor_id == SENSOR_ID_S5KHP2)
+				return cam_sensor_write_retention_step(s_ctrl, CAM_RETENTION_HW_INIT);
+			return 0;
 		}
 	}
-
-
-	if ((read_cnt == SENSOR_RETENTION_READ_RETRY_CNT) && (read_value != 0x0100)) {
-		CAM_ERR(CAM_SENSOR, "[RET_DBG] Fail checksum test! 0x%x", read_value);
-		rc = -1;
-	}
-
-	return rc;
+	return -EINVAL;
 }
-#elif defined(CONFIG_SEC_DM3Q_PROJECT)
-int cam_sensor_retention_calc_checksum(struct cam_sensor_ctrl_t *s_ctrl)
-{
-	uint32_t read_value = 0xBEEF;
-	uint8_t read_cnt = 0;
-	int rc = -1;
-	uint32_t sensor_id = 0;
 
-	sensor_id = s_ctrl->sensordata->slave_info.sensor_id;
-
-	// Not retention sensor - Always write init settings
-	if (sensor_id != RETENTION_SENSOR_ID)
-		return rc;
-
-	if (disable_sensor_retention > 0) {
-		CAM_INFO(CAM_SENSOR, "[RET_DBG] retention disabled");
-		return rc;
-	}
-
-	// Retention sensor, but Not retention - write init settings
-	if (sensor_retention_mode != RETENTION_ON)
-		return rc;
-
-	CAM_INFO(CAM_SENSOR, "[RET_DBG] cam_sensor_retention_calc_checksum");
-	for (read_cnt = 0; read_cnt < SENSOR_RETENTION_READ_RETRY_CNT; read_cnt++) {
-
-		usleep_range(30000, 31000);
-
-		// Read Checksum Register
-		rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
-			retention_checksum_settings, ARRAY_SIZE(retention_checksum_settings));
-		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to retention checksum setting rc = %d", rc);
-
-		rc = camera_io_dev_read(&s_ctrl->io_master_info, 0x6F12, &read_value,
-			CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD, false);
-		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR, "Failed to read");
-		} else {
-			if (read_value == 0x0100) {
-				CAM_INFO(CAM_SENSOR, "[RET_DBG] Pass checksum test");
-				rc = 0;
-
-				// HW Setting Init
-				rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
-					retention_hw_init_settings, ARRAY_SIZE(retention_hw_init_settings));
-				if (rc < 0)
-					CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to HW Setting Init setting rc = %d", rc);
-
-				break;
-			} else {
-				CAM_WARN(CAM_SENSOR, "[RET_DBG] Fail checksum test (read_value = 0x%x, retry cnt : %d)", read_value, read_cnt);
-			}
-		}
-	}
-
-	if ((read_cnt == SENSOR_RETENTION_READ_RETRY_CNT) && (read_value != 0x01)) {
-		CAM_ERR(CAM_SENSOR, "[RET_DBG] Fail checksum test! 0x%x", read_value);
-		rc = -1;
-	}
-
-	return rc;
-}
-#endif
-
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)\
-	|| defined(CONFIG_SEC_B5Q_PROJECT)
 void cam_sensor_write_prepare_retention(struct cam_sensor_ctrl_t *s_ctrl)
 {
 	int32_t rc = 0;
-	uint32_t sensor_id = 0;
 
-	sensor_id = s_ctrl->sensordata->slave_info.sensor_id;
-
-	if(sensor_id != RETENTION_SENSOR_ID)
+	if (!cam_sensor_has_retention(s_ctrl))
 		return;
 
 	CAM_INFO(CAM_SENSOR, "[RET_DBG] cam_sensor_write_prepare_retention");
-	rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
-		retention_prepare_settings, ARRAY_SIZE(retention_prepare_settings));
+	rc = cam_sensor_write_retention_step(s_ctrl, CAM_RETENTION_PREPARE);
 	if (rc < 0)
 		CAM_ERR(CAM_SENSOR,	"[RET_DBG] Failed to retention prepare rc = %d", rc);
 }
@@ -780,11 +645,8 @@ int cam_sensor_wait_retention_mode(struct cam_sensor_ctrl_t *s_ctrl)
 	uint32_t read_value = 0xBEEF;
 	uint8_t read_cnt = 0;
 	int rc = -1;
-	uint32_t sensor_id = 0;
 
-	sensor_id = s_ctrl->sensordata->slave_info.sensor_id;
-
-	if (sensor_id != RETENTION_SENSOR_ID)
+	if (!cam_sensor_has_retention(s_ctrl))
 		return 0;
 
 	if (disable_sensor_retention > 0) {
@@ -819,7 +681,19 @@ int cam_sensor_wait_retention_mode(struct cam_sensor_ctrl_t *s_ctrl)
 
 	return rc;
 }
-#endif
+
+static int cam_sensor_finish_retention(struct cam_sensor_ctrl_t *s_ctrl, bool wait_b5)
+{
+	u16 sensor_id = s_ctrl->sensordata->slave_info.sensor_id;
+
+	if (disable_sensor_retention > 0)
+		return 0;
+	if (sensor_id == SENSOR_ID_S5KHP2)
+		return cam_sensor_retention_ready(s_ctrl);
+	if (sensor_id == SENSOR_ID_S5KGN3 || (wait_b5 && sensor_id == SENSOR_ID_S5K2LD))
+		return cam_sensor_wait_retention_mode(s_ctrl);
+	return 0;
+}
 
 int cam_sensor_write_normal_init(struct cam_sensor_ctrl_t *s_ctrl)
 {
@@ -832,7 +706,7 @@ int cam_sensor_write_normal_init(struct cam_sensor_ctrl_t *s_ctrl)
 
 	sensor_id = s_ctrl->sensordata->slave_info.sensor_id;
 
-	if(sensor_id != RETENTION_SENSOR_ID)
+	if (!cam_sensor_has_retention(s_ctrl))
 		return rc;
 
 	if (disable_sensor_retention > 0) {
@@ -840,17 +714,16 @@ int cam_sensor_write_normal_init(struct cam_sensor_ctrl_t *s_ctrl)
 		return rc;
 	}
 
-	if (sensor_retention_mode != RETENTION_INIT)
+	if (s_ctrl->retention_mode != RETENTION_INIT)
 		return rc;
 
 #if defined(CONFIG_SAMSUNG_READ_BPC_FROM_OTP)
-	if (cam_sensor_is_need_to_read_otp(s_ctrl, &sensor_revision))
+	if (sensor_id == SENSOR_ID_S5KHP2 &&
+	    cam_sensor_is_need_to_read_otp(s_ctrl, &sensor_revision))
 		cam_sensor_read_bpc_from_otp(s_ctrl, sensor_revision);
 #endif
 
 	CAM_INFO(CAM_SENSOR, "[RET_DBG] E");
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)\
-	|| defined(CONFIG_SEC_B5Q_PROJECT)
 	if (s_ctrl->i2c_data.init_settings.is_settings_valid &&
 		(s_ctrl->i2c_data.init_settings.request_id == 0)) {
 		rc = cam_sensor_apply_settings(s_ctrl, 0,
@@ -863,12 +736,13 @@ int cam_sensor_write_normal_init(struct cam_sensor_ctrl_t *s_ctrl)
 
 		CAM_INFO(CAM_SENSOR, "[RET_DBG] stream on");
 
-#if defined(CONFIG_SEC_B5Q_PROJECT)
-		cam_sensor_write_prepare_retention(s_ctrl);
-#endif
+		if (sensor_id == SENSOR_ID_S5K2LD) {
+			rc = cam_sensor_write_retention_step(s_ctrl, CAM_RETENTION_PREPARE);
+			if (rc < 0)
+				goto end;
+		}
 
-		rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
-			stream_on_settings, ARRAY_SIZE(stream_on_settings));
+		rc = cam_sensor_write_retention_step(s_ctrl, CAM_RETENTION_STREAM_ON);
 		if (rc < 0) {
 			CAM_ERR(CAM_SENSOR,
 				"[RET_DBG] Failed to write stream on off init rc = %d", rc);
@@ -880,8 +754,7 @@ int cam_sensor_write_normal_init(struct cam_sensor_ctrl_t *s_ctrl)
 #endif
 
 		CAM_INFO(CAM_SENSOR, "[RET_DBG] stream off");
-		rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
-			stream_off_settings, ARRAY_SIZE(stream_off_settings));
+		rc = cam_sensor_write_retention_step(s_ctrl, CAM_RETENTION_STREAM_OFF);
 		if (rc < 0) {
 			CAM_ERR(CAM_SENSOR,
 				"[RET_DBG] Failed to write stream on off init rc = %d", rc);
@@ -892,34 +765,12 @@ int cam_sensor_write_normal_init(struct cam_sensor_ctrl_t *s_ctrl)
 		cam_sensor_wait_stream_off(s_ctrl);
 #endif
 
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
-		rc = cam_sensor_wait_retention_mode(s_ctrl);
-		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR,
-				"[RET_DBG] Failed to wait retention mode rc = %d", rc);
-		}
-#elif defined(CONFIG_SEC_DM3Q_PROJECT)
-		CAM_INFO(CAM_SENSOR, "[RET_DBG] Check checksum ready");
-		rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
-			retention_ready_settings, ARRAY_SIZE(retention_ready_settings));
+		rc = cam_sensor_finish_retention(s_ctrl, false);
 		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to retention checksum setting rc = %d", rc);
-
-		usleep_range(10000, 11000);
-
-		cam_sensor_read_retention_status(s_ctrl, 0x0100);
-#endif
+			CAM_ERR(CAM_SENSOR, "[RET_DBG] retention completion failed: %d", rc);
+		if (rc == 0)
+			s_ctrl->retention_mode = RETENTION_READY_TO_ON;
 	}
-#else
-	rc = cam_sensor_write_retention_setting(io_master_info,
-		normal_init_setting, ARRAY_SIZE(normal_init_setting));
-	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR,
-				"[RET_DBG] Failed to write normal init rc = %d", rc);
-		goto end;
-	}
-#endif
-	sensor_retention_mode = RETENTION_READY_TO_ON;
 end:
 	CAM_INFO(CAM_SENSOR, "[RET_DBG] X");
 
@@ -933,197 +784,59 @@ void cam_sensor_write_enable_crc(struct cam_sensor_ctrl_t *s_ctrl)
 
 	sensor_id = s_ctrl->sensordata->slave_info.sensor_id;
 
-	if(sensor_id != RETENTION_SENSOR_ID)
+	if (!cam_sensor_has_retention(s_ctrl))
 		return;
 
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
-	CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on for seamless mode change");
-	cam_sensor_write_prepare_retention(s_ctrl);
+	if (sensor_id == SENSOR_ID_S5KGN3) {
+		CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on for seamless mode change");
+		cam_sensor_write_prepare_retention(s_ctrl);
 
-	rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
-		stream_on_settings, ARRAY_SIZE(stream_on_settings));
-	if (rc < 0)
-		CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to additional stream on for seamless mode change (rc = %d)", rc);
+		rc = cam_sensor_write_retention_step(s_ctrl, CAM_RETENTION_STREAM_ON);
+		if (rc < 0)
+			CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to additional stream on for seamless mode change (rc = %d)", rc);
 
 #if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
-	cam_sensor_wait_stream_on(s_ctrl, CAM_SENSOR_WAIT_STREAMON_TIMES);
+		cam_sensor_wait_stream_on(s_ctrl, CAM_SENSOR_WAIT_STREAMON_TIMES);
 #endif
-#endif
+	}
 
 	CAM_INFO(CAM_SENSOR, "[RET_DBG] cam_sensor_write_enable_crc");
-	rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
-		retention_enable_settings, ARRAY_SIZE(retention_enable_settings));
+	rc = cam_sensor_write_retention_step(s_ctrl, CAM_RETENTION_ENABLE);
 	if (rc < 0)
 		CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to retention enable rc = %d", rc);
 }
 #endif
 
 #if defined(CONFIG_CAMERA_HYPERLAPSE_300X)
-int cam_sensor_apply_hyperlapse_settings(
-	struct cam_sensor_ctrl_t *s_ctrl)
+#include "cam_sensor_hyperlapse.h"
+
+int cam_sensor_apply_hyperlapse_settings(struct cam_sensor_ctrl_t *s_ctrl)
 {
-	int rc = 0;
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
-	struct cam_sensor_i2c_reg_array i2c_fll_reg_array[] = {
-		{0x0104, 0x0101, 0, 0},
-		{0x0702, 0x0000, 0, 0},
-		{0x0704, 0x0000, 0, 0},
-		{0x0340, 0x1AB4, 0, 0},
-		{0x0202, 0x0D11, 0, 0},
-		{0x0204, 0x0063, 0, 0},
-		{0x020E, 0x0100, 0, 0},
-		{0x0104, 0x0001, 0, 0},
-	};
+	const struct cam_hyperlapse_profile *profile;
+	int rc;
 
-	struct cam_sensor_i2c_reg_array i2c_streamoff_reg_array[] = {
-		{0x0B32, 0x0000, 0, 0},
-		{0x0E00, 0x0003, 0, 0},
-		{0x0100, 0x0003, 0, 0},
-	};
-
-	struct cam_sensor_i2c_reg_array i2c_streamon_reg_array[] = {
-		{0x0B32, 0x0000, 0, 0},
-		{0x0100, 0x0103, 0, 0},
-	};
-
-	if (s_ctrl->sensordata->slave_info.sensor_id != SENSOR_ID_S5KGN3)
-	{
+	if (s_ctrl->camera_shooting_mode != 16 && s_ctrl->camera_shooting_mode != 8 &&
+	    s_ctrl->camera_shooting_mode != 31)
+		return 0;
+	switch (s_ctrl->sensordata->slave_info.sensor_id) {
+	case SENSOR_ID_S5KGN3: profile = &gn3_hyperlapse; break;
+	case SENSOR_ID_S5KHP2: profile = &hp2_hyperlapse; break;
+	case SENSOR_ID_S5K2LD: profile = &s5k2ld_hyperlapse; break;
+	default: return 0;
+	}
+	rc = cam_sensor_wait_stream_on(s_ctrl, CAM_SENSOR_WAIT_STREAMON_TIMES);
+	if (rc < 0)
 		return rc;
-	}
-#elif defined(CONFIG_SEC_DM3Q_PROJECT)
-	struct cam_sensor_i2c_reg_array i2c_fll_reg_array[] = {
-		{0x0104, 0x0101, 0, 0},
-		{0x0702, 0x0000, 0, 0},
-		{0x0704, 0x0000, 0, 0},
-		{0x0340, 0x18D0, 0, 0},
-		{0x0202, 0x0C26, 0, 0},
-		{0x0204, 0x01AD, 0, 0},
-		{0x020E, 0x0100, 0, 0},
-		{0x0104, 0x0001, 0, 0},
-	};
-
-	struct cam_sensor_i2c_reg_array i2c_streamoff_reg_array[] = {
-		{0xFCFC, 0x4000, 0, 0},
-		{0x0E00, 0x0080, 0, 0},
-		{0x0100, 0x0003, 0, 0},
-	};
-
-	struct cam_sensor_i2c_reg_array i2c_streamon_reg_array[] = {
-		{0x6028, 0x1002, 0, 0},
-		{0x602A, 0xCEB4, 0, 0},
-		{0x6F12, 0x0000, 0, 0},
-		{0x0100, 0x0103, 0, 0},
-	};
-
-	if (s_ctrl->sensordata->slave_info.sensor_id != SENSOR_ID_S5KHP2)
-	{
+	rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info, profile->streamoff, 1);
+	if (rc < 0)
 		return rc;
-	}
-#elif defined(CONFIG_SEC_B5Q_PROJECT)
-	struct cam_sensor_i2c_reg_array i2c_fll_reg_array[] = {
-		{0x0104, 0x0101, 0, 0},
-		{0x0702, 0x0000, 0, 0},
-		{0x0704, 0x0000, 0, 0},
-		{0x0340, 0x2F8E, 0, 0},
-		{0x0202, 0x0D11, 0, 0},
-		{0x0204, 0x0063, 0, 0},
-		{0x020E, 0x0100, 0, 0},
-		{0x0104, 0x0001, 0, 0},
-	};
-
-	struct cam_sensor_i2c_reg_array i2c_streamoff_reg_array[] = {
-		{0x0E0A, 0x0000, 0, 0},
-		{0x0100, 0x0000, 0, 0},
-	};
-
-	struct cam_sensor_i2c_reg_array i2c_streamon_reg_array[] = {
-		{0x0100, 0x0100, 0, 0},
-	};
-
-	if (s_ctrl->sensordata->slave_info.sensor_id != SENSOR_ID_S5K2LD)
-	{
+	rc = cam_sensor_wait_stream_off(s_ctrl);
+	if (rc < 0)
 		return rc;
-	}
-#endif
-
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)\
-	|| defined(CONFIG_SEC_B5Q_PROJECT)
-	// SHOOTING_MODE_HYPERLAPSE = 16, SHOOTING_MODE_NIGHT = 8, SHOOTING_MODE_SUPER_NIGHT = 31
-	if ((s_ctrl->camera_shooting_mode == 16) || (s_ctrl->camera_shooting_mode == 8) || (s_ctrl->camera_shooting_mode == 31))
-	{
-		struct cam_sensor_i2c_reg_setting reg_fllsetting;
-		struct cam_sensor_i2c_reg_setting reg_streamoffsetting;
-		struct cam_sensor_i2c_reg_setting reg_streamonsetting;
-		int size = ARRAY_SIZE(i2c_fll_reg_array);
-
-		CAM_INFO(CAM_SENSOR, "[RET_DBG] try hyperlapse streamoff setting");
-		reg_fllsetting.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array) * size, GFP_KERNEL);
-		if (reg_fllsetting.reg_setting != NULL) {
-			reg_fllsetting.size = size;
-			reg_fllsetting.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
-			reg_fllsetting.data_type = CAMERA_SENSOR_I2C_TYPE_WORD;
-			reg_fllsetting.delay = 0;
-			memcpy(reg_fllsetting.reg_setting, &i2c_fll_reg_array, sizeof(struct cam_sensor_i2c_reg_array) * size);
-			CAM_INFO(CAM_SENSOR, "[RET_DBG] fll size = %d", size);
-		}
-
-		size = ARRAY_SIZE(i2c_streamoff_reg_array);
-		reg_streamoffsetting.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array) * size, GFP_KERNEL);
-		if (reg_streamoffsetting.reg_setting != NULL) {
-			reg_streamoffsetting.size = size;
-			reg_streamoffsetting.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
-			reg_streamoffsetting.data_type = CAMERA_SENSOR_I2C_TYPE_WORD;
-			reg_streamoffsetting.delay = 0;
-			memcpy(reg_streamoffsetting.reg_setting, &i2c_streamoff_reg_array, sizeof(struct cam_sensor_i2c_reg_array) * size);
-			CAM_INFO(CAM_SENSOR, "[RET_DBG] streamoff size = %d", size);
-		}
-
-		size = ARRAY_SIZE(i2c_streamon_reg_array);
-		reg_streamonsetting.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array) * size, GFP_KERNEL);
-		if (reg_streamonsetting.reg_setting != NULL) {
-			reg_streamonsetting.size = size;
-			reg_streamonsetting.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
-			reg_streamonsetting.data_type = CAMERA_SENSOR_I2C_TYPE_WORD;
-			reg_streamonsetting.delay = 0;
-			memcpy(reg_streamonsetting.reg_setting, &i2c_streamon_reg_array, sizeof(struct cam_sensor_i2c_reg_array) * size);
-			CAM_INFO(CAM_SENSOR, "[RET_DBG] stream on size = %d", size);
-		}
-
-		rc = cam_sensor_wait_stream_on(s_ctrl, CAM_SENSOR_WAIT_STREAMON_TIMES);
-		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[RET_DBG] failed wait 1");
-
-		rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_streamoffsetting);
-		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to write streamoff settings %d", rc);
-
-		rc = cam_sensor_wait_stream_off(s_ctrl);
-		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[RET_DBG] failed wait 2");
-
-		rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_fllsetting);
-		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to write fll settings %d", rc);
-
-		rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_streamonsetting);
-		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to write streamon settings %d", rc);
-
-		if (reg_fllsetting.reg_setting) {
-			kfree(reg_fllsetting.reg_setting);
-			reg_fllsetting.reg_setting = NULL;
-		}
-		if (reg_streamoffsetting.reg_setting) {
-			kfree(reg_streamoffsetting.reg_setting);
-			reg_streamoffsetting.reg_setting = NULL;
-		}
-		if (reg_streamonsetting.reg_setting) {
-			kfree(reg_streamonsetting.reg_setting);
-			reg_streamonsetting.reg_setting = NULL;
-		}
-	}
-#endif
-	return rc;
+	rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info, profile->fll, 1);
+	if (rc < 0)
+		return rc;
+	return cam_sensor_write_retention_setting(&s_ctrl->io_master_info, profile->streamon, 1);
 }
 #endif
 
@@ -1147,9 +860,8 @@ int cam_sensor_pre_apply_settings(
 		}
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMON: {
 #if defined(CONFIG_SENSOR_RETENTION)
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
-			cam_sensor_write_prepare_retention(s_ctrl);
-#endif
+			if (s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_S5KGN3)
+				cam_sensor_write_prepare_retention(s_ctrl);
 #endif
 #if defined(CONFIG_CAMERA_ADAPTIVE_MIPI)
 			rc = cam_sensor_apply_adaptive_mipi_settings(s_ctrl);
@@ -1158,12 +870,11 @@ int cam_sensor_pre_apply_settings(
 		}
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_INITIAL_CONFIG: {
 #if defined(CONFIG_SENSOR_RETENTION)
-#if defined(CONFIG_SEC_DM3Q_PROJECT)
-			if (sensor_retention_mode != RETENTION_INIT) {
+			if (s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_S5KHP2 &&
+			    s_ctrl->retention_mode != RETENTION_INIT) {
 				cam_sensor_write_prepare_retention(s_ctrl);
 			}
 			break;
-#endif
 #endif
 		}
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_CONFIG:
@@ -1180,9 +891,6 @@ int cam_sensor_post_apply_settings(
 	enum cam_sensor_packet_opcodes opcode)
 {
 	int rc = 0;
-#if defined(CONFIG_SENSOR_RETENTION) && defined(CONFIG_SEC_DM3Q_PROJECT)
-	uint32_t sensor_id = s_ctrl->sensordata->slave_info.sensor_id;
-#endif
 
 	switch (opcode) {
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMOFF: {
@@ -1190,25 +898,10 @@ int cam_sensor_post_apply_settings(
 			cam_sensor_wait_stream_off(s_ctrl);
 #endif
 #if defined(CONFIG_SENSOR_RETENTION)
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
-			rc = cam_sensor_wait_retention_mode(s_ctrl);
-			if (rc < 0) {
-				CAM_ERR(CAM_SENSOR,
-					"[RET_DBG] Failed to wait retention mode rc = %d", rc);
-			}
-#elif defined(CONFIG_SEC_DM3Q_PROJECT)
-			if (sensor_id == RETENTION_SENSOR_ID) {
-				CAM_INFO(CAM_SENSOR, "[RET_DBG] Check retention ready");
-				rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
-					retention_ready_settings, ARRAY_SIZE(retention_ready_settings));
-				if (rc < 0)
-					CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to retention checksum setting rc = %d", rc);
+			rc = cam_sensor_finish_retention(s_ctrl, false);
+			if (rc < 0)
+				CAM_ERR(CAM_SENSOR, "[RET_DBG] retention completion failed: %d", rc);
 
-				usleep_range(10000, 11000);
-
-				cam_sensor_read_retention_status(s_ctrl, 0x0100);
-			}
-#endif
 #endif
 			break;
 		}
@@ -1601,8 +1294,8 @@ static int32_t cam_sensor_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 		s_ctrl->sensor_mode = csl_packet->header.request_id;
 #endif
 #if defined(CONFIG_SENSOR_RETENTION)
-		if (s_ctrl->sensordata->slave_info.sensor_id == RETENTION_SENSOR_ID) {
-			check_stream_on = 0;
+		if (cam_sensor_has_retention(s_ctrl)) {
+			s_ctrl->retention_stream_on = 0;
 		}
 #endif
 		goto end;
@@ -2275,24 +1968,24 @@ void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl)
 	}
 
 #if defined(CONFIG_SENSOR_RETENTION)
-	if ((s_ctrl->sensordata->slave_info.sensor_id == RETENTION_SENSOR_ID) &&
-		(check_stream_on == 0) && (sensor_retention_mode != RETENTION_ON)) {
+	if (cam_sensor_has_retention(s_ctrl) &&
+		(s_ctrl->retention_stream_on == 0) && (s_ctrl->retention_mode != RETENTION_ON)) {
 		CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on/off for checksum start!");
 
-#if defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_B5Q_PROJECT)
-		rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
-			stream_on_settings, ARRAY_SIZE(stream_on_settings));
-		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to retention additional stream on (rc = %d)", rc);
+		if (s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_S5KHP2 ||
+		    s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_S5K2LD) {
+			rc = cam_sensor_write_retention_step(s_ctrl, CAM_RETENTION_STREAM_ON);
+			if (rc < 0)
+				CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to retention additional stream on (rc = %d)", rc);
 
 #if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
-		cam_sensor_wait_stream_on(s_ctrl, CAM_SENSOR_WAIT_STREAMON_TIMES);
+			cam_sensor_wait_stream_on(s_ctrl, CAM_SENSOR_WAIT_STREAMON_TIMES);
 #endif
-#endif
+		}
+
 		cam_sensor_write_enable_crc(s_ctrl);
 
-		rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
-			stream_off_settings, ARRAY_SIZE(stream_off_settings));
+		rc = cam_sensor_write_retention_step(s_ctrl, CAM_RETENTION_STREAM_OFF);
 		if (rc < 0)
 			CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to retention additional stream off (rc = %d)", rc);
 
@@ -2301,23 +1994,10 @@ void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl)
 #endif
 		CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on/off for checksum end!");
 
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)	|| defined(CONFIG_SEC_B5Q_PROJECT)
-		rc = cam_sensor_wait_retention_mode(s_ctrl);
-		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR,
-				"[RET_DBG] Failed to wait retention mode rc = %d", rc);
-		}
-#elif defined(CONFIG_SEC_DM3Q_PROJECT)
-		CAM_INFO(CAM_SENSOR, "[RET_DBG] Check retention ready");
-		rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
-			retention_ready_settings, ARRAY_SIZE(retention_ready_settings));
+		rc = cam_sensor_finish_retention(s_ctrl, true);
 		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to retention checksum setting rc = %d", rc);
+			CAM_ERR(CAM_SENSOR, "[RET_DBG] retention completion failed: %d", rc);
 
-		usleep_range(10000, 11000);
-
-		cam_sensor_read_retention_status(s_ctrl, 0x0100);
-#endif
 	}
 #endif
 
@@ -2458,9 +2138,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	switch (cmd->op_code) {
 	case CAM_SENSOR_PROBE_CMD: {
 #if defined(CONFIG_SENSOR_RETENTION)
-		if (s_ctrl->sensordata->slave_info.sensor_id == RETENTION_SENSOR_ID) {
-			check_stream_on = -1;
-		}
+		s_ctrl->retention_stream_on = -1;
 #endif
 		if (s_ctrl->is_probe_succeed == 1) {
 			CAM_WARN(CAM_SENSOR,
@@ -2546,9 +2224,10 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 
 #if defined(CONFIG_SENSOR_RETENTION)
 		if (rc >= 0)
-			cam_sensor_write_normal_init(s_ctrl);
+			rc = cam_sensor_write_normal_init(s_ctrl);
 
-		if(s_ctrl->sensordata->slave_info.sensor_id == RETENTION_SENSOR_ID) {
+		if (cam_sensor_has_retention(s_ctrl) &&
+		    s_ctrl->retention_mode == RETENTION_READY_TO_ON) {
 			delete_request(&s_ctrl->i2c_data.init_settings);
 		}
 #endif
@@ -2630,8 +2309,8 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		}
 
 #if defined(CONFIG_SENSOR_RETENTION)
-		if (s_ctrl->sensordata->slave_info.sensor_id == RETENTION_SENSOR_ID) {
-			check_stream_on = 0;
+		if (cam_sensor_has_retention(s_ctrl)) {
+			s_ctrl->retention_stream_on = 0;
 		}
 #endif
 
@@ -2735,24 +2414,24 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		hw_bigdata_debug_info();
 
 #if defined(CONFIG_SENSOR_RETENTION)
-		if (s_ctrl->sensordata->slave_info.sensor_id == RETENTION_SENSOR_ID &&
-			check_stream_on == 0) {
+		if (cam_sensor_has_retention(s_ctrl) &&
+			s_ctrl->retention_stream_on == 0) {
 			CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on/off for checksum start!");
 
-#if defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_B5Q_PROJECT)
-			rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
-				stream_on_settings, ARRAY_SIZE(stream_on_settings));
-			if (rc < 0)
-				CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to retention additional stream on (rc = %d)", rc);
+			if (s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_S5KHP2 ||
+			    s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_S5K2LD) {
+				rc = cam_sensor_write_retention_step(s_ctrl, CAM_RETENTION_STREAM_ON);
+				if (rc < 0)
+					CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to retention additional stream on (rc = %d)", rc);
 
 #if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
-			cam_sensor_wait_stream_on(s_ctrl, CAM_SENSOR_WAIT_STREAMON_TIMES);
+				cam_sensor_wait_stream_on(s_ctrl, CAM_SENSOR_WAIT_STREAMON_TIMES);
 #endif
-#endif
+			}
+
 			cam_sensor_write_enable_crc(s_ctrl);
 
-			rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
-				stream_off_settings, ARRAY_SIZE(stream_off_settings));
+			rc = cam_sensor_write_retention_step(s_ctrl, CAM_RETENTION_STREAM_OFF);
 			if (rc < 0)
 				CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to retention additional stream off (rc = %d)", rc);
 
@@ -2761,23 +2440,10 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 #endif
 			CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on/off for checksum end!");
 
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
-			rc = cam_sensor_wait_retention_mode(s_ctrl);
-			if (rc < 0) {
-				CAM_ERR(CAM_SENSOR,
-					"[RET_DBG] Failed to wait retention mode rc = %d", rc);
-			}
-#elif defined(CONFIG_SEC_DM3Q_PROJECT)
-			CAM_INFO(CAM_SENSOR, "[RET_DBG] Check retention ready");
-			rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
-				retention_ready_settings, ARRAY_SIZE(retention_ready_settings));
+			rc = cam_sensor_finish_retention(s_ctrl, false);
 			if (rc < 0)
-				CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to retention checksum setting rc = %d", rc);
+				CAM_ERR(CAM_SENSOR, "[RET_DBG] retention completion failed: %d", rc);
 
-			usleep_range(10000, 11000);
-
-			cam_sensor_read_retention_status(s_ctrl, 0x0100);
-#endif
 		}
 #endif
 
@@ -2849,8 +2515,8 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		}
 
 #if defined(CONFIG_SENSOR_RETENTION)
-		if (s_ctrl->sensordata->slave_info.sensor_id == RETENTION_SENSOR_ID) {
-			check_stream_on = 1;
+		if (cam_sensor_has_retention(s_ctrl)) {
+			s_ctrl->retention_stream_on = 1;
 		}
 #endif
 
@@ -3206,7 +2872,7 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 	}
 
 #if defined(CONFIG_SENSOR_RETENTION)
-	if (s_ctrl->sensordata->slave_info.sensor_id == RETENTION_SENSOR_ID) {
+	if (cam_sensor_has_retention(s_ctrl)) {
 		CAM_INFO(CAM_SENSOR, "[RET_DBG] reset disable_sensor_retention parameter");
 		s_ctrl->soc_info.disable_sensor_retention = FALSE;
 	}
@@ -3337,9 +3003,9 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 	}
 
 #if defined(CONFIG_SENSOR_RETENTION)
-	if (s_ctrl->sensordata->slave_info.sensor_id == RETENTION_SENSOR_ID) {
-		if (sensor_retention_mode == RETENTION_READY_TO_ON) {
-			sensor_retention_mode = RETENTION_ON;
+	if (cam_sensor_has_retention(s_ctrl)) {
+		if (s_ctrl->retention_mode == RETENTION_READY_TO_ON) {
+			s_ctrl->retention_mode = RETENTION_ON;
 		}
 	}
 #endif

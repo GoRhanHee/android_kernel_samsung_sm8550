@@ -104,6 +104,38 @@ ifneq ($(strip $(SRC_FRONT_TOP_FILES)),)
 $(info camera_adaptive_mipi="$(shell cp -f $(SRC_FRONT_TOP_FILES) $(DST_FRONT_TOP_FILES))")
 endif
 
+ifeq ($(CONFIG_SEC_UNIVERSAL_PROJECT),y)
+ifeq ($(CONFIG_CAMERA_ADAPTIVE_MIPI),y)
+universal_mipi_objects := \
+	drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_mipi_s5kgn3.o \
+	drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_mipi_s5khp2.o \
+	drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_mipi_s5k2ld.o \
+	drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_mipi_imx564.o \
+	drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_mipi_imx258.o \
+	drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_mipi_imx258_b5.o \
+	drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_mipi_s5k3k1.o \
+	drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_mipi_imx754.o \
+	drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_mipi_s5k3lu.o \
+	drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_mipi_imx374.o \
+	drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_mipi_s5k3j1.o \
+	drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_mipi_imx471.o
+endif
+endif
+
+ifeq ($(CONFIG_SEC_UNIVERSAL_PROJECT),y)
+universal_csiphy_objects := \
+	drivers/cam_sensor_module/cam_csiphy/cam_csiphy_dm1q.o \
+	drivers/cam_sensor_module/cam_csiphy/cam_csiphy_dm2q.o \
+	drivers/cam_sensor_module/cam_csiphy/cam_csiphy_dm3q.o \
+	drivers/cam_sensor_module/cam_csiphy/cam_csiphy_q5q.o \
+	drivers/cam_sensor_module/cam_csiphy/cam_csiphy_b5q.o
+CFLAGS_cam_csiphy_dm1q.o += -DCONFIG_SEC_DM1Q_PROJECT=1
+CFLAGS_cam_csiphy_dm2q.o += -DCONFIG_SEC_DM2Q_PROJECT=1
+CFLAGS_cam_csiphy_dm3q.o += -DCONFIG_SEC_DM3Q_PROJECT=1
+CFLAGS_cam_csiphy_q5q.o += -DCONFIG_SEC_Q5Q_PROJECT=1
+CFLAGS_cam_csiphy_b5q.o += -DCONFIG_SEC_B5Q_PROJECT=1
+endif
+
 # List of all camera-kernel headers
 cam_include_dirs := $(shell dirname `find $(CAMERA_KERNEL_ROOT) -name '*.h'` | uniq)
 
@@ -122,7 +154,7 @@ ccflags-$(CONFIG_MSM_GLOBAL_SYNX) += -I$(KERNEL_ROOT)/drivers/media/platform/msm
 # After creating lists, add content of 'ccflags-m' variable to 'ccflags-y' one.
 ccflags-y += ${ccflags-m}
 
-camera-y := \
+camera-y := $(universal_mipi_objects) $(universal_csiphy_objects) \
 	drivers/cam_req_mgr/cam_req_mgr_core.o \
 	drivers/cam_req_mgr/cam_req_mgr_dev.o \
 	drivers/cam_req_mgr/cam_req_mgr_util.o \

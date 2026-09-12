@@ -8,6 +8,7 @@
 
 #include "cam_sensor_cmn_header.h"
 #include "cam_flash_core.h"
+#include "cam_sec_project.h"
 #include "cam_res_mgr_api.h"
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
@@ -25,21 +26,13 @@ typedef struct {
         uint32_t current_mA;
 } FlashlightLevelInfo;
 
-FlashlightLevelInfo calibData[MAX_FLASHLIGHT_LEVEL] = {
-#if defined(CONFIG_SEC_B5Q_PROJECT)
-        {1001, 40},
-        {1002, 60},
-        {1004, 80},
-        {1006, 140},
-        {1009, 160}
-#else
-        {1001, 25},
-        {1002, 50},
-        {1004, 75},
-        {1006, 100},
-        {1009, 125}
-#endif
+static const FlashlightLevelInfo calibData[MAX_FLASHLIGHT_LEVEL] = {
+	{1001, 25}, {1002, 50}, {1004, 75}, {1006, 100}, {1009, 125},
 };
+static const FlashlightLevelInfo b5CalibData[MAX_FLASHLIGHT_LEVEL] = {
+	{1001, 40}, {1002, 60}, {1004, 80}, {1006, 140}, {1009, 160},
+};
+
 #endif
 
 int cam_flash_led_prepare(struct led_trigger *trigger, int options,
@@ -2222,6 +2215,8 @@ int cam_flash_apply_request(struct cam_req_mgr_apply_request *apply)
 ssize_t flash_power_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
 {
 	uint32_t i, j, value;
+	const FlashlightLevelInfo *calibration =
+		cam_sec_get_project() == CAM_SEC_PROJECT_B5Q ? b5CalibData : calibData;
 
 	if(g_flash_ctrl == NULL) {
 		CAM_ERR(CAM_FLASH, "g_flash_ctrl handle is NULL");
@@ -2234,21 +2229,18 @@ ssize_t flash_power_store(struct device *dev, struct device_attribute *attr, con
 	}
 
 	//default value
-#if defined(CONFIG_SEC_B5Q_PROJECT)
-	g_flash_data.led_current_ma[0] = 100;
-#else
-	g_flash_data.led_current_ma[0] = 75;
-#endif
+	g_flash_data.led_current_ma[0] =
+		cam_sec_get_project() == CAM_SEC_PROJECT_B5Q ? 100 : 75;
 
 	CAM_INFO(CAM_FLASH,"torch value=%u", value);
 
 	if (value > 1000 && value < (1000 + 32)) {
 		for (i = 0; i < MAX_FLASHLIGHT_LEVEL; i++) {
-			if (calibData[i].level  == value) {
+			if (calibration[i].level  == value) {
 				for (j = 0; j < CAM_FLASH_MAX_LED_TRIGGERS; j++) {
-					g_flash_data.led_current_ma[j] = calibData[i].current_mA / CAM_FLASH_MAX_LED_TRIGGERS;
+					g_flash_data.led_current_ma[j] = calibration[i].current_mA / CAM_FLASH_MAX_LED_TRIGGERS;
 				}
-				CAM_INFO(CAM_FLASH, "match torch level (%u %u)", calibData[i].level, calibData[i].current_mA);
+				CAM_INFO(CAM_FLASH, "match torch level (%u %u)", calibration[i].level, calibration[i].current_mA);
 				break;
 			}
 		}

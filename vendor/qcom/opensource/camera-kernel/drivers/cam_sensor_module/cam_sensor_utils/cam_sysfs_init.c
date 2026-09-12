@@ -64,6 +64,7 @@ extern void cam_sensor_ssm_i2c_write(uint32_t addr, uint32_t data,
 
 #if defined(CONFIG_CAMERA_ADAPTIVE_MIPI)
 extern void cam_mipi_register_ril_notifier(void);
+extern void cam_mipi_unregister_ril_notifier(void);
 #endif
 #if defined(CONFIG_SAMSUNG_PMIC_FLASH)
 extern ssize_t flash_power_store(struct device *dev, struct device_attribute *attr,
@@ -3701,9 +3702,6 @@ int cam_sysfs_init_module(void)
 	ret |= cam_device_create_files(cam_dev_kunit, kunit_attrs);
 #endif
 
-#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI)
-	cam_mipi_register_ril_notifier();
-#endif
 
 #if defined(CONFIG_SAMSUNG_READ_BPC_FROM_OTP)
 	otp_data = kmalloc(BPC_OTP_DATA_MAX_SIZE, GFP_KERNEL);
@@ -3711,6 +3709,9 @@ int cam_sysfs_init_module(void)
 		CAM_ERR(CAM_SENSOR, "out of memory");
 		return -1;
 	}
+#endif
+#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI)
+	cam_mipi_register_ril_notifier();
 #endif
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 	camera_hw_param_check_avail_cam();
@@ -3720,6 +3721,9 @@ int cam_sysfs_init_module(void)
 
 void cam_sysfs_exit_module(void)
 {
+#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI)
+	cam_mipi_unregister_ril_notifier();
+#endif
 	cam_device_remove_file(cam_dev_flash, flash_attrs);
 	cam_device_remove_file(cam_dev_rear, rear_attrs);
 	cam_device_remove_file(cam_dev_front, front_attrs);

@@ -15,7 +15,7 @@
 
 #include "cam_sensor_dev.h"
 
-int num_front_mipi_setting = 2;
+static int num_front_mipi_setting = 2;
 
 /*
 Mode A : Full mode (860.8 / 995.2 / 1011.2 / 1046.4)
@@ -34,19 +34,19 @@ enum {
 	CAM_IMX374_SET_A_FULL_1046_MHZ = 3,
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FULL_1046_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FULL_1046_MHZ_REG_ARRAY[] = {
     {0x030F, 0x47, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FULL_860_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FULL_860_MHZ_REG_ARRAY[] = {
     {0x030F, 0x0D, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FULL_995_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FULL_995_MHZ_REG_ARRAY[] = {
     {0x030F, 0x37, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FULL_1011_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FULL_1011_MHZ_REG_ARRAY[] = {
     {0x030F, 0x3C, 0x00, 0x00},
 };
 
@@ -301,19 +301,19 @@ enum {
 	CAM_IMX374_SET_B_4K2K_1094_MHZ = 3,
 };
 
-struct cam_sensor_i2c_reg_array MIPI_4K2K_1196_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_4K2K_1196_MHZ_REG_ARRAY[] = {
     {0x030F, 0x76, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_4K2K_1011_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_4K2K_1011_MHZ_REG_ARRAY[] = {
     {0x030F, 0x3C, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_4K2K_1139_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_4K2K_1139_MHZ_REG_ARRAY[] = {
     {0x030F, 0x64, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_4K2K_1094_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_4K2K_1094_MHZ_REG_ARRAY[] = {
     {0x030F, 0x56, 0x00, 0x00},
 };
 
@@ -535,7 +535,7 @@ enum {
 	CAM_FRONT_SET_DUMMY_MHZ = 0,
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FRONT_DUMMY_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FRONT_DUMMY_MHZ_REG_ARRAY[] = {
 };
 
 static const struct cam_sensor_i2c_reg_setting sensor_front_setfile_dummy_mhz[] = {

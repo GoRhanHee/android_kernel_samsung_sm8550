@@ -313,6 +313,7 @@ enum {
 int cam_mipi_select_by_rf_channel(const struct cam_mipi_channel *channel_list, const int size);
 int cam_mipi_verify_channel(const struct cam_mipi_channel *channel_list, const int size);
 void cam_mipi_register_ril_notifier(void);
+void cam_mipi_unregister_ril_notifier(void);
 int32_t cam_check_sensor_type(uint16_t sensor_id);
 void cam_mipi_init_setting(struct cam_sensor_ctrl_t *s_ctrl);
 void cam_mipi_update_info(struct cam_sensor_ctrl_t *s_ctrl);

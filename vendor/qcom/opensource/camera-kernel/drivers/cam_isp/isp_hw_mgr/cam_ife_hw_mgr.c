@@ -21,6 +21,7 @@
 #include "cam_sfe_hw_intf.h"
 #include "cam_isp_packet_parser.h"
 #include "cam_ife_hw_mgr.h"
+#include "cam_sec_project.h"
 #include "cam_cdm_intf_api.h"
 #include "cam_packet_util.h"
 #include "cam_debug_util.h"
@@ -13179,6 +13180,11 @@ static int cam_ife_hw_mgr_handle_csid_error(
 #if defined(CONFIG_SAMSUNG_CAMERA_WA_FIX)
 		uint32_t max_recovery_cnt = (err_type & CAM_ISP_HW_ERROR_CSID_SENSOR_SWITCH_ERROR) ?
 			MAX_INTERNAL_RECOVERY_ATTEMPT_FOR_FATAL_SENSOR_SWITCHING : MAX_INTERNAL_RECOVERY_ATTEMPTS;
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+		if (cam_sec_get_project() != CAM_SEC_PROJECT_DM1Q &&
+		    cam_sec_get_project() != CAM_SEC_PROJECT_DM2Q)
+			max_recovery_cnt = MAX_INTERNAL_RECOVERY_ATTEMPTS;
+#endif
 		if (ctx->try_recovery_cnt < max_recovery_cnt) {
 #else
 		if (ctx->try_recovery_cnt < MAX_INTERNAL_RECOVERY_ATTEMPTS) {

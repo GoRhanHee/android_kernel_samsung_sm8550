@@ -8,7 +8,12 @@
 #include "cam_csiphy_core.h"
 #include "include/cam_csiphy_2_1_0_hwreg.h"
 #include "include/cam_csiphy_2_1_1_hwreg.h"
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+#include "cam_csiphy_universal.h"
+#include "cam_sec_project.h"
+#else
 #include "include/cam_csiphy_2_1_2_hwreg.h"
+#endif
 #include "include/cam_csiphy_2_1_3_hwreg.h"
 #include "include/cam_csiphy_2_2_0_hwreg.h"
 
@@ -278,7 +283,20 @@ int32_t cam_csiphy_parse_dt_info(struct platform_device *pdev,
 		csiphy_dev->is_divisor_32_comp = true;
 		csiphy_dev->clk_lane = 0;
 	} else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.1.2")) {
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+		switch (cam_sec_get_project()) {
+		case CAM_SEC_PROJECT_DM1Q: csiphy_dev->ctrl_reg = cam_csiphy_dm1q_ctrl(); break;
+		case CAM_SEC_PROJECT_DM2Q: csiphy_dev->ctrl_reg = cam_csiphy_dm2q_ctrl(); break;
+		case CAM_SEC_PROJECT_DM3Q: csiphy_dev->ctrl_reg = cam_csiphy_dm3q_ctrl(); break;
+		case CAM_SEC_PROJECT_Q5Q: csiphy_dev->ctrl_reg = cam_csiphy_q5q_ctrl(); break;
+		case CAM_SEC_PROJECT_B5Q: csiphy_dev->ctrl_reg = cam_csiphy_b5q_ctrl(); break;
+		default:
+			CAM_ERR(CAM_CSIPHY, "Unknown Samsung project for CSIPHY v2.1.2");
+			return -ENODEV;
+		}
+#else
 		csiphy_dev->ctrl_reg = &ctrl_reg_2_1_2;
+#endif
 		csiphy_dev->hw_version = CSIPHY_VERSION_V212;
 		csiphy_dev->is_divisor_32_comp = true;
 		csiphy_dev->clk_lane = 0;

@@ -5,6 +5,7 @@
  */
 
 #include <linux/of.h>
+#include "cam_sec_project.h"
 #include <linux/of_gpio.h>
 #include <cam_sensor_cmn_header.h>
 #include <cam_sensor_util.h>
@@ -431,18 +432,15 @@ int32_t cam_sensor_parse_dt(struct cam_sensor_ctrl_t *s_ctrl)
 		soc_info->rgltr[i] = devm_regulator_get(soc_info->dev,
 					soc_info->rgltr_name[i]);
 		if (IS_ERR_OR_NULL(soc_info->rgltr[i])) {
-#if defined(CONFIG_SEC_Q5Q_PROJECT)
-			CAM_WARN(CAM_SENSOR,"get failed for regulator %s",
-				soc_info->rgltr_name[i]);
-			soc_info->rgltr[i] = NULL;
-#else
-
-			rc = PTR_ERR(soc_info->rgltr[i]);
-			rc = rc ? rc : -EINVAL;
-			CAM_ERR(CAM_SENSOR, "get failed for regulator %s",
-				 soc_info->rgltr_name[i]);
-			return rc;
-#endif
+			if (cam_sec_get_project() == CAM_SEC_PROJECT_Q5Q) {
+				CAM_WARN(CAM_SENSOR, "get failed for regulator %s", soc_info->rgltr_name[i]);
+				soc_info->rgltr[i] = NULL;
+			} else {
+				rc = PTR_ERR(soc_info->rgltr[i]);
+				rc = rc ? rc : -EINVAL;
+				CAM_ERR(CAM_SENSOR, "get failed for regulator %s", soc_info->rgltr_name[i]);
+				return rc;
+			}
 		}
 		CAM_DBG(CAM_SENSOR, "get for regulator %s",
 			soc_info->rgltr_name[i]);

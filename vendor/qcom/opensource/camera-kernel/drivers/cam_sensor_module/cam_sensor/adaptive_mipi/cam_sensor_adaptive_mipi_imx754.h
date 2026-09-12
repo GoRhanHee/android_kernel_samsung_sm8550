@@ -15,7 +15,7 @@
 
 #include "cam_sensor_dev.h"
 
-int num_tele_mipi_setting = 2;
+static int num_tele_mipi_setting = 2;
 
 /*
 Mode A : Full mode, 2-Binning 120fps (1708.8 / 1660.8 / 1670.4)
@@ -32,15 +32,15 @@ enum {
 	CAM_IMX754_SET_A_FULL_1708_MHZ = 2,
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FULL_1660_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FULL_1660_MHZ_REG_ARRAY[] = {
     {0x030F, 0x07, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FULL_1670_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FULL_1670_MHZ_REG_ARRAY[] = {
     {0x030F, 0x0A, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FULL_1708_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FULL_1708_MHZ_REG_ARRAY[] = {
     {0x030F, 0x16, 0x00, 0x00},
 };
 
@@ -257,15 +257,15 @@ enum {
 	CAM_IMX754_SET_B_2BIN240_1968_MHZ = 2,
 };
 
-struct cam_sensor_i2c_reg_array MIPI_2BIN240_1900_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_2BIN240_1900_MHZ_REG_ARRAY[] = {
     {0x030F, 0x52, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_2BIN240_1910_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_2BIN240_1910_MHZ_REG_ARRAY[] = {
     {0x030F, 0x55, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_2BIN240_1968_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_2BIN240_1968_MHZ_REG_ARRAY[] = {
     {0x030F, 0x67, 0x00, 0x00},
 };
 
@@ -485,7 +485,7 @@ enum {
 	CAM_TELE_SET_DUMMY_MHZ = 0,
 };
 
-struct cam_sensor_i2c_reg_array MIPI_TELE_DUMMY_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_TELE_DUMMY_MHZ_REG_ARRAY[] = {
 };
 
 static const struct cam_sensor_i2c_reg_setting sensor_tele_setfile_dummy_mhz[] = {

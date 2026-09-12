@@ -10,6 +10,7 @@
 
 #include "cam_compat.h"
 #include "cam_csiphy_core.h"
+#include "cam_sec_project.h"
 #include "cam_csiphy_dev.h"
 #include "cam_csiphy_soc.h"
 #include "cam_common_util.h"
@@ -1086,8 +1087,13 @@ static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device,
 		CAM_DBG(CAM_CSIPHY, "table[%d] BW : %llu Selected",
 			data_rate_idx, supported_phy_bw);
 
-#if defined(CONFIG_SEC_DM3Q_PROJECT)
+#if defined(CONFIG_SEC_DM3Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+#if IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
+		if (cam_sec_get_project() == CAM_SEC_PROJECT_DM3Q &&
+		    cam_common_get_camera_id(csiphy_device->soc_info.index) == SEC_WIDE_SENSOR
+#else
 		if (csiphy_device->soc_info.index == WIDE_CAM
+#endif
 			&& supported_phy_bw == 4560000000 //2.0 GSpS
 			&& datarate_variant_idx == 0) {
 			datarate_variant_idx = 1;

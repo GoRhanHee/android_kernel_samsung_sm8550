@@ -156,6 +156,10 @@ struct cam_sensor_ctrl_t {
 #if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
 	bool                           is_bubble_packet;
 #endif
+#if defined(CONFIG_SENSOR_RETENTION)
+	u8 retention_mode;
+	int retention_stream_on;
+#endif
 #if defined(CONFIG_CAMERA_ADAPTIVE_MIPI)
 	u32 mipi_clock_index_new;
 	u32 mipi_clock_index_cur;

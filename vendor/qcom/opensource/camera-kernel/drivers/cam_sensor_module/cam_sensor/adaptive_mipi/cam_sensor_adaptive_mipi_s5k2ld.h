@@ -15,7 +15,7 @@
 
 #include "cam_sensor_dev.h"
 
-int num_wide_mipi_setting = 1;
+static int num_wide_mipi_setting = 1;
 
 /*************************************/
 /* ========== Mode A =============== */
@@ -26,11 +26,11 @@ enum {
 	CAM_S5K2LD_SET_A_FULL_3232_MHZ = 1,
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FULL_3142_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FULL_3142_MHZ_REG_ARRAY[] = {
     {0x0310, 0x01EB, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FULL_3232_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FULL_3232_MHZ_REG_ARRAY[] = {
     {0x0310, 0x01F9, 0x00, 0x00},
 };
 
@@ -219,7 +219,7 @@ enum {
 	CAM_WIDE_SET_DUMMY_MHZ = 0,
 };
 
-struct cam_sensor_i2c_reg_array MIPI_WIDE_DUMMY_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_WIDE_DUMMY_MHZ_REG_ARRAY[] = {
 };
 
 static const struct cam_sensor_i2c_reg_setting sensor_wide_setfile_dummy_mhz[] = {

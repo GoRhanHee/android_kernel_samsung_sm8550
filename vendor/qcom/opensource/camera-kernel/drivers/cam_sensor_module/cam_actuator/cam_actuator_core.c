@@ -136,7 +136,7 @@ static int32_t cam_actuator_power_up(struct cam_actuator_ctrl_t *a_ctrl)
 		return rc;
 	}
 #if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_B5Q_PROJECT)\
-	|| defined(CONFIG_SEC_GTS9_PROJECT) || defined(CONFIG_SEC_GTS9P_PROJECT) || defined(CONFIG_SEC_GTS9U_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
+	|| defined(CONFIG_SEC_GTS9_PROJECT) || defined(CONFIG_SEC_GTS9P_PROJECT) || defined(CONFIG_SEC_GTS9U_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 	if (a_ctrl->io_master_info.master_type == CCI_MASTER) {
 		a_ctrl->io_master_info.cci_client->cci_i2c_master =
 			a_ctrl->cci_i2c_master;
@@ -1403,7 +1403,7 @@ int16_t cam_actuator_move_for_ois_test(struct cam_actuator_ctrl_t *a_ctrl)
 	}
 
 #if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_B5Q_PROJECT)\
-	|| defined(CONFIG_SEC_GTS9_PROJECT) || defined(CONFIG_SEC_GTS9P_PROJECT) || defined(CONFIG_SEC_GTS9U_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
+	|| defined(CONFIG_SEC_GTS9_PROJECT) || defined(CONFIG_SEC_GTS9P_PROJECT) || defined(CONFIG_SEC_GTS9U_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 	if(a_ctrl->io_master_info.master_type == CCI_MASTER) {
 		if (a_ctrl->io_master_info.cci_client->sid == 0) {
 			if (a_ctrl->soc_info.index == SEC_WIDE_SENSOR) {
@@ -1514,7 +1514,7 @@ int16_t cam_actuator_move_for_ois_read_hall_cal_test(struct cam_actuator_ctrl_t 
 	}
 
 #if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_B5Q_PROJECT)\
-	|| defined(CONFIG_SEC_GTS9_PROJECT) || defined(CONFIG_SEC_GTS9P_PROJECT) || defined(CONFIG_SEC_GTS9U_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
+	|| defined(CONFIG_SEC_GTS9_PROJECT) || defined(CONFIG_SEC_GTS9P_PROJECT) || defined(CONFIG_SEC_GTS9U_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 	if(a_ctrl->io_master_info.master_type == CCI_MASTER) {
 		if (a_ctrl->io_master_info.cci_client->sid == 0) {
 			if (a_ctrl->soc_info.index == SEC_WIDE_SENSOR) {

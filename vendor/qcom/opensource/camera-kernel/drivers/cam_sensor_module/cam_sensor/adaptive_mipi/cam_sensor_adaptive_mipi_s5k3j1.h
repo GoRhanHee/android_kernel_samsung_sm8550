@@ -15,7 +15,7 @@
 
 #include "cam_sensor_dev.h"
 
-int num_front_mipi_setting = 2;
+static int num_front_mipi_setting = 2;
 
 /*
 SET A : Other
@@ -33,25 +33,25 @@ enum {
 	CAM_S5K3J1_SET_A_all_950_MHZ = 3
 };
 
-struct cam_sensor_i2c_reg_array MIPI_ALL_992_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_ALL_992_MHZ_REG_ARRAY[] = {
 	{0x030E, 0x0003, 0x00, 0x00},
 	{0x0310, 0x0136, 0x00, 0x00},
 	{0x0312, 0x0001, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_ALL_995_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_ALL_995_MHZ_REG_ARRAY[] = {
 	{0x030E, 0x0003, 0x00, 0x00},
 	{0x0310, 0x0137, 0x00, 0x00},
 	{0x0312, 0x0001, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_ALL_956_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_ALL_956_MHZ_REG_ARRAY[] = {
 	{0x030E, 0x0003, 0x00, 0x00},
 	{0x0310, 0x012B, 0x00, 0x00},
 	{0x0312, 0x0001, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_ALL_950_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_ALL_950_MHZ_REG_ARRAY[] = {
 	{0x030E, 0x0003, 0x00, 0x00},
 	{0x0310, 0x0129, 0x00, 0x00},
 	{0x0312, 0x0001, 0x00, 0x00},
@@ -346,25 +346,25 @@ enum {
 	CAM_S5K3J1_SET_B_all_1094_MHZ = 3
 };
 
-struct cam_sensor_i2c_reg_array MIPI_ALL_1196_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_ALL_1196_MHZ_REG_ARRAY[] = {
 	{0x030E, 0x0003, 0x00, 0x00},
 	{0x0310, 0x00BB, 0x00, 0x00},
 	{0x0312, 0x0000, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_ALL_1011_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_ALL_1011_MHZ_REG_ARRAY[] = {
 	{0x030E, 0x0003, 0x00, 0x00},
 	{0x0310, 0x013C, 0x00, 0x00},
 	{0x0312, 0x0001, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_ALL_1139_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_ALL_1139_MHZ_REG_ARRAY[] = {
 	{0x030E, 0x0003, 0x00, 0x00},
 	{0x0310, 0x00B2, 0x00, 0x00},
 	{0x0312, 0x0000, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_ALL_1094_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_ALL_1094_MHZ_REG_ARRAY[] = {
 	{0x030E, 0x0003, 0x00, 0x00},
 	{0x0310, 0x0156, 0x00, 0x00},
 	{0x0312, 0x0001, 0x00, 0x00},
@@ -589,7 +589,7 @@ enum {
 	CAM_FRONT_SET_DUMMY_MHZ = 0,
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FRONT_DUMMY_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FRONT_DUMMY_MHZ_REG_ARRAY[] = {
 };
 
 static const struct cam_sensor_i2c_reg_setting sensor_front_setfile_dummy_mhz[] = {

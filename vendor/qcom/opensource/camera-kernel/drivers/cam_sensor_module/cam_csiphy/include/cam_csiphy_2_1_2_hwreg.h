@@ -8,14 +8,14 @@
 
 #include "../cam_csiphy_dev.h"
 
-struct cam_csiphy_aon_sel_params_t aon_cam_select_params_2_1_2 = {
+static struct cam_csiphy_aon_sel_params_t aon_cam_select_params_2_1_2 = {
 	.aon_cam_sel_offset[0] = 0x01E0,
 	.aon_cam_sel_offset[1] = 0,
 	.cam_sel_mask = BIT(0),
 	.mclk_sel_mask = BIT(8),
 };
 
-struct cam_cphy_dphy_status_reg_params_t status_regs_2_1_2 = {
+static struct cam_cphy_dphy_status_reg_params_t status_regs_2_1_2 = {
 	.csiphy_3ph_status0_offset = 0x0340,
 	.csiphy_2ph_status0_offset = 0x00C0,
 	.cphy_lane_status = {0x0358, 0x0758, 0x0B58},
@@ -23,27 +23,27 @@ struct cam_cphy_dphy_status_reg_params_t status_regs_2_1_2 = {
 	.csiphy_2ph_status_size = 20,
 };
 
-struct csiphy_reg_t csiphy_lane_en_reg_2_1_2[] = {
+static struct csiphy_reg_t csiphy_lane_en_reg_2_1_2[] = {
 	{0x1014, 0x00, 0x00, CSIPHY_LANE_ENABLE},
 };
 
-struct csiphy_reg_t csiphy_common_reg_2_1_2[] = {
+static struct csiphy_reg_t csiphy_common_reg_2_1_2[] = {
 	{0x1084, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x101C, 0x7A, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x1018, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t csiphy_reset_enter_reg_2_1_2[] = {
+static struct csiphy_reg_t csiphy_reset_enter_reg_2_1_2[] = {
 	{0x1000, 0x01, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t csiphy_reset_exit_reg_2_1_2[] = {
+static struct csiphy_reg_t csiphy_reset_exit_reg_2_1_2[] = {
 	{0x1000, 0x02, 0x00, CSIPHY_2PH_REGS},
 	{0x1000, 0x00, 0x00, CSIPHY_2PH_COMBO_REGS},
 	{0x1000, 0x0E, 0xBE8, CSIPHY_3PH_REGS},
 };
 
-struct csiphy_reg_t csiphy_irq_reg_2_1_2[] = {
+static struct csiphy_reg_t csiphy_irq_reg_2_1_2[] = {
 	{0x102c, 0xff, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x1030, 0xff, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x1034, 0xfb, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -57,7 +57,7 @@ struct csiphy_reg_t csiphy_irq_reg_2_1_2[] = {
 	{0x1054, 0xff, 0x64, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t csiphy_2ph_v2_1_2_reg[] = {
+static struct csiphy_reg_t csiphy_2ph_v2_1_2_reg[] = {
 	{0x0E94, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0EA0, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0E90, 0x0f, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -223,7 +223,7 @@ struct csiphy_reg_t csiphy_2ph_v2_1_2_reg[] = {
 	{0x0C64, 0x7F, 0x00, CSIPHY_SKEW_CAL},
 };
 
-struct csiphy_reg_t csiphy_2ph_v2_1_2_combo_mode_reg[] = {
+static struct csiphy_reg_t csiphy_2ph_v2_1_2_combo_mode_reg[] = {
 	{0x0E94, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0EA0, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0E90, 0x0f, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -328,7 +328,7 @@ struct csiphy_reg_t csiphy_2ph_v2_1_2_combo_mode_reg[] = {
 	{0x0864, 0x7F, 0x00, CSIPHY_SKEW_CAL},
 };
 
-struct csiphy_reg_t csiphy_3ph_v2_1_2_reg[] = {
+static struct csiphy_reg_t csiphy_3ph_v2_1_2_reg[] = {
 	{0x02F4, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x02F8, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x02FC, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -400,7 +400,7 @@ struct csiphy_reg_t csiphy_3ph_v2_1_2_reg[] = {
 	{0x0A90, 0x02, 0x00, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_100Msps[] = {
+static struct csiphy_reg_t datarate_212_100Msps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -442,7 +442,7 @@ struct csiphy_reg_t datarate_212_100Msps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_200Msps[] = {
+static struct csiphy_reg_t datarate_212_200Msps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -484,7 +484,7 @@ struct csiphy_reg_t datarate_212_200Msps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_300Msps[] = {
+static struct csiphy_reg_t datarate_212_300Msps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -526,7 +526,7 @@ struct csiphy_reg_t datarate_212_300Msps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_350Msps[] = {
+static struct csiphy_reg_t datarate_212_350Msps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -568,7 +568,7 @@ struct csiphy_reg_t datarate_212_350Msps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_400Msps[] = {
+static struct csiphy_reg_t datarate_212_400Msps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -610,7 +610,7 @@ struct csiphy_reg_t datarate_212_400Msps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_500Msps[] = {
+static struct csiphy_reg_t datarate_212_500Msps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -652,7 +652,7 @@ struct csiphy_reg_t datarate_212_500Msps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_600Msps[] = {
+static struct csiphy_reg_t datarate_212_600Msps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -694,7 +694,7 @@ struct csiphy_reg_t datarate_212_600Msps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_700Msps[] = {
+static struct csiphy_reg_t datarate_212_700Msps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -736,7 +736,7 @@ struct csiphy_reg_t datarate_212_700Msps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_800Msps[] = {
+static struct csiphy_reg_t datarate_212_800Msps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -778,7 +778,7 @@ struct csiphy_reg_t datarate_212_800Msps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_900Msps[] = {
+static struct csiphy_reg_t datarate_212_900Msps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -820,7 +820,7 @@ struct csiphy_reg_t datarate_212_900Msps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_1p0Gsps[] = {
+static struct csiphy_reg_t datarate_212_1p0Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -863,7 +863,7 @@ struct csiphy_reg_t datarate_212_1p0Gsps[] = {
 };
 
 #if defined(CONFIG_SEC_DM3Q_PROJECT)
-struct csiphy_reg_t datarate_212_1p2Gsps[] = {
+static struct csiphy_reg_t datarate_212_1p2Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -908,7 +908,7 @@ struct csiphy_reg_t datarate_212_1p2Gsps[] = {
 	{0x0A70, 0x02, 0x00, CSIPHY_AUXILIARY_SETTING},
 };
 #elif defined(CONFIG_SEC_DM1Q_PROJECT)
-struct csiphy_reg_t datarate_212_1p2Gsps[] = {
+static struct csiphy_reg_t datarate_212_1p2Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -950,7 +950,7 @@ struct csiphy_reg_t datarate_212_1p2Gsps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 #else
-struct csiphy_reg_t datarate_212_1p2Gsps[] = {
+static struct csiphy_reg_t datarate_212_1p2Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -993,7 +993,7 @@ struct csiphy_reg_t datarate_212_1p2Gsps[] = {
 };
 #endif
 
-struct csiphy_reg_t datarate_212_1p5Gsps[] = {
+static struct csiphy_reg_t datarate_212_1p5Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1035,7 +1035,7 @@ struct csiphy_reg_t datarate_212_1p5Gsps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_1p7Gsps[] = {
+static struct csiphy_reg_t datarate_212_1p7Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1078,7 +1078,7 @@ struct csiphy_reg_t datarate_212_1p7Gsps[] = {
 };
 
 #if defined(CONFIG_SEC_DM3Q_PROJECT)
-struct csiphy_reg_t datarate_212_2p0Gsps_front[] = {
+static struct csiphy_reg_t datarate_212_2p0Gsps_front[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1120,7 +1120,7 @@ struct csiphy_reg_t datarate_212_2p0Gsps_front[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_2p0Gsps_wide[] = {
+static struct csiphy_reg_t datarate_212_2p0Gsps_wide[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1162,7 +1162,7 @@ struct csiphy_reg_t datarate_212_2p0Gsps_wide[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_2p0Gsps[] = {
+static struct csiphy_reg_t datarate_212_2p0Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1204,7 +1204,7 @@ struct csiphy_reg_t datarate_212_2p0Gsps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 #elif defined(CONFIG_SEC_DM1Q_PROJECT)
-struct csiphy_reg_t datarate_212_2p0Gsps[] = {
+static struct csiphy_reg_t datarate_212_2p0Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1246,7 +1246,7 @@ struct csiphy_reg_t datarate_212_2p0Gsps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 #else
-struct csiphy_reg_t datarate_212_2p0Gsps[] = {
+static struct csiphy_reg_t datarate_212_2p0Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1289,7 +1289,7 @@ struct csiphy_reg_t datarate_212_2p0Gsps[] = {
 };
 #endif
 
-struct csiphy_reg_t datarate_212_2p1Gsps[] = {
+static struct csiphy_reg_t datarate_212_2p1Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1331,7 +1331,7 @@ struct csiphy_reg_t datarate_212_2p1Gsps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_2p35Gsps[] = {
+static struct csiphy_reg_t datarate_212_2p35Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1373,7 +1373,7 @@ struct csiphy_reg_t datarate_212_2p35Gsps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_2p5Gsps[] = {
+static struct csiphy_reg_t datarate_212_2p5Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1415,7 +1415,7 @@ struct csiphy_reg_t datarate_212_2p5Gsps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_2p6Gsps[] = {
+static struct csiphy_reg_t datarate_212_2p6Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1457,7 +1457,7 @@ struct csiphy_reg_t datarate_212_2p6Gsps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_2p8Gsps[] = {
+static struct csiphy_reg_t datarate_212_2p8Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1511,7 +1511,7 @@ struct csiphy_reg_t datarate_212_2p8Gsps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_3p0Gsps[] = {
+static struct csiphy_reg_t datarate_212_3p0Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1553,7 +1553,7 @@ struct csiphy_reg_t datarate_212_3p0Gsps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_3p3Gsps[] = {
+static struct csiphy_reg_t datarate_212_3p3Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1610,7 +1610,7 @@ struct csiphy_reg_t datarate_212_3p3Gsps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_3p5Gsps[] = {
+static struct csiphy_reg_t datarate_212_3p5Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1670,7 +1670,7 @@ struct csiphy_reg_t datarate_212_3p5Gsps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_4p0Gsps[] = {
+static struct csiphy_reg_t datarate_212_4p0Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1712,7 +1712,7 @@ struct csiphy_reg_t datarate_212_4p0Gsps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_4p5Gsps[] = {
+static struct csiphy_reg_t datarate_212_4p5Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1754,7 +1754,7 @@ struct csiphy_reg_t datarate_212_4p5Gsps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_5p0Gsps[] = {
+static struct csiphy_reg_t datarate_212_5p0Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1796,7 +1796,7 @@ struct csiphy_reg_t datarate_212_5p0Gsps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_5p5Gsps[] = {
+static struct csiphy_reg_t datarate_212_5p5Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -1838,7 +1838,7 @@ struct csiphy_reg_t datarate_212_5p5Gsps[] = {
 	{0x108C, 0x00, 0x01, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t datarate_212_6p0Gsps[] = {
+static struct csiphy_reg_t datarate_212_6p0Gsps[] = {
 	/* AFE Settings */
 	{0x0268, 0xF1, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0294, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -2118,7 +2118,7 @@ static struct data_rate_reg_info_t data_rate_settings_2_1_2[] = {
 	},
 };
 
-struct csiphy_reg_t bist_3ph_arr_2_1_2[] = {
+static struct csiphy_reg_t bist_3ph_arr_2_1_2[] = {
 	{0x0230, 0x1C, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0234, 0xFA, 0x00, CSIPHY_DEFAULT_PARAMS},
 	{0x0238, 0xD4, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -2166,7 +2166,7 @@ struct csiphy_reg_t bist_3ph_arr_2_1_2[] = {
 	{0x0A40, 0x85, 0x00, CSIPHY_DEFAULT_PARAMS},
 };
 
-struct csiphy_reg_t bist_status_arr_2_1_2[] = {
+static struct csiphy_reg_t bist_status_arr_2_1_2[] = {
 	{0x0344, 0x00, 0x00, CSIPHY_3PH_REGS},
 	{0x0744, 0x00, 0x00, CSIPHY_3PH_REGS},
 	{0x0B44, 0x00, 0x00, CSIPHY_3PH_REGS},
@@ -2176,7 +2176,7 @@ struct csiphy_reg_t bist_status_arr_2_1_2[] = {
 	{0x0CC0, 0x00, 0x00, CSIPHY_2PH_REGS},
 };
 
-struct bist_reg_settings_t bist_setting_2_1_2 = {
+static struct bist_reg_settings_t bist_setting_2_1_2 = {
 	.error_status_val_3ph = 0x10,
 	.error_status_val_2ph = 0x10,
 	.set_status_update_3ph_base_offset = 0x0240,
@@ -2195,12 +2195,12 @@ struct bist_reg_settings_t bist_setting_2_1_2 = {
 	.bist_status_arr = bist_status_arr_2_1_2,
 };
 
-struct data_rate_settings_t data_rate_delta_table_2_1_2 = {
+static struct data_rate_settings_t data_rate_delta_table_2_1_2 = {
 	.num_data_rate_settings = ARRAY_SIZE(data_rate_settings_2_1_2),
 	.data_rate_settings = data_rate_settings_2_1_2,
 };
 
-struct csiphy_reg_parms_t csiphy_v2_1_2 = {
+static struct csiphy_reg_parms_t csiphy_v2_1_2 = {
 	.mipi_csiphy_interrupt_status0_addr = 0x10B0,
 	.mipi_csiphy_interrupt_clear0_addr = 0x1058,
 	.mipi_csiphy_glbl_irq_cmd_addr = 0x1028,
@@ -2219,7 +2219,7 @@ struct csiphy_reg_parms_t csiphy_v2_1_2 = {
 	.aon_sel_params = &aon_cam_select_params_2_1_2,
 };
 
-struct csiphy_ctrl_t ctrl_reg_2_1_2 = {
+static struct csiphy_ctrl_t ctrl_reg_2_1_2 = {
 	.csiphy_common_reg = csiphy_common_reg_2_1_2,
 	.csiphy_2ph_reg = csiphy_2ph_v2_1_2_reg,
 	.csiphy_3ph_reg = csiphy_3ph_v2_1_2_reg,

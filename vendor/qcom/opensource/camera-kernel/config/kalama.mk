@@ -21,9 +21,12 @@ CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING_REC := y
 endif
 
 ifeq ($(PROJECT_NAME),universal)
+CONFIG_CAMERA_ADAPTIVE_MIPI := y
+CONFIG_SENSOR_RETENTION := y
+CONFIG_SAMSUNG_CAMERA_WA_FIX := y
+CONFIG_SAMSUNG_READ_BPC_FROM_OTP := y
 # Keep the camera core device-tree driven.  Enable the safe feature union, but
-# do not select a compile-time SEC_* project or sensor-specific adaptive-MIPI
-# table; those choices are mutually exclusive between the five products.
+# select sensor tables at runtime instead of a compile-time SEC_* project.
 CONFIG_CAMERA_CDR_TEST := y
 CONFIG_CAMERA_HW_ERROR_DETECT := y
 CONFIG_SAMSUNG_ACTUATOR_PREVENT_SHAKING := y
@@ -150,6 +153,10 @@ ccflags-y += -DCONFIG_SAMSUNG_DEBUG_SENSOR_TIMING_REC=1
 endif
 
 ifeq ($(PROJECT_NAME),universal)
+ccflags-y += -DCONFIG_CAMERA_ADAPTIVE_MIPI=1
+ccflags-y += -DCONFIG_SENSOR_RETENTION=1
+ccflags-y += -DCONFIG_SAMSUNG_CAMERA_WA_FIX=1
+ccflags-y += -DCONFIG_SAMSUNG_READ_BPC_FROM_OTP=1
 ccflags-y += -DCONFIG_CAMERA_CDR_TEST=1
 ccflags-y += -DCONFIG_CAMERA_HW_ERROR_DETECT=1
 ccflags-y += -DCONFIG_SAMSUNG_REAR_QUADRA=1

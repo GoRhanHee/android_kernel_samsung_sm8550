@@ -15,7 +15,7 @@
 
 #include "cam_sensor_dev.h"
 
-int num_tele_mipi_setting = 1;
+static int num_tele_mipi_setting = 1;
 
 /*
 Mode A : Full mode, 2-Binning (1152 / 1196.8 / 1139.2)
@@ -31,15 +31,15 @@ enum {
 	CAM_S5K3K1_SET_A_FULL_1139_MHZ = 2,
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FULL_1152_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FULL_1152_MHZ_REG_ARRAY[] = {
     {0x0310, 0x00B4, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FULL_1196_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FULL_1196_MHZ_REG_ARRAY[] = {
     {0x0310, 0x00BB, 0x00, 0x00},
 };
 
-struct cam_sensor_i2c_reg_array MIPI_FULL_1139_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_FULL_1139_MHZ_REG_ARRAY[] = {
     {0x0310, 0x00B2, 0x00, 0x00},
 };
 
@@ -262,7 +262,7 @@ enum {
 	CAM_TELE_SET_DUMMY_MHZ = 0,
 };
 
-struct cam_sensor_i2c_reg_array MIPI_TELE_DUMMY_MHZ_REG_ARRAY[] = {
+static struct cam_sensor_i2c_reg_array MIPI_TELE_DUMMY_MHZ_REG_ARRAY[] = {
 };
 
 static const struct cam_sensor_i2c_reg_setting sensor_tele_setfile_dummy_mhz[] = {
