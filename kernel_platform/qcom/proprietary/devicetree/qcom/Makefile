@@ -7,6 +7,11 @@
 
 add-overlays = $(foreach o,$1,$(foreach b,$2,$(eval $(basename $b)-$(basename $o)-dtbs = $b $o) $(basename $b)-$(basename $o).dtb))
 
+build-dtbo := y
+ifeq ($(CONFIG_ARCH_KALAMA),y)
+build-dtbo := $(CONFIG_SM8550_DTBO)
+endif
+
 # kalama-dtb-y is list of DTBs to install when doing non-overlay build
 # kalama-overlays-dtb-y is list of DTBs and DTBOs to install when doing overlay-supported build
 # see DTB_TYPES from scripts/Makefile.dtbinst and install_dtbs from build.config.msm.common
@@ -79,12 +84,19 @@ NOAPQ_KALAMA_BOARDS += \
 		 kalama-baagha-cdp-overlay.dtbo \
 		 kalama-baagha-mtp-overlay.dtbo
 
+ifeq ($(build-dtbo),y)
 kalama-dtb-$(CONFIG_ARCH_KALAMA) += \
 	$(call add-overlays, $(KALAMA_BOARDS) $(NOAPQ_KALAMA_BOARDS),$(KALAMA_BASE_DTB))\
 	$(call add-overlays, $(KALAMA_BOARDS) $(APQ_KALAMA_BOARDS),$(KALAMA_APQ_BASE_DTB))
 kalama-overlays-dtb-$(CONFIG_ARCH_KALAMA) += $(KALAMA_BOARDS) $(NOAPQ_KALAMA_BOARDS) $(KALAMA_BASE_DTB) $(KALAMA_APQ_BASE_DTB)
 kalama_le-overlays-dtb-$(CONFIG_ARCH_KALAMA) += $(KALAMA_BOARDS) $(NOAPQ_KALAMA_BOARDS) $(KALAMA_BASE_DTB) $(KALAMA_APQ_BASE_DTB)
 kalama_lu-overlays-dtb-$(CONFIG_ARCH_KALAMA) += $(KALAMA_BOARDS) $(NOAPQ_KALAMA_BOARDS) $(KALAMA_BASE_DTB) $(KALAMA_APQ_BASE_DTB)
+else
+kalama-dtb-$(CONFIG_ARCH_KALAMA) += $(KALAMA_BASE_DTB) $(KALAMA_APQ_BASE_DTB)
+kalama-overlays-dtb-$(CONFIG_ARCH_KALAMA) += $(KALAMA_BASE_DTB) $(KALAMA_APQ_BASE_DTB)
+kalama_le-overlays-dtb-$(CONFIG_ARCH_KALAMA) += $(KALAMA_BASE_DTB) $(KALAMA_APQ_BASE_DTB)
+kalama_lu-overlays-dtb-$(CONFIG_ARCH_KALAMA) += $(KALAMA_BASE_DTB) $(KALAMA_APQ_BASE_DTB)
+endif
 dtb-y += $(kalama-dtb-y)
 
 CROW_BASE_DTB += crow.dtb
@@ -110,10 +122,15 @@ CROW_APQ_BOARDS += \
 		crowp-idp-rcm-overlay.dtbo \
 		crowp-qrd-overlay.dtbo
 
+ifeq ($(build-dtbo),y)
 kalama-dtb-$(CONFIG_ARCH_CROW) += \
 	$(call add-overlays, $(CROW_BOARDS) ,$(CROW_BASE_DTB))\
 	$(call add-overlays, $(CROW_APQ_BOARDS) ,$(CROW_APQ_BASE_DTB))
 kalama-overlays-dtb-$(CONFIG_ARCH_CROW) += $(CROW_BOARDS) $(CROW_APQ_BOARDS) $(CROW_BASE_DTB) $(CROW_APQ_BASE_DTB)
+else
+kalama-dtb-$(CONFIG_ARCH_CROW) += $(CROW_BASE_DTB) $(CROW_APQ_BASE_DTB)
+kalama-overlays-dtb-$(CONFIG_ARCH_CROW) += $(CROW_BASE_DTB) $(CROW_APQ_BASE_DTB)
+endif
 dtb-y += $(kalama-dtb-y)
 
 KHAJE_BASE_DTB += khaje.dtb khajep.dtb khajeq.dtb khajeg.dtb khaje-3gb.dtb
