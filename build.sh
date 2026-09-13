@@ -1048,8 +1048,6 @@ main() {
         usage >&2
         return 2
     fi
-    echo "[modules] Checking external module load order"
-    bash "${SOURCE_DIR}/prebuilts/tests/external_module_order_test.sh"
     prepare_packaging_tools
     select_universal_profile
     update_submodules
@@ -1063,6 +1061,9 @@ main() {
     apply_common_feature_patches
     apply_fake_config_patch
     prepare_toolchain
+    echo "[modules] Checking external module load order with build tools"
+    PATH="${KERNEL_PLATFORM}/build/kernel/build-tools/path/linux-x86:${PATH}" \
+        bash "${SOURCE_DIR}/prebuilts/tests/external_module_order_test.sh"
     build
     bash "${SOURCE_DIR}/prebuilts/check_display_panels.sh" \
         "${DIST_DIR}/msm_drm.ko" "${CLANG_TOOLCHAIN_DIR}/bin/llvm-nm"

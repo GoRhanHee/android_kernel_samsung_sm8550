@@ -199,7 +199,9 @@ function create_modules_staging() {
           local module_path
           while IFS= read -r module_path || [[ -n "${module_path}" ]]; do
             if [[ -n "${module_path}" ]]; then
-              realpath -m --relative-to="${dest_dir}" "${dest_dir}/${module_path}"
+              # Toybox realpath lacks GNU's --relative-to option. Use the
+              # existing helper to normalize parent components instead.
+              rel_path2 "${dest_dir}/${module_path}" "${dest_dir}"
             fi
           done < "${modules_order_files[0]}" >> "${dest_dir}/modules.order"
         else
