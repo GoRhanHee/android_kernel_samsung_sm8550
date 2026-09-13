@@ -7,6 +7,7 @@
 #define _CAM_OIS_DEV_H_
 
 #include <linux/i2c.h>
+#include <linux/kconfig.h>
 #include <linux/gpio.h>
 #include <media/v4l2-event.h>
 #include <media/v4l2-subdev.h>
@@ -36,7 +37,8 @@
 #define OIS_DRIVER_I3C "i3c_camera_ois"
 
 #if defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
-#if defined(CONFIG_SEC_DM3Q_PROJECT)
+/* Universal builds must also accommodate DM3Q's three shared OIS handles. */
+#if defined(CONFIG_SEC_DM3Q_PROJECT) || IS_ENABLED(CONFIG_SEC_UNIVERSAL_PROJECT)
 #define MAX_BRIDGE_COUNT (3)
 #else
 #define MAX_BRIDGE_COUNT (2)
