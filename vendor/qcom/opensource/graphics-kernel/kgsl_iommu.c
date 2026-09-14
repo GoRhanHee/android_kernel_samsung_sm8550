@@ -2310,12 +2310,18 @@ static int kgsl_iommu_setup_context(struct kgsl_mmu *mmu,
 	return context->cb_num;
 }
 
+static void kgsl_iommu_remove_device_link(void *data)
+{
+	device_link_del(data);
+}
+
 static int iommu_probe_user_context(struct kgsl_device *device,
 		struct device_node *node)
 {
 	struct kgsl_iommu *iommu = KGSL_IOMMU(device);
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	struct kgsl_mmu *mmu = &device->mmu;
+	struct device_link *link;
 	int ret;
 
 	ret = kgsl_iommu_setup_context(mmu, node, &iommu->user_context,
@@ -2323,17 +2329,20 @@ static int iommu_probe_user_context(struct kgsl_device *device,
 	if (ret)
 		return ret;
 		
-	/* 
-	* It is problamatic if smmu driver does system suspend before consumer
-	* device (gpu). So smmu driver creates a device_link to act as a
-	* supplier which in turn will ensure correct order during system
-	* suspend. In kgsl, since we don't initialize iommu on the gpu device,
-	* we should create a device_link between kgsl iommu device and gpu
-	* device to maintain a correct suspend order between smmu device and
-	* gpu device.
-	*/
-	if (!device_link_add(&device->pdev->dev, &iommu->user_context.pdev->dev, DL_FLAG_AUTOREMOVE_CONSUMER))
-		dev_err(&iommu->user_context.pdev->dev,"Unable to create device link to gpu device");
+	/*
+	 * The context device has no driver of its own. Only enforce suspend
+	 * ordering here; a managed link would wait for a driver that never
+	 * binds and warn when KGSL completes its probe.
+	 */
+	link = device_link_add(&device->pdev->dev, &iommu->user_context.pdev->dev,
+			       DL_FLAG_STATELESS);
+	if (!link)
+		return -EINVAL;
+
+	ret = devm_add_action_or_reset(&device->pdev->dev,
+				       kgsl_iommu_remove_device_link, link);
+	if (ret)
+		return ret;
 
 	/* LPAC is optional so don't worry if it returns error */
 	kgsl_iommu_setup_context(mmu, node, &iommu->lpac_context,
