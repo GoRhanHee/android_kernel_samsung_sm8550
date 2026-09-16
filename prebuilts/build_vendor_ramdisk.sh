@@ -3,6 +3,11 @@
 set -Eeuo pipefail
 
 readonly BUILD_VENDOR_RAMDISK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly -a EARLY_ADSP_MODULES=(
+    qcom_q6v5_pas.ko
+    adsp_loader_dlkm.ko
+    frpc-adsprpc.ko
+)
 
 die() {
     echo "error: $*" >&2
@@ -70,6 +75,18 @@ main() {
     recovery_list="${work_dir}/modules.load.recovery"
     raw_inventory="${work_dir}/modules.inventory.raw"
     normalize_module_lists "${early_list}" >"${normal_list}"
+    # The Samsung sensor HAL starts before the vendor_dlkm load path has
+    # consistently brought up the ADSP/FastRPC stack.  If that race is lost,
+    # sensors-hal times out waiting for the sensors QMI service and keeps an
+    # empty sensor list for the remainder of the boot.  Keep the remoteproc,
+    # ADSP loader and FastRPC entry points in the vendor ramdisk load list;
+    # depmod supplies their dependency order from the complete module set
+    # staged below.
+    for module_name in "${EARLY_ADSP_MODULES[@]}"; do
+        resolve_module "${dist_dir}" "${module_name}" >/dev/null
+        grep -Fqx "${module_name}" "${normal_list}" ||
+            printf '%s\n' "${module_name}" >>"${normal_list}"
+    done
     find "${dist_dir}" -maxdepth 1 -type f -name '*.ko' -printf '%f\n' \
         | sort -u >"${raw_inventory}"
     normalize_module_lists "${raw_inventory}" >"${recovery_list}"
