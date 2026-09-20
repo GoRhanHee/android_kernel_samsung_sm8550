@@ -2,1072 +2,191 @@
 
 set -Eeuo pipefail
 
-readonly SCRIPT_NAME="$(basename "$0")"
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SOURCE_DIR="${SCRIPT_DIR}"
-readonly KERNEL_PLATFORM="${SOURCE_DIR}/kernel_platform"
-readonly TOOLCHAIN_VERSION="r614150"
-readonly TOOLCHAIN_URL="https://github.com/GoRhanHee/samsung_sm8550_toolchain/releases/download/clang23-ndk26d/toolchain-clang23-ndk26d.tar.xz"
-readonly CLANG_TOOLCHAIN_DIR="${KERNEL_PLATFORM}/prebuilts/clang/host/linux-x86/clang-${TOOLCHAIN_VERSION}"
-readonly CLANG_BIN="${CLANG_TOOLCHAIN_DIR}/bin/clang"
-readonly KSU_NEXT_REF="36aa55c521e509449bfe48bae0ab8c397174c1cb"
-readonly KSU_SETUP_URL="https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/${KSU_NEXT_REF}/kernel/setup.sh"
-readonly SUSFS_KSU_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0001-kernelsu-next-susfs-2.2.0.patch"
-readonly SUSFS_KERNEL_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0002-susfs-2.2.0-android13-5.15.patch"
-readonly BASE_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/gorhanhee_defconfig"
-readonly KSU_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/ksu_defconfig"
-readonly SUSFS_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/susfs_defconfig"
-readonly JOBS="$(nproc)"
-export TOOLCHAIN_VERSION
+export SCRIPT_NAME="$(basename "$0")"
+export SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export SCRIPTS_DIR="${SOURCE_DIR}/scripts"
+export KERNEL_PLATFORM="${SOURCE_DIR}/kernel_platform"
 
-# Environment passed to prepare_vendor.sh. Keep this as an array so paths and
-# empty assignments remain single arguments instead of being reparsed by eval
-# or by unquoted word splitting.
-readonly GKI_KERNEL_BUILD_OPTIONS=(
-    "SKIP_MRPROPER=1"
-    "LTO=thin"
-    "HERMETIC_TOOLCHAIN=0"
-    "KMI_SYMBOL_LIST_STRICT_MODE=0"
-    "TRIM_NONLISTED_KMI=0"
-    # Keep custom-only options out of the embedded /proc/config.gz output.
-    "CONFIG_FAKE_DISABLE=CONFIG_BBG CONFIG_NTSYNC CONFIG_TCP_CONG_BBR3 CONFIG_IP6_NF_NAT"
-    "RECOMPILE_KERNEL=1"
-    "ABI_DEFINITION="
-    "BUILD_BOOT_IMG=1"
-    "SKIP_VENDOR_BOOT=1"
-    "MKBOOTIMG_PATH=${SOURCE_DIR}/kernel_platform/tools/mkbootimg/mkbootimg.py"
-    "KERNEL_BINARY=Image"
-    "BOOT_IMAGE_HEADER_VERSION=4"
-    "AVB_SIGN_BOOT_IMG=1"
-    "AVB_BOOT_PARTITION_SIZE=100663296"
-    "AVB_BOOT_KEY=${SOURCE_DIR}/kernel_platform/tools/mkbootimg/gki/testdata/testkey_rsa4096.pem"
-    "AVB_BOOT_ALGORITHM=SHA256_RSA4096"
-    "AVB_BOOT_PARTITION_NAME=boot"
-)
+export TOOLCHAIN_VERSION="r614150"
+export TOOLCHAIN_URL="https://github.com/GoRhanHee/samsung_sm8550_toolchain/releases/download/clang23-ndk26d/toolchain-clang23-ndk26d.tar.xz"
+export CLANG_TOOLCHAIN_DIR="${KERNEL_PLATFORM}/prebuilts/clang/host/linux-x86/clang-${TOOLCHAIN_VERSION}"
+export CLANG_BIN="${CLANG_TOOLCHAIN_DIR}/bin/clang"
+export KSU_NEXT_REF="36aa55c521e509449bfe48bae0ab8c397174c1cb"
+export KSU_SETUP_URL="https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/${KSU_NEXT_REF}/kernel/setup.sh"
 
-# MKBOOTIMG Setting
-export MKBOOTIMG_EXTRA_ARGS="
-    --os_version 13.0.0 \
-    --os_patch_level 2099-12-31 \
-    --pagesize 4096 \
-"
+export SUSFS_KSU_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0001-kernelsu-next-susfs-2.2.0.patch"
+export SUSFS_KERNEL_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0002-susfs-2.2.0-android13-5.15.patch"
+export FAKE_CONFIG_PATCH_FILE="${SOURCE_DIR}/patches/common/fake_config.patch"
+export BASE_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/gorhanhee_defconfig"
+export KSU_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/ksu_defconfig"
+export SUSFS_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/susfs_defconfig"
 
-# Set the kernel build identity and use Korea Standard Time.
+usage() {
+    cat <<EOF
+Usage: ${SCRIPT_NAME} [vanilla|ksun|susfs]
+
+  vanilla  Build without KernelSU-Next or SUSFS (default)
+  ksun     Build with KernelSU-Next ${KSU_NEXT_REF}
+  susfs    Build with KernelSU-Next and SUSFS 2.2.0
+EOF
+}
+
+case "${1:-vanilla}" in
+    -h|--help|help)
+        usage
+        exit 0
+        ;;
+    vanilla|plain|base)
+        export KERNEL_MODE="vanilla"
+        ;;
+    ksun|ksu)
+        export KERNEL_MODE="ksun"
+        ;;
+    susfs|ksu-susfs)
+        export KERNEL_MODE="susfs"
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac
+(( $# <= 1 )) || { usage >&2; exit 2; }
+
+# Universal build profile.  Child scripts receive configuration only through
+# exported variables, so every phase can also be invoked independently.
+export BUILD_TARGET="universal"
+export MODEL="universal"
+export PROJECT_NAME="universal"
+export SEC_PROJECT_CONFIG="universal"
+export REGION="universal"
+export CARRIER="universal"
+export CHIPSET_NAME="kalama"
+export TARGET_PRODUCT="gki"
+export TARGET_BOARD_PLATFORM="gki"
+export TARGET_BUILD_VARIANT="user"
+export ANDROID_BUILD_TOP="${SOURCE_DIR}"
+
+export OUTPUT_BASE="${SOURCE_DIR}/out"
+export OUT_DIR="${OUTPUT_BASE}/${MODEL}/msm-${CHIPSET_NAME}-${CHIPSET_NAME}-${TARGET_PRODUCT}-${KERNEL_MODE}"
+export DIST_DIR="${OUT_DIR}/dist"
+export GKI_OUT_DIR="${OUT_DIR}/gki_kernel"
+export GKI_DIST_DIR="${GKI_OUT_DIR}/dist"
+export PACKAGE_DIR="${OUT_DIR}/packaged"
+export ANDROID_PRODUCT_OUT="${OUTPUT_BASE}/${MODEL}/${KERNEL_MODE}/target/product/${MODEL}"
+export ANDROID_KERNEL_OUT="${OUT_DIR}/android-kernel-out"
+export PACKAGING_WORK_DIR="${OUT_DIR}/tmp/run-${BASHPID}"
+export DOWNLOAD_DIR="${OUT_DIR}/downloads/run-${BASHPID}"
+export TMPDIR="${PACKAGING_WORK_DIR}/process-tmp"
+export ANYKERNEL_PACKAGE="${PACKAGE_DIR}/GoRhanHee_Kernel-${CHIPSET_NAME}-${MODEL}-${KERNEL_MODE}-AnyKernel3.zip"
+
+export GKI_CUSTOM_DEFCONFIG="${BASE_DEFCONFIG_FILE}"
+export GKI_CUSTOM_DEFCONFIG_FRAGMENTS=""
+if [[ "${KERNEL_MODE}" == "ksun" ]]; then
+    export GKI_CUSTOM_DEFCONFIG_FRAGMENTS="${KSU_DEFCONFIG_FILE}"
+elif [[ "${KERNEL_MODE}" == "susfs" ]]; then
+    export GKI_CUSTOM_DEFCONFIG_FRAGMENTS="${KSU_DEFCONFIG_FILE} ${SUSFS_DEFCONFIG_FILE}"
+fi
+
+# Kernel build settings shared by the standalone common and MSM phases.
+export JOBS="$(nproc)"
+export SKIP_MRPROPER="1"
+export LTO="thin"
+export HERMETIC_TOOLCHAIN="0"
+export KMI_SYMBOL_LIST_STRICT_MODE="0"
+export TRIM_NONLISTED_KMI="0"
+export CONFIG_FAKE_DISABLE="CONFIG_BBG CONFIG_NTSYNC CONFIG_TCP_CONG_BBR3 CONFIG_IP6_NF_NAT"
+export ABI_DEFINITION=""
+export BUILD_BOOT_IMG="1"
+export SKIP_VENDOR_BOOT="1"
+export MKBOOTIMG_PATH="${KERNEL_PLATFORM}/tools/mkbootimg/mkbootimg.py"
+export KERNEL_BINARY="Image"
+export BOOT_IMAGE_HEADER_VERSION="4"
+export AVB_SIGN_BOOT_IMG="1"
+export AVB_BOOT_PARTITION_SIZE="100663296"
+export AVB_BOOT_KEY="${KERNEL_PLATFORM}/tools/mkbootimg/gki/testdata/testkey_rsa4096.pem"
+export AVB_BOOT_ALGORITHM="SHA256_RSA4096"
+export AVB_BOOT_PARTITION_NAME="boot"
+export MKBOOTIMG_EXTRA_ARGS="--os_version 13.0.0 --os_patch_level 2099-12-31 --pagesize 4096"
+export MERGE_CONFIG="${KERNEL_PLATFORM}/common/scripts/kconfig/merge_config.sh"
+export GKI_BUILD_CONFIG_FRAGMENT="${SOURCE_DIR}/prebuilts/gki_toolchain.config"
+
 export TZ="Asia/Seoul"
-export LC_ALL=C
+export LC_ALL="C"
 export KBUILD_BUILD_USER="GoRhanHee"
 export KBUILD_BUILD_HOST="SM8550-Kernel"
 export KBUILD_BUILD_TIMESTAMP="$(date)"
 export KBUILD_BUILD_VERSION="1"
 
-readonly COMMON_FEATURE_PATCH_FILES=(
-    "${SOURCE_DIR}/patches/common/ntsync/ntsync_base.patch"
-    "${SOURCE_DIR}/patches/common/ntsync/ntsync_compat_android13-5.15.patch"
-    "${SOURCE_DIR}/patches/common/bbrv3/0001-net-tcp-backport-BBRv3-to-android13-5.15.patch"
-    "${SOURCE_DIR}/patches/common/bbg/0001-baseband-guard.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0001-optimized-mem-operations.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0002-file-struct-8bytes-align.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0003-reduce-cache-pressure.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0004-mem-opt-prefetch.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0005-arm64-optimize-memcmp-sm8550-5.15.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0006-int-sqrt.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0007-reduce-gc-thread-sleep-time.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0008-alarmtimer-wakeup-timeout-sm8550-5.15.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0009-add-timeout-wakelocks-globally.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0010-f2fs-reduce-congestion.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0011-reduce-freeze-timeout.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0012-clear-page-16bytes-align.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0013-cpufreq-scaling-min-freq-limit-sm8550-5.15.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0014-adjust-cpu-scan-order.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0015-avoid-extra-s2idle-wake-attempts.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0016-disable-cache-hot-buddy.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0017-f2fs-enlarge-min-fsync-blocks.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0018-increase-ext4-default-commit-age.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0019-increase-sk-mem-packets-sm8550-5.15.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0020-reduce-pci-pme-wakeups-sm8550-5.15.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0021-silence-irq-cpu-logspam-sm8550-5.15.patch"
-    "${SOURCE_DIR}/patches/common/optimization/0022-silence-system-logspam.patch"
-)
-
-# Apply this shared patch to both kernel trees during the build.
-readonly FAKE_CONFIG_PATCH_FILE="${SOURCE_DIR}/patches/common/fake_config.patch"
-readonly FAKE_CONFIG_PATCH_TARGETS=(
-    "${KERNEL_PLATFORM}/common"
-    "${KERNEL_PLATFORM}/msm-kernel"
-)
-
-BUILD_TARGET=""
-KERNEL_MODE=""
-MODEL=""
-PROJECT_NAME=""
-REGION=""
-CARRIER=""
-CHIPSET_NAME=""
-TARGET_PRODUCT=""
-TARGET_BOARD_PLATFORM=""
-SEC_PROJECT_CONFIG=""
-readonly WLAN_PROFILES=(qca6490 kiwi_v2)
-readonly WLAN_EXT_MODULES=(
-    "../vendor/qcom/opensource/wlan/qcacld-3.0/.qca6490"
-    "../vendor/qcom/opensource/wlan/qcacld-3.0/.kiwi_v2"
-)
-ANDROID_BUILD_TOP=""
-ANDROID_PRODUCT_OUT=""
-ANDROID_KERNEL_OUT=""
-OUT_DIR=""
-GKI_CUSTOM_DEFCONFIG=""
-GKI_CUSTOM_DEFCONFIG_FRAGMENTS=""
-DIST_DIR=""
-PACKAGE_DIR=""
-TARGET_TEMP_DIR=""
-TARGET_DOWNLOAD_DIR=""
-PACKAGING_WORK_DIR=""
-DOWNLOAD_DIR=""
-ANYKERNEL_PACKAGE=""
-TMPDIR=""
-COMMON_HEAD_BEFORE=""
-COMMON_STATUS_BEFORE=""
-MSM_HEAD_BEFORE=""
-MSM_STATUS_BEFORE=""
-MSM_DEFCONFIG_BACKUP_DIR=""
-MSM_DEFCONFIG_SNAPSHOT_TAKEN=0
-MSM_DEFCONFIG_FILES=()
-MSM_WLAN_LINK_PREEXISTING=0
-MSM_WLAN_LINK_TARGET=""
-KSU_SETUP_SCRIPT=""
-KSU_RESTORE_PATCH=""
-KSU_IMPORT_STARTED=0
-KSU_REUSE_EXISTING=0
-SUSFS_KSU_PATCH_APPLIED=0
-SUSFS_KERNEL_PATCH_APPLIED=0
-COMMON_FEATURE_PATCHES_APPLIED=0
-FAKE_CONFIG_PATCHES_APPLIED=0
-
-usage() {
-    cat <<EOF
-Usage:
-  ${SCRIPT_NAME} [vanilla|ksun|susfs]
-  ${SCRIPT_NAME} -h
-  ${SCRIPT_NAME} --help
-  ${SCRIPT_NAME} help
-
-Examples:
-  ${SCRIPT_NAME} vanilla
-  ${SCRIPT_NAME} ksun
-  ${SCRIPT_NAME} susfs
-
-Kernel modes:
-  vanilla Standard kernel build without KernelSU-Next or SUSFS (default)
-  ksun    KernelSU-Next ${KSU_NEXT_REF} without SUSFS
-  susfs   KernelSU-Next ${KSU_NEXT_REF} + SUSFS 2.2.0 for Android 13 / 5.15
-
-Build profile:
-  Source directory  ${SOURCE_DIR}
-  Parallel jobs     ${JOBS}
-  Toolchain         clang-${TOOLCHAIN_VERSION}
-  LTO               thin
-  GKI/boot options  fixed in this script
-EOF
-}
-
-die() {
-    echo "error: $*" >&2
-    exit 1
-}
-
-require_command() {
-    command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
-}
-
-select_kernel_mode() {
-    case "${1:-vanilla}" in
-        vanilla|plain|base)
-            KERNEL_MODE="vanilla"
-            ;;
-        ksun|ksu)
-            KERNEL_MODE="ksun"
-            ;;
-        susfs|ksu-susfs)
-            KERNEL_MODE="susfs"
-            ;;
-        *)
-            return 2
-            ;;
-    esac
-}
-
-update_submodules() {
-    require_command git
-
-    git -C "${SOURCE_DIR}" rev-parse --show-toplevel >/dev/null 2>&1 ||
-        die "source directory is not a git worktree: ${SOURCE_DIR}"
-
-    echo "[submodule] Synchronizing configured URLs"
-    git -C "${SOURCE_DIR}" submodule sync --recursive
-    echo "[submodule] Initializing recorded revisions"
-    git -C "${SOURCE_DIR}" submodule update --init --depth=1 --recursive --checkout
-
-    # A depth-limited checkout tracks only the remote's default branch. Restore
-    # all branch refspecs so --remote can resolve .gitmodules branches such as
-    # msm-kernel's universal branch, including in an existing shallow checkout.
-    echo "[submodule] Enabling configured branch fetches"
-    git -C "${SOURCE_DIR}" submodule foreach --recursive \
-        'git config --replace-all remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"'
-    echo "[submodule] Updating configured branches"
-    git -C "${SOURCE_DIR}" submodule update --init --remote --depth=1 --recursive --checkout
-}
-
-select_universal_profile() {
-    local output_base
-    local run_key="run-${BASHPID}"
-
-    BUILD_TARGET="universal"
-    MODEL="universal"
-    PROJECT_NAME="universal"
-    SEC_PROJECT_CONFIG="universal"
-    REGION="universal"
-    CARRIER="universal"
-    CHIPSET_NAME="kalama"
-    TARGET_PRODUCT="gki"
-    TARGET_BOARD_PLATFORM="gki"
-    GKI_CUSTOM_DEFCONFIG="${BASE_DEFCONFIG_FILE}"
-    GKI_CUSTOM_DEFCONFIG_FRAGMENTS=""
-    case "${KERNEL_MODE}" in
-        ksun)
-            GKI_CUSTOM_DEFCONFIG_FRAGMENTS="${KSU_DEFCONFIG_FILE}"
-            ;;
-        susfs)
-            GKI_CUSTOM_DEFCONFIG_FRAGMENTS="${KSU_DEFCONFIG_FILE} ${SUSFS_DEFCONFIG_FILE}"
-            ;;
-    esac
-    ANDROID_BUILD_TOP="${SOURCE_DIR}"
-    output_base="${ANDROID_BUILD_TOP}/out"
-    ANDROID_PRODUCT_OUT="${output_base}/${MODEL}/${KERNEL_MODE}/target/product/${MODEL}"
-    OUT_DIR="${output_base}/${MODEL}/msm-${CHIPSET_NAME}-${CHIPSET_NAME}-${TARGET_PRODUCT}-${KERNEL_MODE}"
-    ANDROID_KERNEL_OUT="${OUT_DIR}/android-kernel-out"
-    DIST_DIR="${OUT_DIR}/dist"
-    PACKAGE_DIR="${OUT_DIR}/packaged"
-    TARGET_TEMP_DIR="${OUT_DIR}/tmp"
-    TARGET_DOWNLOAD_DIR="${OUT_DIR}/downloads"
-    PACKAGING_WORK_DIR="${TARGET_TEMP_DIR}/${run_key}"
-    DOWNLOAD_DIR="${TARGET_DOWNLOAD_DIR}/${run_key}"
-    ANYKERNEL_PACKAGE="${PACKAGE_DIR}/GoRhanHee_Kernel-${CHIPSET_NAME}-${MODEL}-${KERNEL_MODE}-AnyKernel3.zip"
-    TMPDIR="${PACKAGING_WORK_DIR}/process-tmp"
-
-    export BUILD_TARGET KERNEL_MODE MODEL PROJECT_NAME REGION CARRIER
-    export CHIPSET_NAME TARGET_PRODUCT TARGET_BOARD_PLATFORM
-    export SEC_PROJECT_CONFIG
-    export ANDROID_BUILD_TOP ANDROID_PRODUCT_OUT ANDROID_KERNEL_OUT
-    export GKI_CUSTOM_DEFCONFIG GKI_CUSTOM_DEFCONFIG_FRAGMENTS
-    export OUT_DIR DIST_DIR TMPDIR
-}
-
-record_common_state() {
-    local common_dir="${KERNEL_PLATFORM}/common"
-    local top_level
-
-    require_command git
-    [[ -e "${common_dir}/.git" ]] ||
-        die "common submodule is not initialized: ${common_dir}"
-    [[ -n "$(find -H "${common_dir}" -mindepth 1 -maxdepth 1 ! -name .git -print -quit)" ]] ||
-        die "common submodule is empty: ${common_dir}"
-    top_level="$(git -C "${common_dir}" rev-parse --show-toplevel 2>/dev/null)" ||
-        die "common submodule is not initialized: ${common_dir}"
-    [[ "${top_level}" -ef "${common_dir}" ]] ||
-        die "common submodule is not initialized: ${common_dir}"
-
-    COMMON_HEAD_BEFORE="$(git -C "${common_dir}" rev-parse HEAD)"
-    COMMON_STATUS_BEFORE="$(
-        git -C "${common_dir}" status --porcelain=v1 --untracked-files=all
-    )"
-    [[ -z "${COMMON_STATUS_BEFORE}" ]] ||
-        die "common submodule must be clean before the build"
-
-    if [[ -d "${common_dir}/KernelSU-Next" ||
-          -d "${common_dir}/KernelSU" ||
-          -e "${common_dir}/drivers/kernelsu" ]]; then
-        [[ "${KERNEL_MODE}" != "vanilla" ]] ||
-            die "vanilla mode requires a common kernel tree without KernelSU integration"
-        KSU_REUSE_EXISTING=1
-        echo "[KernelSU] Reusing the existing integration for ${KERNEL_MODE} mode"
-    elif [[ "${KERNEL_MODE}" != "vanilla" ]]; then
-        echo "[KernelSU-Next] A pinned temporary integration will be imported"
-    else
-        echo "[KernelSU-Next] Disabled for vanilla mode"
-    fi
-
-    trap cleanup_common EXIT
-}
-
-import_kernelsu_next() {
-    local common_dir="${KERNEL_PLATFORM}/common"
-    local changed_file
-
-    [[ "${KERNEL_MODE}" != "vanilla" ]] || return 0
-
-    if (( KSU_REUSE_EXISTING == 1 )); then
-        return 0
-    fi
-
-    require_command bash
-    require_command curl
-    require_command git
-
-    KSU_SETUP_SCRIPT="${PACKAGING_WORK_DIR}/kernelsu-next-setup.sh"
-    KSU_RESTORE_PATCH="${PACKAGING_WORK_DIR}/kernelsu-next-common.patch"
-
-    echo "[KernelSU-Next] Downloading the official setup script"
-    curl -fLSs --retry 3 -o "${KSU_SETUP_SCRIPT}" "${KSU_SETUP_URL}"
-
-    KSU_IMPORT_STARTED=1
-    echo "[KernelSU-Next] Importing pinned ref ${KSU_NEXT_REF}"
-    (
-        cd "${common_dir}"
-        bash "${KSU_SETUP_SCRIPT}" "${KSU_NEXT_REF}"
-    )
-
-    git -C "${common_dir}" diff --binary --full-index > "${KSU_RESTORE_PATCH}"
-    [[ -s "${KSU_RESTORE_PATCH}" ]] ||
-        die "KernelSU-Next setup did not modify the common kernel"
-
-    while IFS= read -r changed_file; do
-        case "${changed_file}" in
-            drivers/Kconfig|drivers/Makefile)
-                ;;
-            *)
-                die "KernelSU-Next setup changed an unexpected tracked file: ${changed_file}"
-                ;;
-        esac
-    done < <(git -C "${common_dir}" diff --name-only)
-
-    [[ -L "${common_dir}/drivers/kernelsu" ]] ||
-        die "KernelSU-Next setup did not create drivers/kernelsu"
-    [[ -d "${common_dir}/KernelSU-Next" ]] ||
-        die "KernelSU-Next setup did not clone KernelSU-Next"
-
-    echo "[KernelSU-Next] Restore patch: ${KSU_RESTORE_PATCH}"
-}
-
-apply_susfs_patches() {
-    local common_dir="${KERNEL_PLATFORM}/common"
-    local kernelsu_dir="${common_dir}/KernelSU-Next"
-
-    [[ "${KERNEL_MODE}" == "susfs" ]] || return 0
-    require_command patch
-    [[ -f "${SUSFS_KSU_PATCH_FILE}" ]] ||
-        die "KernelSU-Next SUSFS patch not found: ${SUSFS_KSU_PATCH_FILE}"
-    [[ -f "${SUSFS_KERNEL_PATCH_FILE}" ]] ||
-        die "kernel SUSFS patch not found: ${SUSFS_KERNEL_PATCH_FILE}"
-    [[ -d "${kernelsu_dir}" ]] ||
-        die "KernelSU-Next tree not found for SUSFS patching: ${kernelsu_dir}"
-
-    echo "[SUSFS] Checking KernelSU-Next 2.2.0 integration"
-    (
-        cd "${kernelsu_dir}"
-        patch --batch --forward --fuzz=0 --no-backup-if-mismatch \
-            --dry-run -p1 < "${SUSFS_KSU_PATCH_FILE}" >/dev/null
-    ) || die "KernelSU-Next SUSFS patch does not apply: ${SUSFS_KSU_PATCH_FILE}"
-
-    echo "[SUSFS] Applying KernelSU-Next 2.2.0 integration"
-    (
-        cd "${kernelsu_dir}"
-        patch --batch --forward --fuzz=0 --no-backup-if-mismatch \
-            -p1 < "${SUSFS_KSU_PATCH_FILE}"
-    )
-    SUSFS_KSU_PATCH_APPLIED=1
-
-    echo "[SUSFS] Checking Android 13 / 5.15 kernel integration"
-    (
-        cd "${common_dir}"
-        patch --batch --forward --fuzz=0 --no-backup-if-mismatch \
-            --dry-run -p1 < "${SUSFS_KERNEL_PATCH_FILE}" >/dev/null
-    ) || die "Android 13 / 5.15 SUSFS patch does not apply: ${SUSFS_KERNEL_PATCH_FILE}"
-
-    echo "[SUSFS] Applying Android 13 / 5.15 kernel integration"
-    (
-        cd "${common_dir}"
-        patch --batch --forward --fuzz=0 --no-backup-if-mismatch \
-            -p1 < "${SUSFS_KERNEL_PATCH_FILE}"
-    )
-    SUSFS_KERNEL_PATCH_APPLIED=1
-}
-
-apply_common_feature_patches() {
-    local common_dir="${KERNEL_PLATFORM}/common"
-    local patch_file
-
-    require_command patch
-
-    for patch_file in "${COMMON_FEATURE_PATCH_FILES[@]}"; do
-        [[ -f "${patch_file}" ]] ||
-            die "common feature patch not found: ${patch_file}"
-
-        echo "[common patches] Checking $(basename "${patch_file}")"
-        (
-            cd "${common_dir}"
-            patch --batch --forward --fuzz=1 --no-backup-if-mismatch --dry-run -p1 < "${patch_file}" >/dev/null
-        ) || die "common feature patch does not apply: ${patch_file}"
-
-        echo "[common patches] Applying $(basename "${patch_file}")"
-        (
-            cd "${common_dir}"
-            patch --batch --forward --fuzz=1 --no-backup-if-mismatch -p1 < "${patch_file}"
-        )
-        COMMON_FEATURE_PATCHES_APPLIED=$((COMMON_FEATURE_PATCHES_APPLIED + 1))
-    done
-}
-
-apply_fake_config_patch() {
-    local kernel_dir
-
-    require_command patch
-    [[ -f "${FAKE_CONFIG_PATCH_FILE}" ]] ||
-        die "fake config patch not found: ${FAKE_CONFIG_PATCH_FILE}"
-
-    for kernel_dir in "${FAKE_CONFIG_PATCH_TARGETS[@]}"; do
-        echo "[fake config] Checking $(basename "${kernel_dir}")"
-        (
-            cd "${kernel_dir}"
-            patch --batch --forward --fuzz=1 --no-backup-if-mismatch \
-                --dry-run -p1 < "${FAKE_CONFIG_PATCH_FILE}" >/dev/null
-        ) || die "fake config patch does not apply: ${kernel_dir}"
-
-        echo "[fake config] Applying to $(basename "${kernel_dir}")"
-        (
-            cd "${kernel_dir}"
-            patch --batch --forward --fuzz=1 --no-backup-if-mismatch \
-                -p1 < "${FAKE_CONFIG_PATCH_FILE}"
-        )
-        FAKE_CONFIG_PATCHES_APPLIED=$((FAKE_CONFIG_PATCHES_APPLIED + 1))
-    done
-}
-
-validate_msm_state() {
-    local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
-    local top_level
-    local head
-    local configured_branch
-    local tracking_ref
-    local tracking_head
-    local status
-
-    [[ -e "${msm_dir}/.git" ]] ||
-        die "msm-kernel submodule is not initialized: ${msm_dir}"
-    [[ -n "$(find "${msm_dir}" -mindepth 1 -maxdepth 1 ! -name .git -print -quit)" ]] ||
-        die "msm-kernel submodule is empty: ${msm_dir}"
-    top_level="$(git -C "${msm_dir}" rev-parse --show-toplevel 2>/dev/null)" ||
-        die "msm-kernel submodule is not initialized: ${msm_dir}"
-    [[ "${top_level}" == "${msm_dir}" ]] ||
-        die "msm-kernel submodule is not initialized: ${msm_dir}"
-
-    head="$(git -C "${msm_dir}" rev-parse --verify HEAD)"
-    status="$(
-        git -C "${msm_dir}" status --porcelain=v1 --untracked-files=all
-    )"
-    [[ -z "${status}" ]] ||
-        die "msm-kernel submodule must be clean before the build"
-    MSM_HEAD_BEFORE="${head}"
-    MSM_STATUS_BEFORE="${status}"
-    configured_branch="$(
-        git -C "${SOURCE_DIR}" config -f .gitmodules \
-            --get submodule.kernel_platform/msm-kernel.branch 2>/dev/null || true
-    )"
-    tracking_ref="refs/remotes/origin/${configured_branch}"
-    if [[ -n "${configured_branch}" ]] &&
-       git -C "${msm_dir}" show-ref --verify --quiet "${tracking_ref}"; then
-        tracking_head="$(git -C "${msm_dir}" rev-parse "${tracking_ref}")"
-        [[ "${head}" == "${tracking_head}" ]] ||
-            die "msm-kernel HEAD does not match ${tracking_ref}"
-        echo "[submodule] msm-kernel ${head} matches ${tracking_ref} and is clean"
-    else
-        echo "[submodule] msm-kernel ${head} is initialized and clean"
-    fi
-}
-
-snapshot_msm_wlan_link() {
-    local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
-    local wlan_link="${msm_dir}/.wlan-qcacld"
-
-    if [[ -L "${wlan_link}" ]]; then
-        MSM_WLAN_LINK_PREEXISTING=1
-        MSM_WLAN_LINK_TARGET="$(readlink -- "${wlan_link}")"
-    elif [[ -e "${wlan_link}" ]]; then
-        die "msm-kernel .wlan-qcacld exists but is not a symlink"
-    fi
-}
-
-snapshot_msm_defconfigs() {
-    local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
-    local relative_path
-    local source_path
-    local backup_path
-
-    MSM_DEFCONFIG_BACKUP_DIR="${PACKAGING_WORK_DIR}/msm-defconfigs.before"
-    mkdir -p "${MSM_DEFCONFIG_BACKUP_DIR}"
-
-    # build.config.msm.common's merge_defconfig_fragments() writes the merged
-    # result into the source-tree defconfig. Preserve every tracked vendor
-    # defconfig so that this build-time artifact cannot leak into the
-    # submodule, including any local changes that existed before the build.
-    while IFS= read -r relative_path; do
-        [[ -n "${relative_path}" ]] || continue
-        source_path="${msm_dir}/${relative_path}"
-        backup_path="${MSM_DEFCONFIG_BACKUP_DIR}/${relative_path}"
-        mkdir -p "$(dirname "${backup_path}")"
-        cp -a -- "${source_path}" "${backup_path}" ||
-            die "failed to snapshot msm-kernel defconfig: ${relative_path}"
-        MSM_DEFCONFIG_FILES+=("${relative_path}")
-    done < <(
-        git -C "${msm_dir}" ls-files -- 'arch/arm64/configs/vendor/*defconfig'
-    )
-
-    MSM_DEFCONFIG_SNAPSHOT_TAKEN=1
-    echo "[submodule] snapshotting msm-kernel defconfigs for build cleanup"
-}
-
-restore_msm_defconfigs() {
-    local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
-    local relative_path
-    local source_path
-    local backup_path
-    local cleanup_status=0
-
-    (( MSM_DEFCONFIG_SNAPSHOT_TAKEN == 1 )) || return 0
-
-    echo "[submodule] restoring msm-kernel defconfigs"
-    for relative_path in "${MSM_DEFCONFIG_FILES[@]}"; do
-        source_path="${msm_dir}/${relative_path}"
-        backup_path="${MSM_DEFCONFIG_BACKUP_DIR}/${relative_path}"
-
-        if [[ -e "${source_path}" || -L "${source_path}" ]]; then
-            rm -f -- "${source_path}" || cleanup_status=1
-        fi
-        cp -a -- "${backup_path}" "${source_path}" || cleanup_status=1
-    done
-
-    MSM_DEFCONFIG_SNAPSHOT_TAKEN=0
-    return "${cleanup_status}"
-}
-
-cleanup_msm_wlan_link() {
-    local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
-    local wlan_link="${msm_dir}/.wlan-qcacld"
-    local current_target
-    local cleanup_status=0
-
-    if (( MSM_WLAN_LINK_PREEXISTING == 1 )); then
-        if [[ -L "${wlan_link}" ]]; then
-            current_target="$(readlink -- "${wlan_link}")"
-            if [[ "${current_target}" != "${MSM_WLAN_LINK_TARGET}" ]]; then
-                echo "[submodule] restoring pre-existing msm-kernel WLAN link"
-                rm -- "${wlan_link}" || cleanup_status=1
-                if (( cleanup_status == 0 )); then
-                    ln -s -- "${MSM_WLAN_LINK_TARGET}" "${wlan_link}" ||
-                        cleanup_status=1
-                fi
-            fi
-        elif [[ -e "${wlan_link}" ]]; then
-            echo "error: build replaced the pre-existing msm-kernel WLAN link" >&2
-            cleanup_status=1
-        else
-            echo "[submodule] restoring pre-existing msm-kernel WLAN link"
-            ln -s -- "${MSM_WLAN_LINK_TARGET}" "${wlan_link}" ||
-                cleanup_status=1
-        fi
-    elif [[ -L "${wlan_link}" ]]; then
-        echo "[submodule] removing build-created msm-kernel WLAN link"
-        rm -- "${wlan_link}" || cleanup_status=1
-    elif [[ -e "${wlan_link}" ]]; then
-        echo "error: build created a non-symlink msm-kernel WLAN path; refusing to remove it" >&2
-        cleanup_status=1
-    fi
-
-    return "${cleanup_status}"
-}
-
-verify_common_unchanged() {
-    local common_dir="${KERNEL_PLATFORM}/common"
-    local head_after
-    local status_after
-
-    [[ -n "${COMMON_HEAD_BEFORE}" ]] || return 0
-    head_after="$(git -C "${common_dir}" rev-parse HEAD 2>/dev/null)" || {
-        echo "error: common submodule became unavailable during the build" >&2
-        return 1
-    }
-    status_after="$(
-        git -C "${common_dir}" status --porcelain=v1 --untracked-files=all
-    )" || {
-        echo "error: common submodule status could not be read after the build" >&2
-        return 1
-    }
-
-    if [[ "${head_after}" != "${COMMON_HEAD_BEFORE}" ||
-          "${status_after}" != "${COMMON_STATUS_BEFORE}" ]]; then
-        echo "error: the build changed kernel_platform/common" >&2
-        return 1
-    fi
-}
-
-verify_msm_unchanged() {
-    local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
-    local head_after
-    local status_after
-
-    [[ -n "${MSM_HEAD_BEFORE}" ]] || return 0
-    head_after="$(git -C "${msm_dir}" rev-parse HEAD 2>/dev/null)" || {
-        echo "error: msm-kernel submodule became unavailable during the build" >&2
-        return 1
-    }
-    status_after="$(
-        git -C "${msm_dir}" status --porcelain=v1 --untracked-files=all
-    )" || {
-        echo "error: msm-kernel submodule status could not be read after the build" >&2
-        return 1
-    }
-
-    if [[ "${head_after}" != "${MSM_HEAD_BEFORE}" ||
-          "${status_after}" != "${MSM_STATUS_BEFORE}" ]]; then
-        echo "error: the build changed kernel_platform/msm-kernel" >&2
-        if [[ "${head_after}" != "${MSM_HEAD_BEFORE}" ]]; then
-            echo "error: msm-kernel HEAD before build: ${MSM_HEAD_BEFORE}" >&2
-            echo "error: msm-kernel HEAD after cleanup: ${head_after}" >&2
-        fi
-        if [[ "${status_after}" != "${MSM_STATUS_BEFORE}" ]]; then
-            echo "error: msm-kernel status before build:" >&2
-            if [[ -n "${MSM_STATUS_BEFORE}" ]]; then
-                printf '%s\n' "${MSM_STATUS_BEFORE}" >&2
-            else
-                echo "  (clean)" >&2
-            fi
-            echo "error: msm-kernel status after cleanup:" >&2
-            if [[ -n "${status_after}" ]]; then
-                printf '%s\n' "${status_after}" >&2
-            else
-                echo "  (clean)" >&2
-            fi
-        fi
-        return 1
-    fi
-}
-
-cleanup_kernelsu_next() {
-    local common_dir="${KERNEL_PLATFORM}/common"
-    local kernelsu_dir="${KERNEL_PLATFORM}/common/KernelSU-Next"
-    local kernelsu_link="${KERNEL_PLATFORM}/common/drivers/kernelsu"
-    local fallback_patch="${PACKAGING_WORK_DIR}/kernelsu-next-common-fallback.patch"
-    local cleanup_status=0
-
-    (( KSU_IMPORT_STARTED == 1 )) || return 0
-
-    echo "[KernelSU-Next] Restoring common kernel state"
-    if [[ -s "${KSU_RESTORE_PATCH}" ]]; then
-        git -C "${common_dir}" apply --reverse "${KSU_RESTORE_PATCH}" ||
-            cleanup_status=1
-    elif ! git -C "${common_dir}" diff --quiet; then
-        git -C "${common_dir}" diff --binary --full-index > "${fallback_patch}"
-        git -C "${common_dir}" apply --reverse "${fallback_patch}" ||
-            cleanup_status=1
-    fi
-
-    if [[ -L "${kernelsu_link}" ]]; then
-        rm -- "${kernelsu_link}" || cleanup_status=1
-    elif [[ -e "${kernelsu_link}" ]]; then
-        echo "error: refusing to remove non-symlink path: ${kernelsu_link}" >&2
-        cleanup_status=1
-    fi
-
-    if [[ -L "${kernelsu_dir}" ]]; then
-        echo "error: refusing to recursively remove symlink: ${kernelsu_dir}" >&2
-        cleanup_status=1
-    elif [[ -d "${kernelsu_dir}" ]]; then
-        rm -rf -- "${kernelsu_dir}" || cleanup_status=1
-    elif [[ -e "${kernelsu_dir}" ]]; then
-        echo "error: refusing to remove unexpected path: ${kernelsu_dir}" >&2
-        cleanup_status=1
-    fi
-
-    KSU_IMPORT_STARTED=0
-    return "${cleanup_status}"
-}
-
-cleanup_susfs_patches() {
-    local common_dir="${KERNEL_PLATFORM}/common"
-    local kernelsu_dir="${common_dir}/KernelSU-Next"
-    local cleanup_status=0
-
-    (( SUSFS_KSU_PATCH_APPLIED == 1 || SUSFS_KERNEL_PATCH_APPLIED == 1 )) || return 0
-
-    echo "[SUSFS] Restoring build-time SUSFS patches"
-    if (( SUSFS_KERNEL_PATCH_APPLIED == 1 )); then
-        (
-            cd "${common_dir}"
-            patch --batch --fuzz=0 --no-backup-if-mismatch \
-                -R -p1 < "${SUSFS_KERNEL_PATCH_FILE}"
-        ) || cleanup_status=1
-        SUSFS_KERNEL_PATCH_APPLIED=0
-    fi
-
-    if (( SUSFS_KSU_PATCH_APPLIED == 1 )); then
-        if [[ -d "${kernelsu_dir}" ]]; then
-            (
-                cd "${kernelsu_dir}"
-                patch --batch --fuzz=0 --no-backup-if-mismatch \
-                    -R -p1 < "${SUSFS_KSU_PATCH_FILE}"
-            ) || cleanup_status=1
-        else
-            echo "error: KernelSU-Next tree disappeared before SUSFS cleanup" >&2
-            cleanup_status=1
-        fi
-        SUSFS_KSU_PATCH_APPLIED=0
-    fi
-
-    return "${cleanup_status}"
-}
-
-cleanup_common_feature_patches() {
-    local common_dir="${KERNEL_PLATFORM}/common"
-    local patch_file
-    local patch_index
-    local cleanup_status=0
-
-    (( COMMON_FEATURE_PATCHES_APPLIED > 0 )) || return 0
-
-    echo "[common patches] Restoring common kernel state"
-    for ((patch_index = COMMON_FEATURE_PATCHES_APPLIED - 1; patch_index >= 0; patch_index--)); do
-        patch_file="${COMMON_FEATURE_PATCH_FILES[patch_index]}"
-        (
-            cd "${common_dir}"
-            patch --batch --fuzz=1 --no-backup-if-mismatch -R -p1 < "${patch_file}"
-        ) || cleanup_status=1
-    done
-
-    COMMON_FEATURE_PATCHES_APPLIED=0
-    return "${cleanup_status}"
-}
-
-cleanup_fake_config_patch() {
-    local patch_index
-    local kernel_dir
-    local cleanup_status=0
-
-    (( FAKE_CONFIG_PATCHES_APPLIED > 0 )) || return 0
-
-    echo "[fake config] Restoring kernel source state"
-    for ((patch_index = FAKE_CONFIG_PATCHES_APPLIED - 1; patch_index >= 0; patch_index--)); do
-        kernel_dir="${FAKE_CONFIG_PATCH_TARGETS[patch_index]}"
-        (
-            cd "${kernel_dir}"
-            patch --batch --fuzz=1 --no-backup-if-mismatch -R -p1 < "${FAKE_CONFIG_PATCH_FILE}"
-        ) || cleanup_status=1
-    done
-
-    FAKE_CONFIG_PATCHES_APPLIED=0
-    return "${cleanup_status}"
-}
-
-cleanup_common() {
-    local build_status=$?
-    local cleanup_status=0
-
-    trap - EXIT
-    cleanup_fake_config_patch || cleanup_status=1
-    cleanup_susfs_patches || cleanup_status=1
-    cleanup_common_feature_patches || cleanup_status=1
-    cleanup_kernelsu_next || cleanup_status=1
-    restore_msm_defconfigs || cleanup_status=1
-    cleanup_msm_wlan_link || cleanup_status=1
-    verify_common_unchanged || cleanup_status=1
-    verify_msm_unchanged || cleanup_status=1
-
-    if (( cleanup_status != 0 )); then
-        echo "error: failed to restore build-time kernel changes" >&2
-        return 1
-    fi
-    return "${build_status}"
-}
-
-prepare_toolchain() {
-    if [[ -x "${CLANG_BIN}" ]]; then
-        echo "[toolchain] Using ${CLANG_BIN}"
-        return
-    fi
-
-    require_command wget
-    require_command tar
-
-    local archive
-    mkdir -p "${DOWNLOAD_DIR}"
-    archive="$(mktemp "${DOWNLOAD_DIR}/sm8550-toolchain.XXXXXX.tar.xz")"
-
-    echo "[toolchain] Downloading ${TOOLCHAIN_URL}"
-    wget -q --show-progress --progress=dot:giga \
-        -O "${archive}" "${TOOLCHAIN_URL}"
-
-    echo "[toolchain] Extracting prebuilts into ${KERNEL_PLATFORM}"
-    tar -xf "${archive}" -C "${KERNEL_PLATFORM}" \
-        --strip-components=1 toolchain/prebuilts
-    rm -f "${archive}"
-
-    [[ -x "${CLANG_BIN}" ]] || \
-        die "clang-${TOOLCHAIN_VERSION} was not found after extracting the toolchain"
-}
-
-build() {
-    export TARGET_BUILD_VARIANT="user"
-    export MERGE_CONFIG="${ANDROID_BUILD_TOP}/kernel_platform/common/scripts/kconfig/merge_config.sh"
-    export GKI_BUILD_CONFIG_FRAGMENT="${SOURCE_DIR}/prebuilts/gki_toolchain.config"
-
-    if [[ -e "${OUT_DIR}/host/bin/ufdt_apply_overlay" ]]; then
-        chmod u+w "${OUT_DIR}/host/bin/ufdt_apply_overlay"
-    fi
-
-    export KBUILD_EXTRA_SYMBOLS="${OUT_DIR%/*}/vendor/qcom/opensource/mmrm-driver/Module.symvers \
-        ${OUT_DIR%/*}/vendor/qcom/opensource/mm-drivers/hw_fence/Module.symvers \
-        ${OUT_DIR%/*}/vendor/qcom/opensource/mm-drivers/sync_fence/Module.symvers \
-        ${OUT_DIR%/*}/vendor/qcom/opensource/mm-drivers/msm_ext_display/Module.symvers \
-        ${OUT_DIR%/*}/vendor/qcom/opensource/securemsm-kernel/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/graphics-kernel/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet/core/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/wlan/qcacld-3.0/.qca6490/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/wlan/qcacld-3.0/.kiwi_v2/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/wlan/platform/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/camera-kernel/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/eva-kernel/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/video-driver/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/display-drivers/msm/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet-ext/aps/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet-ext/wlan/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet-ext/shs/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet-ext/perf_tether/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet-ext/perf/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet-ext/sch/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/datarmnet-ext/offload/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/bt-kernel/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/dataipa/drivers/platform/msm/Module.symvers \
-		${OUT_DIR%/*}/vendor/qcom/opensource/audio-kernel/Module.symvers \
-        "
-
-    export MODNAME="audio_dlkm"
-    export KBUILD_EXT_MODULES="../vendor/qcom/opensource/mm-drivers/msm_ext_display \
-        ../vendor/qcom/opensource/mm-drivers/sync_fence \
-        ../vendor/qcom/opensource/mm-drivers/hw_fence \
-        ../vendor/qcom/opensource/mmrm-driver \
-        ../vendor/qcom/opensource/securemsm-kernel \
-        ../vendor/qcom/opensource/display-drivers/msm \
-        ../vendor/qcom/opensource/audio-kernel \
-        ../vendor/qcom/opensource/camera-kernel \
-        ../vendor/qcom/opensource/video-driver \
-        ../vendor/qcom/opensource/graphics-kernel \
-        ../vendor/qcom/opensource/dataipa/drivers/platform/msm \
-        ../vendor/qcom/opensource/datarmnet/core \
-        ../vendor/qcom/opensource/datarmnet-ext/aps \
-        ../vendor/qcom/opensource/datarmnet-ext/offload \
-        ../vendor/qcom/opensource/datarmnet-ext/shs \
-        ../vendor/qcom/opensource/datarmnet-ext/sch \
-        ../vendor/qcom/opensource/datarmnet-ext/perf \
-        ../vendor/qcom/opensource/datarmnet-ext/perf_tether \
-        ../vendor/qcom/opensource/datarmnet-ext/wlan \
-        ../vendor/qcom/opensource/eva-kernel \
-        ../vendor/qcom/opensource/wlan/platform \
-        ../vendor/qcom/opensource/bt-kernel \
-        ${WLAN_EXT_MODULES[*]} \
-    "  
-
-    echo "[build] BUILD_TARGET=${BUILD_TARGET}"
-    echo "[build] MODEL=${MODEL}"
-    echo "[build] KERNEL_MODE=${KERNEL_MODE}"
-    echo "[build] OUT_DIR=${OUT_DIR}"
-
-    mkdir -p "${ANDROID_PRODUCT_OUT}"
-
-    (
-        cd "${SOURCE_DIR}"
-        env "${GKI_KERNEL_BUILD_OPTIONS[@]}" \
-            ./kernel_platform/build/android/prepare_vendor.sh sec "${TARGET_PRODUCT}"
-    )
-
-    "${SOURCE_DIR}/prebuilts/stage_gki_artifacts.sh" "${OUT_DIR}"
-
-    local wlan_profile
-    for wlan_profile in "${WLAN_PROFILES[@]}"; do
-        [[ -f "${DIST_DIR}/${wlan_profile}.ko" ]] ||
-            die "built WLAN module not found: ${DIST_DIR}/${wlan_profile}.ko"
-        cp "${DIST_DIR}/${wlan_profile}.ko" \
-            "${DIST_DIR}/qca_cld3_${wlan_profile}.ko"
-    done
-
-    echo "[build] Artifacts: ${OUT_DIR}/dist"
-}
-
-require_packaging_command() {
-    require_command "$1"
-}
-
-prepare_target_workspace() {
-    local clang_parent="${PACKAGING_WORK_DIR}/kernel_platform/prebuilts/clang/host/linux-x86"
-    local resolved_android_kernel_out
-    local resolved_out_dir
-    local resolved_packaging_work_dir
-    local resolved_tmpdir
-
-    [[ "${ANDROID_KERNEL_OUT}" == "${OUT_DIR}/"* ]] ||
-        die "ANDROID_KERNEL_OUT must be target-scoped beneath OUT_DIR"
-    [[ "${TMPDIR}" == "${PACKAGING_WORK_DIR}/"* ]] ||
-        die "TMPDIR must be scoped beneath the packaging workspace"
-
-    for path in "${PACKAGING_WORK_DIR}" "${DOWNLOAD_DIR}"; do
-        [[ ! -e "${path}" ]] ||
-            die "target workspace already exists: ${path}"
-    done
-
-    mkdir -p \
-        "${ANDROID_KERNEL_OUT}" \
-        "${DOWNLOAD_DIR}" \
-        "${TMPDIR}" \
-        "${clang_parent}"
-
-    resolved_out_dir="$(readlink -f "${OUT_DIR}")"
-    resolved_android_kernel_out="$(readlink -f "${ANDROID_KERNEL_OUT}")"
-    resolved_packaging_work_dir="$(readlink -f "${PACKAGING_WORK_DIR}")"
-    resolved_tmpdir="$(readlink -f "${TMPDIR}")"
-    [[ "${resolved_android_kernel_out}" == "${resolved_out_dir}/"* ]] ||
-        die "ANDROID_KERNEL_OUT resolves outside OUT_DIR"
-    [[ "${resolved_tmpdir}" == "${resolved_packaging_work_dir}/"* ]] ||
-        die "TMPDIR resolves outside the packaging workspace"
-
-    echo "[paths] ANDROID_KERNEL_OUT=${ANDROID_KERNEL_OUT}"
-    echo "[paths] TMPDIR=${TMPDIR}"
-
-    ln -s \
-        "${CLANG_TOOLCHAIN_DIR}" \
-        "${clang_parent}/clang-${TOOLCHAIN_VERSION}"
-}
-
-prepare_packaging_tools() {
-    require_packaging_command depmod
-    require_packaging_command zip
-
-    local erofs_install_dir="${SOURCE_DIR}/.cache/erofs-utils"
-    local erofs_check="${SOURCE_DIR}/prebuilts/erofs_image.sh"
-
-    if "${erofs_check}" --check >/dev/null 2>&1; then
-        echo "[packaging] Existing EROFS tools passed image checks"
-        return 0
-    fi
-
-    if PATH="${erofs_install_dir}/bin:${PATH}" \
-        "${erofs_check}" --check >/dev/null 2>&1; then
-        export PATH="${erofs_install_dir}/bin:${PATH}"
-        echo "[packaging] Using cached EROFS tools: ${erofs_install_dir}/bin"
-        return 0
-    fi
-
-    echo "[packaging] EROFS tools are missing or incompatible; installing pinned tools"
-    "${SOURCE_DIR}/prebuilts/install_erofs_utils.sh" "${erofs_install_dir}"
-    export PATH="${erofs_install_dir}/bin:${PATH}"
-    "${erofs_check}" --check
-}
-
-stage_vendor_ramdisk() {
-    env REPO_ROOT="${SOURCE_DIR}" \
-        DIST_DIR="${DIST_DIR}" \
-        OUTPUT_DIR="${PACKAGE_DIR}/vendor_ramdisk" \
-        OUT_DIR="${OUT_DIR}" \
-        TMPDIR="${TMPDIR}" \
-        "${SOURCE_DIR}/prebuilts/build_vendor_ramdisk.sh"
-}
-
-build_vendor_dlkm() {
-    local wlan_profile="$1"
-
-    env SCRIPT_DIR="${SOURCE_DIR}" \
-        REPO_ROOT="${SOURCE_DIR}" \
-        DIST_DIR="${DIST_DIR}" \
-        OUT_DIR="${OUT_DIR}" \
-        OUTPUT_IMAGE="${PACKAGE_DIR}/vendor_dlkm_${wlan_profile}.img" \
-        WLAN_PROFILE="${wlan_profile}" \
-        TMPDIR="${TMPDIR}" \
-        "${SOURCE_DIR}/prebuilts/build_vendor_dlkm.sh"
-}
-
-build_system_dlkm() {
-    env SCRIPT_DIR="${SOURCE_DIR}" \
-        REPO_ROOT="${SOURCE_DIR}" \
-        DIST_DIR="${DIST_DIR}" \
-        OUT_DIR="${OUT_DIR}" \
-        OUTPUT_IMAGE="${PACKAGE_DIR}/system_dlkm.img" \
-        WLAN_PROFILE= \
-        TMPDIR="${TMPDIR}" \
-        "${SOURCE_DIR}/prebuilts/build_system_dlkm.sh"
-}
-
-create_anykernel_package() {
-    "${SOURCE_DIR}/prebuilts/make_anykernel_package.sh" \
-        "${ANYKERNEL_PACKAGE}" \
-        "${PACKAGE_DIR}"
-}
-
-collect_packaged_images() {
-    local kernel_image="${DIST_DIR}/Image"
-    local wlan_profile
-
-    mkdir -p "${PACKAGE_DIR}"
-    rm -f -- \
-        "${PACKAGE_DIR}/Image" \
-        "${ANYKERNEL_PACKAGE}" \
-        "${PACKAGE_DIR}/GoRhanHee_Kernel-${CHIPSET_NAME}-${MODEL}.zip"
-
-    [[ -s "${kernel_image}" ]] || die "built Image not found or empty: ${kernel_image}"
-    cp "${kernel_image}" "${PACKAGE_DIR}/Image"
-
-    stage_vendor_ramdisk
-    for wlan_profile in "${WLAN_PROFILES[@]}"; do
-        build_vendor_dlkm "${wlan_profile}"
-    done
-    build_system_dlkm
-
-    create_anykernel_package
-}
-
-main() {
-    if [[ $# -eq 1 ]]; then
-        case "$1" in
-            -h|--help|help)
-                usage
-                return 0
-                ;;
-        esac
-    fi
-
-    if [[ $# -gt 1 ]]; then
-        usage >&2
-        return 2
-    fi
-    if ! select_kernel_mode "${1:-vanilla}"; then
-        usage >&2
-        return 2
-    fi
-    prepare_packaging_tools
-    select_universal_profile
-    update_submodules
-    record_common_state
-    validate_msm_state
-    snapshot_msm_wlan_link
-    prepare_target_workspace
-    snapshot_msm_defconfigs
-    import_kernelsu_next
-    apply_susfs_patches
-    apply_common_feature_patches
-    apply_fake_config_patch
-    prepare_toolchain
-    echo "[modules] Checking external module load order with build tools"
-    PATH="${KERNEL_PLATFORM}/build/kernel/build-tools/path/linux-x86:${PATH}" \
-        bash "${SOURCE_DIR}/prebuilts/tests/external_module_order_test.sh"
-    build
-    bash "${SOURCE_DIR}/prebuilts/check_display_panels.sh" \
-        "${DIST_DIR}/msm_drm.ko" "${CLANG_TOOLCHAIN_DIR}/bin/llvm-nm"
-    collect_packaged_images
-}
-
-main "$@"
+export WLAN_PROFILES="qca6490 kiwi_v2"
+export MODNAME="audio_dlkm"
+export KBUILD_EXT_MODULES="../vendor/qcom/opensource/mm-drivers/msm_ext_display
+../vendor/qcom/opensource/mm-drivers/sync_fence
+../vendor/qcom/opensource/mm-drivers/hw_fence
+../vendor/qcom/opensource/mmrm-driver
+../vendor/qcom/opensource/securemsm-kernel
+../vendor/qcom/opensource/display-drivers/msm
+../vendor/qcom/opensource/audio-kernel
+../vendor/qcom/opensource/camera-kernel
+../vendor/qcom/opensource/video-driver
+../vendor/qcom/opensource/graphics-kernel
+../vendor/qcom/opensource/dataipa/drivers/platform/msm
+../vendor/qcom/opensource/datarmnet/core
+../vendor/qcom/opensource/datarmnet-ext/aps
+../vendor/qcom/opensource/datarmnet-ext/offload
+../vendor/qcom/opensource/datarmnet-ext/shs
+../vendor/qcom/opensource/datarmnet-ext/sch
+../vendor/qcom/opensource/datarmnet-ext/perf
+../vendor/qcom/opensource/datarmnet-ext/perf_tether
+../vendor/qcom/opensource/datarmnet-ext/wlan
+../vendor/qcom/opensource/eva-kernel
+../vendor/qcom/opensource/wlan/platform
+../vendor/qcom/opensource/bt-kernel
+../vendor/qcom/opensource/wlan/qcacld-3.0/.qca6490
+../vendor/qcom/opensource/wlan/qcacld-3.0/.kiwi_v2"
+export KBUILD_EXTRA_SYMBOLS="${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/mmrm-driver/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/mm-drivers/hw_fence/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/mm-drivers/sync_fence/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/mm-drivers/msm_ext_display/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/securemsm-kernel/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/graphics-kernel/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/datarmnet/core/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/wlan/qcacld-3.0/.qca6490/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/wlan/qcacld-3.0/.kiwi_v2/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/wlan/platform/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/camera-kernel/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/eva-kernel/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/video-driver/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/display-drivers/msm/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/datarmnet-ext/aps/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/datarmnet-ext/wlan/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/datarmnet-ext/shs/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/datarmnet-ext/perf_tether/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/datarmnet-ext/perf/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/datarmnet-ext/sch/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/datarmnet-ext/offload/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/bt-kernel/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/dataipa/drivers/platform/msm/Module.symvers
+${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/audio-kernel/Module.symvers"
+
+# Source preparation is sourced so its EXIT trap can restore temporary patches.
+source "${SCRIPTS_DIR}/source-preparation.sh"
+
+"${SCRIPTS_DIR}/prepare-build.sh"
+update_submodules
+record_common_state
+validate_msm_state
+snapshot_msm_wlan_link
+snapshot_msm_defconfigs
+import_kernelsu_next
+apply_susfs_patches
+apply_common_feature_patches
+apply_fake_config_patch
+"${SCRIPTS_DIR}/prepare-toolchain.sh"
+
+"${SCRIPTS_DIR}/build-common.sh"
+"${SCRIPTS_DIR}/build-msm.sh"
+"${SCRIPTS_DIR}/build-vendor-boot.sh"
+"${SCRIPTS_DIR}/build-dlkm.sh"
+"${SCRIPTS_DIR}/build-anykernel3.sh"
+
+echo "[done] ${ANYKERNEL_PACKAGE}"

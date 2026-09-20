@@ -72,5 +72,5 @@ __pycache__/
 /.dm3q-superproject-work/
 
 # Local validation scripts
-/tests/
-/prebuilts/tests/
+**/test/
+**/tests/

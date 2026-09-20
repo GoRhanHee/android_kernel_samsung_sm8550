@@ -55,6 +55,22 @@ The source is compiled once per kernel mode:
 ./build.sh susfs
 ```
 
+`build.sh` only exports the shared build environment and runs the scripts in
+`scripts/` in order. The build is split into these independently testable
+phases:
+
+```text
+scripts/build-common.sh       common kernel Image and GKI dist
+scripts/build-msm.sh          MSM kernel and vendor modules
+scripts/build-vendor-boot.sh  vendor_boot ramdisk module payload
+scripts/build-dlkm.sh         vendor_dlkm and system_dlkm images
+scripts/build-anykernel3.sh   final AnyKernel3 package
+```
+
+The lower-level host build helpers live in `scripts/lib/`; `prebuilts/` now
+contains the AnyKernel3/template payloads, file contexts, and toolchain config
+consumed by those scripts.
+
 Before fetching submodules or compiling, `build.sh` checks that the EROFS
 tools can create and verify both DLKM images. If the tools are missing or
 incompatible, it builds pinned erofs-utils 1.8.10 in `.cache/erofs-utils`,
@@ -71,7 +87,7 @@ The universal config builds the union of device drivers and the enabled product 
 
 Packaging uses the common GKI build's `kernel.release`, recorded in `dist`,
 for module directories instead of reading one module's vermagic. Its system
-modules are restored after the mixed build to replace same-name device modules.
+modules are restored after the MSM build to replace same-name device modules.
 Signed modules are copied unchanged so their signatures remain valid; only
 unsigned modules have debug and BTF sections removed.
 

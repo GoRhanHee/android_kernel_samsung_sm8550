@@ -14,6 +14,7 @@ def main():
     parser.add_argument('reference', type=Path)
     args = parser.parse_args()
     source = Path(__file__).resolve().parent
+    packager = source.parent / 'scripts/lib/make_anykernel_package.sh'
     work = Path(tempfile.mkdtemp(prefix='sm8550-ak3-package-check.', dir='/var/tmp'))
     images = work / 'images'
     images.mkdir()
@@ -30,7 +31,7 @@ def main():
             if name in image_names or name.startswith('vendor_ramdisk/'):
                 reference.extract(name, images)
         output = work / 'AnyKernel3-generated-check.zip'
-        subprocess.run(['bash', str(source / 'make_anykernel_package.sh'), str(output), str(images)], check=True)
+        subprocess.run(['bash', str(packager), str(output), str(images)], check=True)
         with zipfile.ZipFile(output) as generated:
             assert generated.testzip() is None
             entries = generated.namelist()

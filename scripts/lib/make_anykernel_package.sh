@@ -2,10 +2,11 @@
 
 set -Eeuo pipefail
 
-readonly SCRIPT_NAME="$(basename "$0")"
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly TEMPLATE_DIR="${SCRIPT_DIR}/AnyKernel3"
-readonly SCRIPT_TEMPLATE="${SCRIPT_DIR}/anykernel.sh"
+SCRIPT_NAME="$(basename "$0")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+TEMPLATE_DIR="${REPO_ROOT}/prebuilts/AnyKernel3"
+SCRIPT_TEMPLATE="${REPO_ROOT}/prebuilts/anykernel.sh"
 OUTPUT_ZIP=""
 STAGE_DIR=""
 
@@ -91,7 +92,7 @@ main() {
     done
 
     cp "${SCRIPT_TEMPLATE}" "${STAGE_DIR}/anykernel.sh"
-    cp "${SCRIPT_DIR}/sm8550-repack.sh" "${STAGE_DIR}/tools/sm8550-repack.sh"
+    cp "${REPO_ROOT}/prebuilts/sm8550-repack.sh" "${STAGE_DIR}/tools/sm8550-repack.sh"
 
     for image in Image vendor_dlkm_qca6490.img vendor_dlkm_kiwi_v2.img system_dlkm.img; do
         [[ -s "${image_dir}/${image}" ]] ||

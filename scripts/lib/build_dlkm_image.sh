@@ -2,7 +2,7 @@
 
 set -Eeuo pipefail
 
-readonly BUILD_DLKM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BUILD_DLKM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 die() {
     echo "error: $*" >&2

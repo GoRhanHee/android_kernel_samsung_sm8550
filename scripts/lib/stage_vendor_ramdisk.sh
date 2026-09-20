@@ -2,8 +2,8 @@
 
 set -Eeuo pipefail
 
-readonly BUILD_VENDOR_RAMDISK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly -a EARLY_ADSP_MODULES=(
+BUILD_VENDOR_RAMDISK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+EARLY_ADSP_MODULES=(
     qcom_q6v5_pas.ko
     adsp_loader_dlkm.ko
     frpc-adsprpc.ko

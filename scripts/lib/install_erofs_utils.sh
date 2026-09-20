@@ -2,14 +2,13 @@
 
 set -Eeuo pipefail
 
-readonly EROFS_VERSION="1.8.10"
-readonly EROFS_COMMIT="51b5939b5f783221310d25146e6a2019ba8129b6"
+EROFS_VERSION="1.8.10"
+EROFS_COMMIT="51b5939b5f783221310d25146e6a2019ba8129b6"
 
 (( $# == 1 )) || { echo "usage: $0 <installation directory>" >&2; exit 1; }
 mkdir -p "$1"
 INSTALL_DIR="$(cd "$1" && pwd)"
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sm8550-erofs-utils.XXXXXX")"
-readonly INSTALL_DIR WORK_DIR
 trap 'rm -rf -- "${WORK_DIR}"' EXIT
 
 git clone --depth=1 --branch "v${EROFS_VERSION}" \

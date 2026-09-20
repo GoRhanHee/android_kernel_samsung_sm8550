@@ -2,11 +2,11 @@
 
 set -Eeuo pipefail
 
-readonly STAGE_GKI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STAGE_GKI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 (( $# == 1 )) || { echo "usage: $0 <build output directory>" >&2; exit 1; }
-readonly GKI_DIST="$1/gki_kernel/dist"
-readonly DIST="$1/dist"
-readonly SYSTEM_LIST="${GKI_DIST}/system_dlkm.modules.load"
+GKI_DIST="$1/gki_kernel/dist"
+DIST="$1/dist"
+SYSTEM_LIST="${GKI_DIST}/system_dlkm.modules.load"
 
 release="$("${STAGE_GKI_DIR}/kernel_release.sh" "$1/gki_kernel/common/include/config/kernel.release")"
 [[ -d "${DIST}" && -s "${SYSTEM_LIST}" ]] || {
@@ -14,8 +14,8 @@ release="$("${STAGE_GKI_DIR}/kernel_release.sh" "$1/gki_kernel/common/include/co
     exit 1
 }
 
-# The mixed build copies device modules after GKI artifacts. Restore the GKI
-# system modules so same-name device modules cannot replace their signatures.
+# The MSM build copies device modules after the common dist artifacts. Restore
+# the GKI system modules so same-name device modules cannot replace signatures.
 while IFS= read -r module || [[ -n "${module}" ]]; do
     [[ "${module}" == *.ko ]] || continue
     module="${module##*/}"

@@ -2,7 +2,8 @@
 
 set -Eeuo pipefail
 
-readonly EROFS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+EROFS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${EROFS_SCRIPT_DIR}/../.." && pwd)"
 
 build_image() {
     local image="$1" root="$2" partition="$3" uuid="$4" epoch="$5" contexts="$6"
@@ -37,8 +38,8 @@ check_tools() {
         esac
         if ! build_image "${work_dir}/${partition}.img" "${work_dir}/root" \
             "${partition}" "${uuid}" 1700000000 \
-            "${EROFS_SCRIPT_DIR}/${partition}_file_contexts"; then
-            echo "error: EROFS tools cannot create and verify ${partition}; install pinned tools with prebuilts/install_erofs_utils.sh <prefix> and add <prefix>/bin to PATH" >&2
+            "${REPO_ROOT}/prebuilts/${partition}_file_contexts"; then
+            echo "error: EROFS tools cannot create and verify ${partition}; run scripts/lib/install_erofs_utils.sh <prefix> and add <prefix>/bin to PATH" >&2
             return 1
         fi
     done
