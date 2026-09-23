@@ -117,7 +117,6 @@ export KBUILD_BUILD_HOST="SM8550-Kernel"
 export KBUILD_BUILD_TIMESTAMP="$(date)"
 export KBUILD_BUILD_VERSION="1"
 
-export WLAN_PROFILES="qca6490 kiwi_v2"
 export MODNAME="audio_dlkm"
 export KBUILD_EXT_MODULES="../vendor/qcom/opensource/mm-drivers/msm_ext_display
 ../vendor/qcom/opensource/mm-drivers/sync_fence

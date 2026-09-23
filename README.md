@@ -111,16 +111,16 @@ Main artifacts:
 ```text
 Image
 vendor_ramdisk/
-vendor_dlkm_qca6490.img
-vendor_dlkm_kiwi_v2.img
+vendor_dlkm.img
 system_dlkm.img
 GoRhanHee_Kernel-kalama-universal-<mode>-AnyKernel3.zip
 ```
 
 `dist/device-trees/base` contains the common Qualcomm base DTBs. Each product
 profile below `dist/device-trees/` has separate `dtb` and `dtbo` directories.
-The two vendor DLKM images differ only in the mutually exclusive WLAN driver;
-AnyKernel3 chooses the correct one at install time.
+The universal vendor DLKM contains both QCA6490 and Kiwi v2 WLAN modules.
+CNSS uses the active device tree configuration and enumerated PCI device ID to
+register only the driver matching the installed WLAN hardware.
 
 - Keep stock images available for recovery.
 

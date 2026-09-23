@@ -42,7 +42,6 @@ sm8550_prepare_vendor_boot() (
   "$BIN/magiskboot" cpio platform.cpio "extract first_stage_ramdisk/fstab.qcom $work/fstab.qcom" || exit 1;
   patch_dlkm_fstab "$work/fstab.qcom" || exit 1;
   cp -a "$modules" "$work/modules" || exit 1;
-  filter_wlan_modules "$work/modules" || exit 1;
 
   # One CPIO operation keeps unrelated content, modes and ownership intact.
   # magiskboot normalizes timestamps in the updated archive to zero.

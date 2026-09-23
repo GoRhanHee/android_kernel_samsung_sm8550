@@ -15,19 +15,14 @@ require_command() {
 
 normalize_module_list() {
     local input_file="$1"
-    local wlan_profile="${2:-}"
 
-    awk -v wlan_profile="${wlan_profile}" '
+    awk '
         {
             sub(/^.*\//, "", $0)
         }
         !/\.ko$/ || $0 == "hdm.ko" { next }
-        $0 == "qca6490.ko" || $0 == "kiwi_v2.ko" ||
-            $0 == "qca_cld3_qca6490.ko" || $0 == "qca_cld3_kiwi_v2.ko" {
-            if (wlan_profile != "" && !wlan_added++)
-                print "qca_cld3_" wlan_profile ".ko"
-            next
-        }
+        $0 == "qca6490.ko" { $0 = "qca_cld3_qca6490.ko" }
+        $0 == "kiwi_v2.ko" { $0 = "qca_cld3_kiwi_v2.ko" }
         !seen[$0]++ { print }
     ' "${input_file}"
 }
@@ -52,7 +47,6 @@ main() {
     local repo_root="${REPO_ROOT:?REPO_ROOT is required}"
     local dist_dir="${DIST_DIR:?DIST_DIR is required}"
     local output_image="${OUTPUT_IMAGE:?OUTPUT_IMAGE is required}"
-    local wlan_profile="${WLAN_PROFILE:-}"
     local list_file="${dist_dir}/${partition}.modules.load"
     local file_contexts="${repo_root}/prebuilts/${partition}_file_contexts"
     local clang_bin="${repo_root}/kernel_platform/prebuilts/clang/host/linux-x86/clang-${TOOLCHAIN_VERSION:-r614150}/bin"
@@ -76,12 +70,9 @@ main() {
 
     case "${partition}" in
         vendor_dlkm)
-            [[ "${wlan_profile}" == qca6490 || "${wlan_profile}" == kiwi_v2 ]] ||
-                die "vendor_dlkm requires WLAN_PROFILE=qca6490 or WLAN_PROFILE=kiwi_v2"
             uuid="6b128d5a-0f66-4bb6-b5d1-90c9ad38c54a"
             ;;
         system_dlkm)
-            [[ -z "${wlan_profile}" ]] || die "system_dlkm does not accept WLAN_PROFILE"
             uuid="f2ec91c9-d5a7-47bf-a6eb-c19f24ee6fcb"
             ;;
         *)
@@ -107,13 +98,13 @@ main() {
     raw_inventory="${work_dir}/modules.inventory.raw"
     excluded_modules="${work_dir}/modules.exclude"
     mkdir -p "${root_dir}/etc" "${root_dir}/lib/modules"
-    normalize_module_list "${list_file}" "${wlan_profile}" >"${normalized_list}"
+    normalize_module_list "${list_file}" >"${normalized_list}"
     [[ -s "${normalized_list}" ]] || die "normalized ${partition} module list is empty"
 
     if [[ "${partition}" == vendor_dlkm ]]; then
         find "${dist_dir}" -maxdepth 1 -type f -name '*.ko' -printf '%f\n' \
             | sort -u >"${raw_inventory}"
-        normalize_module_list "${raw_inventory}" "${wlan_profile}" >"${inventory_list}.all"
+        normalize_module_list "${raw_inventory}" >"${inventory_list}.all"
         normalize_module_list "${dist_dir}/modules.load" >"${excluded_modules}"
         normalize_module_list "${dist_dir}/system_dlkm.modules.load" \
             >>"${excluded_modules}"

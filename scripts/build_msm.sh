@@ -7,7 +7,6 @@ set -Eeuo pipefail
 : "${OUT_DIR:?OUT_DIR is required}"
 : "${DIST_DIR:?DIST_DIR is required}"
 : "${GKI_DIST_DIR:?GKI_DIST_DIR is required}"
-: "${WLAN_PROFILES:?WLAN_PROFILES is required}"
 
 [[ -s "${GKI_DIST_DIR}/Image" ]] || {
     echo "error: build common first: ${GKI_DIST_DIR}/Image is missing" >&2
@@ -29,13 +28,13 @@ echo "[msm] Building MSM kernel and vendor modules"
 )
 
 "${SOURCE_DIR}/scripts/lib/stage_gki_artifacts.sh" "${OUT_DIR}"
-for wlan_profile in ${WLAN_PROFILES}; do
-    [[ -s "${DIST_DIR}/${wlan_profile}.ko" ]] || {
-        echo "error: WLAN module was not built: ${DIST_DIR}/${wlan_profile}.ko" >&2
+for wlan_module in qca6490 kiwi_v2; do
+    [[ -s "${DIST_DIR}/${wlan_module}.ko" ]] || {
+        echo "error: WLAN module was not built: ${DIST_DIR}/${wlan_module}.ko" >&2
         exit 1
     }
-    cp -- "${DIST_DIR}/${wlan_profile}.ko" \
-        "${DIST_DIR}/qca_cld3_${wlan_profile}.ko"
+    cp -- "${DIST_DIR}/${wlan_module}.ko" \
+        "${DIST_DIR}/qca_cld3_${wlan_module}.ko"
 done
 
 "${SOURCE_DIR}/scripts/lib/check_display_panels.sh" \

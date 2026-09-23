@@ -45,14 +45,6 @@ detect_device() {
   abort "Unable to identify a supported Samsung SM8550 device. Aborting...";
 }
 
-select_wlan_profile() {
-  case "$DEVICE_CODENAME" in
-    dm3q) WLAN_PROFILE=kiwi_v2;;
-    dm1q|dm2q|q5q|b5q) WLAN_PROFILE=qca6490;;
-    *) abort "Unsupported device profile: $DEVICE_CODENAME";;
-  esac;
-}
-
 prepare_dlkm_partition() {
   local partition="$1" name;
 
@@ -65,18 +57,6 @@ prepare_dlkm_partition() {
     "$BIN/lptools_static" map "$name" ||
       abort "Mapping $name failed. Aborting...";
   fi;
-}
-
-filter_wlan_modules() {
-  local modules_dir="$1" load_file;
-
-  for load_file in "$modules_dir/modules.load" "$modules_dir/modules.load.recovery"; do
-    [ -f "$load_file" ] || continue;
-    case "$WLAN_PROFILE" in
-      qca6490) sed -i '/qca_cld3_kiwi_v2\.ko/d' "$load_file" || return 1;;
-      kiwi_v2) sed -i '/qca_cld3_qca6490\.ko/d' "$load_file" || return 1;;
-    esac;
-  done;
 }
 
 patch_dlkm_fstab() {
@@ -102,9 +82,7 @@ patch_dlkm_fstab() {
 }
 
 detect_device;
-select_wlan_profile;
 ui_print "- Device: $DEVICE_CODENAME";
-ui_print "- WLAN profile: $WLAN_PROFILE";
 
 BOOT_BLOCK="$BLOCK";
 VENDOR_BOOT_BLOCK="";
@@ -130,8 +108,7 @@ sm8550_prepare_vendor_boot "$AKHOME/repack-vendor" "$VENDOR_BOOT_BLOCK" \
 sm8550_check_image_size "$AKHOME/boot-prepared.img" "$AKHOME/repack-boot/stock.img" boot;
 sm8550_check_image_size "$AKHOME/vendor-boot-prepared.img" "$AKHOME/repack-vendor/stock.img" vendor_boot;
 
-cp -f "$AKHOME/vendor_dlkm_${WLAN_PROFILE}.img" "$AKHOME/vendor_dlkm.img" ||
-  abort "Failed to select vendor_dlkm_${WLAN_PROFILE}.img. Aborting...";
+[ -s "$AKHOME/vendor_dlkm.img" ] || abort "vendor_dlkm image is missing.";
 [ -s "$AKHOME/system_dlkm.img" ] || abort "system_dlkm image is missing.";
 
 sm8550_flash_prepared "$AKHOME/boot-prepared.img" "$BOOT_BLOCK" "$AKHOME/repack-boot/stock.img" boot;

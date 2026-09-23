@@ -18,8 +18,7 @@ Usage:
 IMAGE_DIR must contain:
   Image
   vendor_ramdisk/
-  vendor_dlkm_qca6490.img
-  vendor_dlkm_kiwi_v2.img
+  vendor_dlkm.img
   system_dlkm.img
 
 Example:
@@ -94,7 +93,7 @@ main() {
     cp "${SCRIPT_TEMPLATE}" "${STAGE_DIR}/anykernel.sh"
     cp "${REPO_ROOT}/prebuilts/sm8550-repack.sh" "${STAGE_DIR}/tools/sm8550-repack.sh"
 
-    for image in Image vendor_dlkm_qca6490.img vendor_dlkm_kiwi_v2.img system_dlkm.img; do
+    for image in Image vendor_dlkm.img system_dlkm.img; do
         [[ -s "${image_dir}/${image}" ]] ||
             die "required image is missing or empty: ${image_dir}/${image}"
         cp "${image_dir}/${image}" "${STAGE_DIR}/${image}"
@@ -120,8 +119,7 @@ main() {
             anykernel.sh \
             Image \
             sm8550_ramdisk \
-            vendor_dlkm_qca6490.img \
-            vendor_dlkm_kiwi_v2.img \
+            vendor_dlkm.img \
             system_dlkm.img
     )
 
