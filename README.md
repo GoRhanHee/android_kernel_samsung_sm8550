@@ -60,11 +60,11 @@ The source is compiled once per kernel mode:
 phases:
 
 ```text
-scripts/build-common.sh       common kernel Image and GKI dist
-scripts/build-msm.sh          MSM kernel and vendor modules
-scripts/build-vendor-boot.sh  vendor_boot ramdisk module payload
-scripts/build-dlkm.sh         vendor_dlkm and system_dlkm images
-scripts/build-anykernel3.sh   final AnyKernel3 package
+scripts/build_common.sh       common kernel Image and GKI dist
+scripts/build_msm.sh          MSM kernel and vendor modules
+scripts/build_vendor_boot.sh  vendor_boot ramdisk module payload
+scripts/build_dlkm.sh         vendor_dlkm and system_dlkm images
+scripts/build_anykernel3.sh   final AnyKernel3 package
 ```
 
 The lower-level host build helpers live in `scripts/lib/`; `prebuilts/` now

@@ -22,7 +22,7 @@ echo "[msm] Building MSM kernel and vendor modules"
 (
     cd "${KERNEL_PLATFORM}"
     export BUILD_CONFIG="build.config"
-    export BUILD_CONFIG_FRAGMENTS="../scripts/msm-prebuilts.config"
+    export BUILD_CONFIG_FRAGMENTS="../scripts/msm_prebuilts.config"
     export OUT_DIR="${OUT_DIR}"
     export DIST_DIR="${DIST_DIR}"
     ./build/build.sh

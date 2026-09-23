@@ -169,9 +169,9 @@ ${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/dataipa/drivers/platform/msm/Modu
 ${OUTPUT_BASE}/${MODEL}/vendor/qcom/opensource/audio-kernel/Module.symvers"
 
 # Source preparation is sourced so its EXIT trap can restore temporary patches.
-source "${SCRIPTS_DIR}/source-preparation.sh"
+source "${SCRIPTS_DIR}/source_preparation.sh"
 
-"${SCRIPTS_DIR}/prepare-build.sh"
+"${SCRIPTS_DIR}/prepare_build.sh"
 update_submodules
 record_common_state
 validate_msm_state
@@ -181,12 +181,12 @@ import_kernelsu_next
 apply_susfs_patches
 apply_common_feature_patches
 apply_fake_config_patch
-"${SCRIPTS_DIR}/prepare-toolchain.sh"
+"${SCRIPTS_DIR}/prepare_toolchain.sh"
 
-"${SCRIPTS_DIR}/build-common.sh"
-"${SCRIPTS_DIR}/build-msm.sh"
-"${SCRIPTS_DIR}/build-vendor-boot.sh"
-"${SCRIPTS_DIR}/build-dlkm.sh"
-"${SCRIPTS_DIR}/build-anykernel3.sh"
+"${SCRIPTS_DIR}/build_common.sh"
+"${SCRIPTS_DIR}/build_msm.sh"
+"${SCRIPTS_DIR}/build_vendor_boot.sh"
+"${SCRIPTS_DIR}/build_dlkm.sh"
+"${SCRIPTS_DIR}/build_anykernel3.sh"
 
 echo "[done] ${ANYKERNEL_PACKAGE}"
