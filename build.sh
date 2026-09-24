@@ -11,11 +11,11 @@ export TOOLCHAIN_VERSION="r614150"
 export TOOLCHAIN_URL="https://github.com/GoRhanHee/samsung_sm8550_toolchain/releases/download/clang23-ndk26d/toolchain-clang23-ndk26d.tar.xz"
 export CLANG_TOOLCHAIN_DIR="${KERNEL_PLATFORM}/prebuilts/clang/host/linux-x86/clang-${TOOLCHAIN_VERSION}"
 export CLANG_BIN="${CLANG_TOOLCHAIN_DIR}/bin/clang"
-export KSU_NEXT_REF="36aa55c521e509449bfe48bae0ab8c397174c1cb"
+export KSU_NEXT_REF="1a879d6a866f80b1fa1c1009a2ffa747873cbb5e"
 export KSU_SETUP_URL="https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/${KSU_NEXT_REF}/kernel/setup.sh"
 
-export SUSFS_KSU_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0001-kernelsu-next-susfs-2.2.0.patch"
-export SUSFS_KERNEL_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0002-susfs-2.2.0-android13-5.15.patch"
+export SUSFS_KSU_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0001-kernelsu-next-3.4.0-susfs-2.3.0.patch"
+export SUSFS_KERNEL_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0002-susfs-2.3.0-android13-5.15.patch"
 export FAKE_CONFIG_PATCH_FILE="${SOURCE_DIR}/patches/common/fake_config.patch"
 export BASE_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/gorhanhee_defconfig"
 export KSU_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/ksu_defconfig"
@@ -26,8 +26,8 @@ usage() {
 Usage: ${SCRIPT_NAME} [vanilla|ksun|susfs]
 
   vanilla  Build without KernelSU-Next or SUSFS (default)
-  ksun     Build with KernelSU-Next ${KSU_NEXT_REF}
-  susfs    Build with KernelSU-Next and SUSFS 2.2.0
+  ksun     Build with KernelSU-Next 3.4.0 (${KSU_NEXT_REF})
+  susfs    Build with KernelSU-Next 3.4.0 and SUSFS 2.3.0
 EOF
 }
 
