@@ -69,8 +69,6 @@ export ANDROID_BUILD_TOP="${SOURCE_DIR}"
 export OUTPUT_BASE="${SOURCE_DIR}/out"
 export OUT_DIR="${OUTPUT_BASE}/${MODEL}/msm-${CHIPSET_NAME}-${CHIPSET_NAME}-${TARGET_PRODUCT}-${KERNEL_MODE}"
 export DIST_DIR="${OUT_DIR}/dist"
-export GKI_OUT_DIR="${OUT_DIR}/gki_kernel"
-export GKI_DIST_DIR="${GKI_OUT_DIR}/dist"
 export PACKAGE_DIR="${OUT_DIR}/packaged"
 export ANDROID_PRODUCT_OUT="${OUTPUT_BASE}/${MODEL}/${KERNEL_MODE}/target/product/${MODEL}"
 export ANDROID_KERNEL_OUT="${OUT_DIR}/android-kernel-out"
@@ -87,7 +85,7 @@ elif [[ "${KERNEL_MODE}" == "susfs" ]]; then
     export GKI_CUSTOM_DEFCONFIG_FRAGMENTS="${KSU_DEFCONFIG_FILE} ${SUSFS_DEFCONFIG_FILE}"
 fi
 
-# Kernel build settings shared by the standalone common and MSM phases.
+# Kernel build settings consumed by Qualcomm's native common/MSM mixed build.
 export JOBS="$(nproc)"
 export SKIP_MRPROPER="1"
 export LTO="thin"
@@ -182,8 +180,7 @@ apply_common_feature_patches
 apply_fake_config_patch
 "${SCRIPTS_DIR}/prepare_toolchain.sh"
 
-"${SCRIPTS_DIR}/build_common.sh"
-"${SCRIPTS_DIR}/build_msm.sh"
+"${SCRIPTS_DIR}/build_kernel.sh"
 "${SCRIPTS_DIR}/build_vendor_boot.sh"
 "${SCRIPTS_DIR}/build_dlkm.sh"
 "${SCRIPTS_DIR}/build_anykernel3.sh"

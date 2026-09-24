@@ -56,12 +56,11 @@ The source is compiled once per kernel mode:
 ```
 
 `build.sh` only exports the shared build environment and runs the scripts in
-`scripts/` in order. The build is split into these independently testable
-phases:
+`scripts/` in order. The kernel build uses Qualcomm's native mixed-build path,
+which builds common GKI first and then MSM against those artifacts:
 
 ```text
-scripts/build_common.sh       common kernel Image and GKI dist
-scripts/build_msm.sh          MSM kernel and vendor modules
+scripts/build_kernel.sh       common GKI, MSM kernel, and vendor modules
 scripts/build_vendor_boot.sh  vendor_boot ramdisk module payload
 scripts/build_dlkm.sh         vendor_dlkm and system_dlkm images
 scripts/build_anykernel3.sh   final AnyKernel3 package
