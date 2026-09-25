@@ -241,6 +241,7 @@ static const char *const dai_force_frame32_config[] = {"Off", "On"};
 
 static u32 cirrus_amp_conf;
 static u32 cirrus_amp_count;
+static bool use_goodix_amp;
 #endif
 
 /*
@@ -1855,6 +1856,29 @@ static struct snd_soc_dai_link msm_tdm_dai_links[] = {
 	},
 };
 
+#if defined(CONFIG_COMMON_AMP_CIRRUS) && defined(CONFIG_SND_SOC_TFA9878)
+static void select_goodix_tdm_dai_links(void)
+{
+	int i;
+
+	msm_tdm_dai_links[0].codecs = goodix_pri_tdm_rx_0_codecs;
+	msm_tdm_dai_links[0].num_codecs = ARRAY_SIZE(goodix_pri_tdm_rx_0_codecs);
+	msm_tdm_dai_links[0].init = NULL;
+	msm_tdm_dai_links[1].codecs = goodix_pri_tdm_tx_0_codecs;
+	msm_tdm_dai_links[1].num_codecs = ARRAY_SIZE(goodix_pri_tdm_tx_0_codecs);
+
+	/* B5Q has no CS40L26 ASoC codec. Its stock MI2S link uses the stub. */
+	for (i = 0; i < ARRAY_SIZE(msm_mi2s_dai_links); i++) {
+		if (strcmp(msm_mi2s_dai_links[i].name, LPASS_BE_QUAT_MI2S_RX))
+			continue;
+		msm_mi2s_dai_links[i].codecs = pri_mi2s_rx_codecs;
+		msm_mi2s_dai_links[i].num_codecs = ARRAY_SIZE(pri_mi2s_rx_codecs);
+		msm_mi2s_dai_links[i].dai_fmt = 0;
+		break;
+	}
+}
+#endif
+
 static struct snd_soc_dai_link msm_kalama_dai_links[
 			ARRAY_SIZE(msm_wsa_cdc_dma_be_dai_links) +
 			ARRAY_SIZE(msm_wsa2_cdc_dma_be_dai_links) +
@@ -2430,12 +2454,15 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 	dapm = snd_soc_component_get_dapm(lpass_cdc_component);
 
 #ifdef CONFIG_COMMON_AMP_CIRRUS
-	ret = snd_soc_add_component_controls(lpass_cdc_component, msm_cirrus_snd_controls,
+	if (!use_goodix_amp) {
+		ret = snd_soc_add_component_controls(lpass_cdc_component,
+				msm_cirrus_snd_controls,
 				ARRAY_SIZE(msm_cirrus_snd_controls));
-	if (ret < 0) {
-		pr_err("%s: add_component_controls failed: %d\n",
-			__func__, ret);
-		return ret;
+		if (ret < 0) {
+			pr_err("%s: add_component_controls failed: %d\n",
+				__func__, ret);
+			return ret;
+		}
 	}
 #endif
 
@@ -2443,7 +2470,7 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 				ARRAY_SIZE(msm_int_dapm_widgets));
 
 #ifdef CONFIG_COMMON_AMP_CIRRUS
-	if(!sub_pcb_conn) {
+	if (!use_goodix_amp && !sub_pcb_conn) {
 		switch (cirrus_amp_conf) {
 		case CS35L43_MONO:
 		case CS35L45_MONO:
@@ -2828,6 +2855,10 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	int ret = 0;
 	struct clk *lpass_audio_hw_vote = NULL;
 	const struct of_device_id *match;
+#if defined(CONFIG_COMMON_AMP_CIRRUS) && defined(CONFIG_SND_SOC_TFA9878)
+	const char *model;
+	struct device_node *root;
+#endif
 
 	pr_info("%s enter\n", __func__);
 
@@ -2855,21 +2886,35 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_COMMON_AMP_CIRRUS
-	ret = of_property_read_u32(pdev->dev.of_node,
+#ifdef CONFIG_SND_SOC_TFA9878
+	root = of_find_node_by_path("/");
+	if (root && !of_property_read_string(root, "model", &model) &&
+	    (strstr(model, " B5Q PROJECT") ||
+	     strstr(model, " E5Q PROJECT"))) {
+		use_goodix_amp = true;
+		select_goodix_tdm_dai_links();
+		dev_info(&pdev->dev, "%s: using Goodix TFA9878 audio links\n",
+			 __func__);
+	}
+	of_node_put(root);
+#endif
+	if (!use_goodix_amp) {
+		ret = of_property_read_u32(pdev->dev.of_node,
 				"cirrus-amp-conf", &cirrus_amp_conf);
-	if (ret) {
-		dev_dbg(&pdev->dev,
+		if (ret) {
+			dev_dbg(&pdev->dev,
 				"%s: codec_conf property missing in DT %s, ret = %d\n",
 				__func__, pdev->dev.of_node->full_name, ret);
-		cirrus_amp_conf = 0x32;
+			cirrus_amp_conf = 0x32;
+		}
+		cirrus_amp_count = cirrus_amp_conf & 0x0F;
+
+		dev_info(&pdev->dev, "%s: cirrus amp conf=0x%x\n",
+			 __func__, cirrus_amp_conf);
+
+		if (cirrus_amp_count > 0 && cirrus_amp_count < 5)
+			update_cirrus_dai_link(&pdev->dev);
 	}
-	cirrus_amp_count = cirrus_amp_conf & 0x0F;
-
-	dev_info(&pdev->dev, "%s: cirrus amp conf=0x%x\n",
-		__func__, cirrus_amp_conf);
-
-	if (cirrus_amp_count > 0 && cirrus_amp_count < 5)
-		update_cirrus_dai_link(&pdev->dev);
 #endif
 	card = populate_snd_card_dailinks(&pdev->dev, pdata->wsa_max_devs);
 	if (!card) {
@@ -2916,35 +2961,37 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	msm_parse_upd_configuration(pdev, pdata);
 
 #ifdef CONFIG_COMMON_AMP_CIRRUS
-	switch (cirrus_amp_conf) {
-	case CS35L43_MONO:
-		card->codec_conf = cs35l43_mono_conf;
-		card->num_configs = ARRAY_SIZE(cs35l43_mono_conf);
-		break;
-	case CS35L43_STEREO:
-		card->codec_conf = cs35l43_stereo_conf;
-		card->num_configs = ARRAY_SIZE(cs35l43_stereo_conf);
-		break;
-	case CS35L43_QUAD:
-		card->codec_conf = cs35l43_quad_conf;
-		card->num_configs = ARRAY_SIZE(cs35l43_quad_conf);
-		break;
-	case CS35L45_MONO:
-		card->codec_conf = cs35l45_mono_conf;
-		card->num_configs = ARRAY_SIZE(cs35l45_mono_conf);
-		break;
-	case CS35L45_STEREO:
-		card->codec_conf = cs35l45_stereo_conf;
-		card->num_configs = ARRAY_SIZE(cs35l45_stereo_conf);
-		break;
-	case CS35L45_QUAD:
-		card->codec_conf = cs35l45_quad_conf;
-		card->num_configs = ARRAY_SIZE(cs35l45_quad_conf);
-		break;
-	default:
-		dev_err(&pdev->dev, "%s: cirrus amp conf is not defined\n",
-			__func__);
-		break;
+	if (!use_goodix_amp) {
+		switch (cirrus_amp_conf) {
+		case CS35L43_MONO:
+			card->codec_conf = cs35l43_mono_conf;
+			card->num_configs = ARRAY_SIZE(cs35l43_mono_conf);
+			break;
+		case CS35L43_STEREO:
+			card->codec_conf = cs35l43_stereo_conf;
+			card->num_configs = ARRAY_SIZE(cs35l43_stereo_conf);
+			break;
+		case CS35L43_QUAD:
+			card->codec_conf = cs35l43_quad_conf;
+			card->num_configs = ARRAY_SIZE(cs35l43_quad_conf);
+			break;
+		case CS35L45_MONO:
+			card->codec_conf = cs35l45_mono_conf;
+			card->num_configs = ARRAY_SIZE(cs35l45_mono_conf);
+			break;
+		case CS35L45_STEREO:
+			card->codec_conf = cs35l45_stereo_conf;
+			card->num_configs = ARRAY_SIZE(cs35l45_stereo_conf);
+			break;
+		case CS35L45_QUAD:
+			card->codec_conf = cs35l45_quad_conf;
+			card->num_configs = ARRAY_SIZE(cs35l45_quad_conf);
+			break;
+		default:
+			dev_err(&pdev->dev, "%s: cirrus amp conf is not defined\n",
+				__func__);
+			break;
+		}
 	}
 #endif
 

@@ -457,6 +457,11 @@ int msm_common_snd_hw_params(struct snd_pcm_substream *substream,
 				}
 #ifdef CONFIG_COMMON_AMP_CIRRUS
 				for (i = 0; i < num_codecs; i++) {
+					/* Goodix sets its clocks in its own codec driver. */
+					if (rtd->dai_link->codecs[i].name &&
+					    !strncmp(rtd->dai_link->codecs[i].name,
+						"tfa98xx.", sizeof("tfa98xx.") - 1))
+						continue;
 					codec_dai = asoc_rtd_to_codec(rtd, i);
 					ret = snd_soc_dai_set_sysclk(codec_dai, 0,
 							intf_clk_cfg.clk_freq_in_hz, SND_SOC_CLOCK_IN);
@@ -474,7 +479,6 @@ int msm_common_snd_hw_params(struct snd_pcm_substream *substream,
 					if (ret < 0)
 						pr_err("%s: failed to set tdm slot, err:%d\n",
 									__func__, ret);
-					
 				}
 #endif
 			} else if ((strnstr(stream_name, "MI2S", strlen(stream_name)))) {

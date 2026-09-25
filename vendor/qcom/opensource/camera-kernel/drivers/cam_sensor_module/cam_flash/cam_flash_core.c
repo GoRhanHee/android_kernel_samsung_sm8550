@@ -390,6 +390,74 @@ end:
 }
 
 #if IS_REACHABLE(CONFIG_LEDS_S2MPB02)
+/* Foldables with a PMIC flash have LED triggers in DT, but the universal
+ * camera module also builds the S2MPB02 path used by the S-series phones.
+ */
+static bool cam_flash_has_pmic_triggers(struct cam_flash_ctrl *flash_ctrl)
+{
+	return flash_ctrl->switch_trigger && flash_ctrl->torch_num_sources;
+}
+
+static void cam_flash_pmic_triggers_off(struct cam_flash_ctrl *flash_ctrl)
+{
+	int i;
+
+	cam_res_mgr_led_trigger_event(flash_ctrl->switch_trigger,
+		(enum led_brightness)LED_SWITCH_OFF);
+	for (i = 0; i < flash_ctrl->torch_num_sources; i++)
+		if (flash_ctrl->torch_trigger[i])
+			cam_res_mgr_led_trigger_event(flash_ctrl->torch_trigger[i],
+				LED_OFF);
+	for (i = 0; i < flash_ctrl->flash_num_sources; i++)
+		if (flash_ctrl->flash_trigger[i])
+			cam_res_mgr_led_trigger_event(flash_ctrl->flash_trigger[i],
+				LED_OFF);
+}
+
+static int cam_flash_pmic_triggers_on(struct cam_flash_ctrl *flash_ctrl,
+	struct cam_flash_frame_setting *flash_data, bool high)
+{
+	struct cam_flash_private_soc *soc_private;
+	struct led_trigger *trigger;
+	u32 led_current, max_current;
+	int i, num_sources;
+
+	if (!flash_data || !flash_ctrl->soc_info.soc_private)
+		return -EINVAL;
+
+	soc_private = flash_ctrl->soc_info.soc_private;
+	num_sources = high ? flash_ctrl->flash_num_sources :
+		flash_ctrl->torch_num_sources;
+	if (!num_sources)
+		return -ENODEV;
+
+	if (high) {
+		for (i = 0; i < flash_ctrl->torch_num_sources; i++)
+			if (flash_ctrl->torch_trigger[i])
+				cam_res_mgr_led_trigger_event(
+					flash_ctrl->torch_trigger[i], LED_OFF);
+	} else {
+		for (i = 0; i < flash_ctrl->flash_num_sources; i++)
+			if (flash_ctrl->flash_trigger[i])
+				cam_res_mgr_led_trigger_event(
+					flash_ctrl->flash_trigger[i], LED_OFF);
+	}
+
+	for (i = 0; i < num_sources; i++) {
+		trigger = high ? flash_ctrl->flash_trigger[i] :
+			flash_ctrl->torch_trigger[i];
+		if (!trigger)
+			continue;
+		max_current = high ? soc_private->flash_max_current[i] :
+			soc_private->torch_max_current[i];
+		led_current = min(flash_data->led_current_ma[i], max_current);
+		cam_res_mgr_led_trigger_event(trigger, led_current);
+	}
+	cam_res_mgr_led_trigger_event(flash_ctrl->switch_trigger,
+		(enum led_brightness)LED_SWITCH_ON);
+	return 0;
+}
+
 int cam_flash_off(struct cam_flash_ctrl *flash_ctrl)
 {
 	if (!flash_ctrl) {
@@ -398,6 +466,11 @@ int cam_flash_off(struct cam_flash_ctrl *flash_ctrl)
 	}
 
 	CAM_INFO(CAM_FLASH, "CAM Flash OFF");
+	if (cam_flash_has_pmic_triggers(flash_ctrl)) {
+		cam_flash_pmic_triggers_off(flash_ctrl);
+		flash_ctrl->flash_state = CAM_FLASH_STATE_START;
+		return 0;
+	}
 	s2mpb02_led_en(S2MPB02_FLASH_LED_1, 0, S2MPB02_LED_TURN_WAY_I2C);/* flash, off */
 	s2mpb02_led_en(S2MPB02_TORCH_LED_1, 0, S2MPB02_LED_TURN_WAY_I2C);/* torch, off */
 
@@ -412,6 +485,10 @@ int cam_torch_off(struct cam_flash_ctrl *flash_ctrl)
 		return -EINVAL;
 	}
 
+	if (cam_flash_has_pmic_triggers(flash_ctrl)) {
+		cam_flash_pmic_triggers_off(flash_ctrl);
+		return 0;
+	}
 	s2mpb02_led_en(S2MPB02_FLASH_LED_1, 0,
 		S2MPB02_LED_TURN_WAY_I2C);
 	s2mpb02_led_en(S2MPB02_TORCH_LED_1, 0,
@@ -432,6 +509,9 @@ static int cam_flash_low(
 	}
 
 	CAM_INFO(CAM_FLASH, "CAM Low Flash ON");
+	if (cam_flash_has_pmic_triggers(flash_ctrl))
+		return cam_flash_pmic_triggers_on(flash_ctrl, flash_data,
+			false);
 	rc = s2mpb02_led_en(S2MPB02_TORCH_LED_1, S2MPB02_TORCH_OUT_I_280MA, S2MPB02_LED_TURN_WAY_I2C);/* low, on */
 	if (rc)
 		CAM_ERR(CAM_FLASH, "Fire Low Flash failed: %d", rc);
@@ -449,6 +529,19 @@ static int cam_flash_duration(struct cam_flash_ctrl *fctrl,
 		return -EINVAL;
 	}
 
+	if (cam_flash_has_pmic_triggers(fctrl)) {
+#if IS_ENABLED(CONFIG_LEDS_QTI_FLASH)
+		struct flash_led_param param = {
+			.off_time_ms = flash_data->flash_active_time_ms,
+			.on_time_ms = flash_data->flash_on_wait_time_ms,
+		};
+
+		rc = qti_flash_led_set_param(fctrl->switch_trigger, param);
+		if (rc)
+			return rc;
+#endif
+		return cam_flash_pmic_triggers_on(fctrl, flash_data, true);
+	}
 	for (i = 0; i < fctrl->torch_num_sources; i++)
 		if (fctrl->torch_trigger[i])
 			cam_res_mgr_led_trigger_event(
@@ -467,6 +560,8 @@ static int cam_flash_high(
 {
 	int rc = 0;
 
+	if (cam_flash_has_pmic_triggers(flash_ctrl))
+		return cam_flash_pmic_triggers_on(flash_ctrl, flash_data, true);
 	if (flash_data->led_current_ma[0] == 100) {
 		rc = s2mpb02_led_en(S2MPB02_TORCH_LED_1, S2MPB02_TORCH_OUT_I_120MA, S2MPB02_LED_TURN_WAY_I2C);/* low, on */
 	}
@@ -496,6 +591,9 @@ static int cam_flash_torch(
 	}
 
 	CAM_INFO(CAM_FLASH, "CAM Torch Flash ON, %d mA", flash_data->led_current_ma[0]);
+	if (cam_flash_has_pmic_triggers(flash_ctrl))
+		return cam_flash_pmic_triggers_on(flash_ctrl, flash_data,
+			false);
 	if (flash_data->led_current_ma[0] == 60) {
 		rc = s2mpb02_led_en(S2MPB02_TORCH_LED_1, S2MPB02_TORCH_OUT_I_60MA, S2MPB02_LED_TURN_WAY_I2C);/* torch, on */
 	} else if (flash_data->led_current_ma[0] == 140) {
