@@ -18,16 +18,20 @@ export SUSFS_KSU_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0001-kernelsu-next-3.4.
 export SUSFS_KERNEL_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0002-susfs-2.3.0-android13-5.15.patch"
 export FAKE_CONFIG_PATCH_FILE="${SOURCE_DIR}/patches/common/fake_config.patch"
 export BASE_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/gorhanhee_defconfig"
+export AOSP_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/aosp_defconfig"
 export KSU_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/ksu_defconfig"
 export SUSFS_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/susfs_defconfig"
 
 usage() {
     cat <<EOF
-Usage: ${SCRIPT_NAME} [vanilla|ksun|susfs]
+Usage: ${SCRIPT_NAME} [vanilla|ksun|susfs] [oneui|aosp]
 
   vanilla  Build without KernelSU-Next or SUSFS (default)
   ksun     Build with KernelSU-Next 3.4.0 (${KSU_NEXT_REF})
   susfs    Build with KernelSU-Next 3.4.0 and SUSFS 2.3.0
+
+  oneui    Build for OneUI (default)
+  aosp     Build for AOSP
 EOF
 }
 
@@ -50,7 +54,16 @@ case "${1:-vanilla}" in
         exit 2
         ;;
 esac
-(( $# <= 1 )) || { usage >&2; exit 2; }
+case "${2:-oneui}" in
+    oneui|aosp)
+        export ROM_VARIANT="${2:-oneui}"
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac
+(( $# <= 2 )) || { usage >&2; exit 2; }
 
 # Universal build profile.  Child scripts receive configuration only through
 # exported variables, so every phase can also be invoked independently.
@@ -66,7 +79,7 @@ export TARGET_BOARD_PLATFORM="gki"
 export TARGET_BUILD_VARIANT="user"
 export ANDROID_BUILD_TOP="${SOURCE_DIR}"
 
-export OUTPUT_BASE="${SOURCE_DIR}/out"
+export OUTPUT_BASE="${SOURCE_DIR}/out/${ROM_VARIANT}"
 export OUT_DIR="${OUTPUT_BASE}/${MODEL}/msm-${CHIPSET_NAME}-${CHIPSET_NAME}-${TARGET_PRODUCT}-${KERNEL_MODE}"
 export DIST_DIR="${OUT_DIR}/dist"
 export PACKAGE_DIR="${OUT_DIR}/packaged"
@@ -75,7 +88,7 @@ export ANDROID_KERNEL_OUT="${OUT_DIR}/android-kernel-out"
 export PACKAGING_WORK_DIR="${OUT_DIR}/tmp/run-${BASHPID}"
 export DOWNLOAD_DIR="${OUT_DIR}/downloads/run-${BASHPID}"
 export TMPDIR="${PACKAGING_WORK_DIR}/process-tmp"
-export ANYKERNEL_PACKAGE="${PACKAGE_DIR}/GoRhanHee_Kernel-${CHIPSET_NAME}-${MODEL}-${KERNEL_MODE}-AnyKernel3.zip"
+export ANYKERNEL_PACKAGE="${PACKAGE_DIR}/GoRhanHee_Kernel-${CHIPSET_NAME}-${MODEL}-${KERNEL_MODE}-${ROM_VARIANT}-AnyKernel3.zip"
 
 export GKI_CUSTOM_DEFCONFIG="${BASE_DEFCONFIG_FILE}"
 export GKI_CUSTOM_DEFCONFIG_FRAGMENTS=""
@@ -83,6 +96,9 @@ if [[ "${KERNEL_MODE}" == "ksun" ]]; then
     export GKI_CUSTOM_DEFCONFIG_FRAGMENTS="${KSU_DEFCONFIG_FILE}"
 elif [[ "${KERNEL_MODE}" == "susfs" ]]; then
     export GKI_CUSTOM_DEFCONFIG_FRAGMENTS="${KSU_DEFCONFIG_FILE} ${SUSFS_DEFCONFIG_FILE}"
+fi
+if [[ "${ROM_VARIANT}" == "aosp" ]]; then
+    export GKI_CUSTOM_DEFCONFIG_FRAGMENTS="${GKI_CUSTOM_DEFCONFIG_FRAGMENTS:+${GKI_CUSTOM_DEFCONFIG_FRAGMENTS} }${AOSP_DEFCONFIG_FILE}"
 fi
 
 # Kernel build settings consumed by Qualcomm's native common/MSM mixed build.

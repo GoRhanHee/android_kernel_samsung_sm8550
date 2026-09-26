@@ -6,6 +6,7 @@ set -Eeuo pipefail
 : "${KERNEL_PLATFORM:?KERNEL_PLATFORM is required}"
 : "${OUT_DIR:?OUT_DIR is required}"
 : "${DIST_DIR:?DIST_DIR is required}"
+: "${ROM_VARIANT:?ROM_VARIANT must be oneui or aosp}"
 
 resolved_dist_dir="$(readlink -m -- "${DIST_DIR}")"
 resolved_gki_dist_dir="$(readlink -m -- "${OUT_DIR}/gki_kernel/dist")"
@@ -33,6 +34,32 @@ echo "[kernel] Building native common/MSM mixed kernel"
     unset GKI_OUT_DIR GKI_DIST_DIR GKI_PREBUILTS_DIR
     ./build/build.sh
 )
+
+# Check both configurations before packaging artifacts from a mixed build.
+for kernel_config in "${OUT_DIR}/gki_kernel/common/.config" "${OUT_DIR}/msm-kernel/.config"; do
+    [[ -s "${kernel_config}" ]] || {
+        echo "error: kernel config is missing: ${kernel_config}" >&2
+        exit 1
+    }
+    case "${ROM_VARIANT}" in
+        aosp)
+            grep -qx 'CONFIG_AOSP=y' "${kernel_config}" || {
+                echo "error: AOSP config was not enabled in ${kernel_config}" >&2
+                exit 1
+            }
+            ;;
+        oneui)
+            grep -qx '# CONFIG_AOSP is not set' "${kernel_config}" || {
+                echo "error: AOSP config was enabled in the OneUI build: ${kernel_config}" >&2
+                exit 1
+            }
+            ;;
+        *)
+            echo "error: unsupported ROM_VARIANT: ${ROM_VARIANT}" >&2
+            exit 2
+            ;;
+    esac
+done
 
 for gki_artifact in \
     Image Image.lz4 System.map vmlinux vmlinux.symvers \

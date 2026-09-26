@@ -3,7 +3,7 @@
 ### GoRhanHee SM8550 universal kernel AnyKernel3 installer
 
 properties() { '
-kernel.string=GoRhanHee Kernel for Samsung SM8550
+kernel.string=GoRhanHee Kernel for Samsung SM8550 (@ROM_VARIANT@)
 do.devicecheck=1
 do.modules=0
 do.systemless=0
@@ -83,6 +83,7 @@ patch_dlkm_fstab() {
 
 detect_device;
 ui_print "- Device: $DEVICE_CODENAME";
+ui_print "- ROM profile: @ROM_VARIANT@";
 
 BOOT_BLOCK="$BLOCK";
 VENDOR_BOOT_BLOCK="";

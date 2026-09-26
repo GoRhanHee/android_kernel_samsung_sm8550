@@ -8,7 +8,7 @@
 
 - Designed for Samsung stock One UI firmware.
 - One UI-based custom ROMs may be incompatible; UN1CA has been tested and confirmed working.
-- AOSP-based ROMs are not supported.
+- AOSP builds are experimental and have not been boot-validated.
 
 ## 📱 Supported Devices
 
@@ -47,12 +47,13 @@ cd android_kernel_samsung_sm8550
 git submodule update --init --recursive
 ```
 
-The source is compiled once per kernel mode:
+Choose a kernel mode and ROM profile. OneUI is the default:
 
 ```sh
 ./build.sh vanilla
 ./build.sh ksun
 ./build.sh susfs
+./build.sh ksun aosp
 ```
 
 `build.sh` only exports the shared build environment and runs the scripts in
@@ -80,7 +81,7 @@ Building these tools requires `autoconf`, `automake`, `libtool`,
 `pkg-config`, a C compiler and make, plus LZ4, SELinux and UUID development
 libraries (`liblz4-dev`, `libselinux1-dev`, and `uuid-dev` on Ubuntu/Debian).
 
-The argument selects the kernel mode and defaults to `vanilla` when omitted. `vanilla` keeps the common project feature patches but excludes KernelSU-Next/SUSFS. `ksun` adds the pinned KernelSU-Next revision without SUSFS. `susfs` also applies the two patches under `patches/susfs/` and merges `custom_defconfigs/ksu_defconfig` followed by `custom_defconfigs/susfs_defconfig`. All temporary source patches are reverted when the build exits.
+The first argument selects the kernel mode and defaults to `vanilla`. The second argument selects `oneui` or `aosp` and defaults to `oneui`. The AOSP profile merges `custom_defconfigs/aosp_defconfig` after the mode fragments, enables `CONFIG_AOSP`, and uses a distinct kernel release suffix. The build checks both common and MSM configs before packaging. `vanilla` keeps the common project feature patches but excludes KernelSU-Next/SUSFS. `ksun` adds the pinned KernelSU-Next revision without SUSFS. `susfs` also applies the two patches under `patches/susfs/` and merges `custom_defconfigs/ksu_defconfig` followed by `custom_defconfigs/susfs_defconfig`. All temporary source patches are reverted when the build exits.
 
 The universal config builds the union of device drivers and the enabled product DTS targets. The build creates `vendor_dlkm` and `system_dlkm` directly from the newly built modules; it does not download or repack stock DLKM images.
 
@@ -102,7 +103,7 @@ DTS sources are retained but excluded from the build.
 Typical output:
 
 ```text
-out/universal/msm-kalama-kalama-gki-<mode>/
+out/<oneui|aosp>/universal/msm-kalama-kalama-gki-<mode>/
 ```
 
 Main artifacts:
@@ -112,7 +113,7 @@ Image
 vendor_ramdisk/
 vendor_dlkm.img
 system_dlkm.img
-GoRhanHee_Kernel-kalama-universal-<mode>-AnyKernel3.zip
+GoRhanHee_Kernel-kalama-universal-<mode>-<oneui|aosp>-AnyKernel3.zip
 ```
 
 `dist/device-trees/base` contains the common Qualcomm base DTBs. Each product
@@ -125,7 +126,7 @@ register only the driver matching the installed WLAN hardware.
 
 ### AnyKernel3 Installation
 
-The `-AnyKernel3.zip` package uses the configured `gki-2.0` tools. Its separate `sm8550_ramdisk/` payload avoids the core's automatic multi-partition relocation. The installer prepares the common `Image` in the stock boot image, then uses `magiskboot unpack -n` on the device's existing `vendor_boot`. It updates module entries and DLKM AVB fstab flags in the CPIO fragment containing `first_stage_ramdisk/fstab.qcom`; other fragments retain their original compressed bytes. `magiskboot repack` retains the stock DTB, bootconfig and v4 table metadata while updating fragment sizes and offsets. Both prepared physical images must fit before flashing begins. The installer also selects the matching WLAN `vendor_dlkm` and common `system_dlkm`.
+Each ROM profile has separate build outputs and an AnyKernel3 ZIP containing its own `Image`, vendor ramdisk modules, `vendor_dlkm`, and `system_dlkm`. The package uses the configured `gki-2.0` tools. Its separate `sm8550_ramdisk/` payload avoids the core's automatic multi-partition relocation. The installer prepares the common `Image` in the stock boot image, then uses `magiskboot unpack -n` on the device's existing `vendor_boot`. It updates module entries and DLKM AVB fstab flags in the CPIO fragment containing `first_stage_ramdisk/fstab.qcom`; other fragments retain their original compressed bytes. `magiskboot repack` retains the stock DTB, bootconfig and v4 table metadata while updating fragment sizes and offsets. Both prepared physical images must fit before flashing begins. The installer also selects the matching WLAN `vendor_dlkm` and common `system_dlkm`.
 
 The bootloader must be unlocked, and the device must use a recovery/flasher that supports AnyKernel3 update ZIPs. Samsung Download Mode/Odin is not used by this package. Keep a stock backup available because flashing is sequential and has no rollback.
 

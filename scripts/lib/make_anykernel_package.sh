@@ -7,6 +7,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 TEMPLATE_DIR="${REPO_ROOT}/prebuilts/AnyKernel3"
 SCRIPT_TEMPLATE="${REPO_ROOT}/prebuilts/anykernel.sh"
+: "${ROM_VARIANT:?ROM_VARIANT must be oneui or aosp}"
+case "${ROM_VARIANT}" in
+    oneui|aosp) ;;
+    *) echo "error: unsupported ROM_VARIANT: ${ROM_VARIANT}" >&2; exit 2 ;;
+esac
 OUTPUT_ZIP=""
 STAGE_DIR=""
 
@@ -22,8 +27,8 @@ IMAGE_DIR must contain:
   system_dlkm.img
 
 Example:
-  ${SCRIPT_NAME} out/GoRhanHee_Kernel-kalama-universal-AnyKernel3.zip \\
-    out/universal/msm-kalama-kalama-gki/packaged
+  ROM_VARIANT=aosp ${SCRIPT_NAME} out/aosp/GoRhanHee_Kernel-AnyKernel3.zip \\
+    out/aosp/universal/msm-kalama-kalama-gki-vanilla/packaged
 EOF
 }
 
@@ -90,7 +95,8 @@ main() {
         cp -a "${TEMPLATE_DIR}/${path}" "${STAGE_DIR}/"
     done
 
-    cp "${SCRIPT_TEMPLATE}" "${STAGE_DIR}/anykernel.sh"
+    sed "s/@ROM_VARIANT@/${ROM_VARIANT}/g" \
+        "${SCRIPT_TEMPLATE}" >"${STAGE_DIR}/anykernel.sh"
     cp "${REPO_ROOT}/prebuilts/sm8550-repack.sh" "${STAGE_DIR}/tools/sm8550-repack.sh"
 
     for image in Image vendor_dlkm.img system_dlkm.img; do
