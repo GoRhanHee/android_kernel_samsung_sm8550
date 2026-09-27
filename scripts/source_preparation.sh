@@ -36,11 +36,6 @@ COMMON_FEATURE_PATCH_FILES=(
     "${SOURCE_DIR}/patches/common/optimization/0021-silence-irq-cpu-logspam-sm8550-5.15.patch"
     "${SOURCE_DIR}/patches/common/optimization/0022-silence-system-logspam.patch"
 )
-FAKE_CONFIG_PATCH_TARGETS=(
-    "${KERNEL_PLATFORM}/common"
-    "${KERNEL_PLATFORM}/msm-kernel"
-)
-
 COMMON_HEAD_BEFORE=""
 COMMON_STATUS_BEFORE=""
 MSM_HEAD_BEFORE=""
@@ -57,7 +52,6 @@ KSU_REUSE_EXISTING=0
 SUSFS_KSU_PATCH_APPLIED=0
 SUSFS_KERNEL_PATCH_APPLIED=0
 COMMON_FEATURE_PATCHES_APPLIED=0
-FAKE_CONFIG_PATCHES_APPLIED=0
 
 die() {
     echo "error: $*" >&2
@@ -219,14 +213,6 @@ apply_common_feature_patches() {
     done
 }
 
-apply_fake_config_patch() {
-    local kernel_dir
-    for kernel_dir in "${FAKE_CONFIG_PATCH_TARGETS[@]}"; do
-        apply_one_patch "${kernel_dir}" "${FAKE_CONFIG_PATCH_FILE}" 1 "fake config"
-        FAKE_CONFIG_PATCHES_APPLIED=$((FAKE_CONFIG_PATCHES_APPLIED + 1))
-    done
-}
-
 restore_msm_state() {
     local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
     local wlan_link="${msm_dir}/.wlan-qcacld"
@@ -263,15 +249,8 @@ restore_msm_state() {
 }
 
 reverse_applied_patches() {
-    local index tree
+    local index
     local cleanup_status=0
-    for ((index = FAKE_CONFIG_PATCHES_APPLIED - 1; index >= 0; index--)); do
-        tree="${FAKE_CONFIG_PATCH_TARGETS[index]}"
-        (cd "${tree}" && patch --batch --fuzz=1 --no-backup-if-mismatch \
-            -R -p1 <"${FAKE_CONFIG_PATCH_FILE}") || cleanup_status=1
-    done
-    FAKE_CONFIG_PATCHES_APPLIED=0
-
     if (( SUSFS_KERNEL_PATCH_APPLIED == 1 )); then
         (cd "${KERNEL_PLATFORM}/common" && patch --batch --fuzz=0 \
             --no-backup-if-mismatch -R -p1 <"${SUSFS_KERNEL_PATCH_FILE}") ||

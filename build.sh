@@ -16,7 +16,6 @@ export KSU_SETUP_URL="https://raw.githubusercontent.com/KernelSU-Next/KernelSU-N
 
 export SUSFS_KSU_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0001-kernelsu-next-3.4.0-susfs-2.3.0.patch"
 export SUSFS_KERNEL_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0002-susfs-2.3.0-android13-5.15.patch"
-export FAKE_CONFIG_PATCH_FILE="${SOURCE_DIR}/patches/common/fake_config.patch"
 export BASE_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/gorhanhee_defconfig"
 export AOSP_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/aosp_defconfig"
 export KSU_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/ksu_defconfig"
@@ -108,7 +107,6 @@ export LTO="thin"
 export HERMETIC_TOOLCHAIN="0"
 export KMI_SYMBOL_LIST_STRICT_MODE="0"
 export TRIM_NONLISTED_KMI="0"
-export CONFIG_FAKE_DISABLE="CONFIG_BBG CONFIG_NTSYNC CONFIG_TCP_CONG_BBR3 CONFIG_IP6_NF_NAT"
 export ABI_DEFINITION=""
 export BUILD_BOOT_IMG="1"
 export SKIP_VENDOR_BOOT="1"
@@ -193,7 +191,6 @@ snapshot_msm_defconfigs
 import_kernelsu_next
 apply_susfs_patches
 apply_common_feature_patches
-apply_fake_config_patch
 "${SCRIPTS_DIR}/prepare_toolchain.sh"
 
 "${SCRIPTS_DIR}/build_kernel.sh"
