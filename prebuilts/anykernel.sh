@@ -29,22 +29,6 @@ NO_VBMETA_PARTITION_PATCH=1;
 . tools/ak3-core.sh;
 . "$BIN/sm8550-repack.sh";
 
-detect_device() {
-  local value;
-
-  for property in ro.product.device ro.product.vendor.device ro.product.system.device ro.boot.hardware.sku; do
-    value="$(getprop "$property" 2>/dev/null)";
-    case "$value" in
-      *dm1q*) DEVICE_CODENAME=dm1q; return 0;;
-      *dm2q*) DEVICE_CODENAME=dm2q; return 0;;
-      *dm3q*) DEVICE_CODENAME=dm3q; return 0;;
-      *q5q*) DEVICE_CODENAME=q5q; return 0;;
-      *b5q*) DEVICE_CODENAME=b5q; return 0;;
-    esac;
-  done;
-  abort "Unable to identify a supported Samsung SM8550 device. Aborting...";
-}
-
 prepare_dlkm_partition() {
   local partition="$1" name;
 
@@ -81,8 +65,6 @@ patch_dlkm_fstab() {
   rm -f "$output" || abort "Failed to remove temporary fstab.";
 }
 
-detect_device;
-ui_print "- Device: $DEVICE_CODENAME";
 ui_print "- ROM profile: @ROM_VARIANT@";
 
 BOOT_BLOCK="$BLOCK";
