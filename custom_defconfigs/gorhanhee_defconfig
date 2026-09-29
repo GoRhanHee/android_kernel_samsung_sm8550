@@ -15,6 +15,9 @@ CONFIG_LSM="landlock,lockdown,yama,loadpin,safesetid,integrity,selinux,baseband_
 # Disable Werror
 CONFIG_WERROR=n
 
+# NoMount path redirection
+CONFIG_NOMOUNT=y
+
 # Add LOCALVERSION
 CONFIG_LOCALVERSION="-GoRhanHee-Kernel"
 CONFIG_LOCALVERSION_AUTO=n

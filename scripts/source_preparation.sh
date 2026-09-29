@@ -49,6 +49,8 @@ KSU_SETUP_SCRIPT=""
 KSU_RESTORE_PATCH=""
 KSU_IMPORT_STARTED=0
 KSU_REUSE_EXISTING=0
+NOMOUNT_IMPORT_STARTED=0
+NOMOUNT_BACKUP_DIR=""
 SUSFS_KSU_PATCH_APPLIED=0
 SUSFS_KERNEL_PATCH_APPLIED=0
 COMMON_FEATURE_PATCHES_APPLIED=0
@@ -204,6 +206,32 @@ apply_susfs_patches() {
     SUSFS_KERNEL_PATCH_APPLIED=1
 }
 
+import_nomount() {
+    local common_dir="${KERNEL_PLATFORM}/common"
+    local fs_dir="${common_dir}/fs"
+    local setup_script="${PACKAGING_WORK_DIR}/nomount-setup.sh"
+
+    [[ ! -e "${common_dir}/NoMount" && ! -L "${common_dir}/NoMount" &&
+       ! -e "${fs_dir}/nomount" && ! -L "${fs_dir}/nomount" ]] ||
+        die "NoMount integration already exists in the common tree"
+    require_command curl
+    NOMOUNT_BACKUP_DIR="${PACKAGING_WORK_DIR}/nomount-before"
+    mkdir -p "${NOMOUNT_BACKUP_DIR}"
+    cp -a -- "${fs_dir}/Kconfig" "${fs_dir}/Makefile" "${NOMOUNT_BACKUP_DIR}/"
+    curl -fLSs --retry 3 -o "${setup_script}" "${NOMOUNT_SETUP_URL}"
+    NOMOUNT_IMPORT_STARTED=1
+    (cd "${common_dir}" && bash "${setup_script}" "${NOMOUNT_REF}")
+
+    [[ -L "${fs_dir}/nomount" && -d "${common_dir}/NoMount/kernel/src" ]] ||
+        die "NoMount setup did not create the expected source link"
+    [[ "$(git -C "${common_dir}/NoMount" rev-parse HEAD)" == "${NOMOUNT_REF}" ]] ||
+        die "NoMount setup checked out an unexpected revision"
+    grep -Fqx 'source "fs/nomount/Kconfig"' "${fs_dir}/Kconfig" ||
+        die "NoMount setup did not update fs/Kconfig"
+    grep -Fqx 'obj-$(CONFIG_NOMOUNT) += nomount/' "${fs_dir}/Makefile" ||
+        die "NoMount setup did not update fs/Makefile"
+}
+
 apply_common_feature_patches() {
     local patch_file
     require_command patch
@@ -307,6 +335,34 @@ remove_temporary_kernelsu() {
     return "${cleanup_status}"
 }
 
+remove_temporary_nomount() {
+    local common_dir="${KERNEL_PLATFORM}/common"
+    local fs_dir="${common_dir}/fs"
+    local repo_dir="${common_dir}/NoMount"
+    local cleanup_status=0
+
+    (( NOMOUNT_IMPORT_STARTED == 1 )) || return 0
+    cp -a -- "${NOMOUNT_BACKUP_DIR}/Kconfig" "${fs_dir}/Kconfig" || cleanup_status=1
+    cp -a -- "${NOMOUNT_BACKUP_DIR}/Makefile" "${fs_dir}/Makefile" || cleanup_status=1
+    if [[ -L "${fs_dir}/nomount" ]]; then
+        rm -- "${fs_dir}/nomount" || cleanup_status=1
+    elif [[ -e "${fs_dir}/nomount" ]]; then
+        echo "error: refusing to remove unexpected NoMount source path" >&2
+        cleanup_status=1
+    fi
+    if [[ -L "${repo_dir}" ]]; then
+        echo "error: refusing to recursively remove NoMount symlink" >&2
+        cleanup_status=1
+    elif [[ -d "${repo_dir}" ]]; then
+        rm -rf -- "${repo_dir}" || cleanup_status=1
+    elif [[ -e "${repo_dir}" ]]; then
+        echo "error: refusing to remove unexpected NoMount path" >&2
+        cleanup_status=1
+    fi
+    NOMOUNT_IMPORT_STARTED=0
+    return "${cleanup_status}"
+}
+
 verify_source_state() {
     local current_head current_status
     if [[ -n "${COMMON_HEAD_BEFORE}" ]]; then
@@ -328,6 +384,7 @@ cleanup_sources() {
     local cleanup_status=0
     trap - EXIT
     reverse_applied_patches || cleanup_status=1
+    remove_temporary_nomount || cleanup_status=1
     remove_temporary_kernelsu || cleanup_status=1
     restore_msm_state || cleanup_status=1
     verify_source_state || cleanup_status=1

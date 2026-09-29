@@ -13,6 +13,8 @@ export CLANG_TOOLCHAIN_DIR="${KERNEL_PLATFORM}/prebuilts/clang/host/linux-x86/cl
 export CLANG_BIN="${CLANG_TOOLCHAIN_DIR}/bin/clang"
 export KSU_NEXT_REF="1a879d6a866f80b1fa1c1009a2ffa747873cbb5e"
 export KSU_SETUP_URL="https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/${KSU_NEXT_REF}/kernel/setup.sh"
+export NOMOUNT_REF="5a610db7649a59eb3e3d710653618d594941f8da"
+export NOMOUNT_SETUP_URL="https://raw.githubusercontent.com/maxsteeel/nomount/${NOMOUNT_REF}/kernel/setup.sh"
 
 export SUSFS_KSU_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0001-kernelsu-next-3.4.0-susfs-2.3.0.patch"
 export SUSFS_KERNEL_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0002-susfs-2.3.0-android13-5.15.patch"
@@ -190,6 +192,7 @@ snapshot_msm_wlan_link
 snapshot_msm_defconfigs
 import_kernelsu_next
 apply_susfs_patches
+import_nomount
 apply_common_feature_patches
 "${SCRIPTS_DIR}/prepare_toolchain.sh"
 

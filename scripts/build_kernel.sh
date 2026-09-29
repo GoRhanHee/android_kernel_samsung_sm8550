@@ -61,6 +61,11 @@ for kernel_config in "${OUT_DIR}/gki_kernel/common/.config" "${OUT_DIR}/msm-kern
     esac
 done
 
+grep -qx 'CONFIG_NOMOUNT=y' "${OUT_DIR}/gki_kernel/common/.config" || {
+    echo "error: NoMount was not built into the common kernel" >&2
+    exit 1
+}
+
 for gki_artifact in \
     Image Image.lz4 System.map vmlinux vmlinux.symvers \
     modules.builtin modules.builtin.modinfo; do
