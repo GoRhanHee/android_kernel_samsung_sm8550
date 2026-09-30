@@ -276,8 +276,20 @@ restore_msm_state() {
     return "${cleanup_status}"
 }
 
-reverse_applied_patches() {
+reverse_common_feature_patches() {
     local index
+    local cleanup_status=0
+
+    for ((index = COMMON_FEATURE_PATCHES_APPLIED - 1; index >= 0; index--)); do
+        (cd "${KERNEL_PLATFORM}/common" && patch --batch --fuzz=1 \
+            --no-backup-if-mismatch -R -p1 <"${COMMON_FEATURE_PATCH_FILES[index]}") ||
+            cleanup_status=1
+    done
+    COMMON_FEATURE_PATCHES_APPLIED=0
+    return "${cleanup_status}"
+}
+
+reverse_susfs_patches() {
     local cleanup_status=0
     if (( SUSFS_KERNEL_PATCH_APPLIED == 1 )); then
         (cd "${KERNEL_PLATFORM}/common" && patch --batch --fuzz=0 \
@@ -291,13 +303,6 @@ reverse_applied_patches() {
             cleanup_status=1
         SUSFS_KSU_PATCH_APPLIED=0
     fi
-
-    for ((index = COMMON_FEATURE_PATCHES_APPLIED - 1; index >= 0; index--)); do
-        (cd "${KERNEL_PLATFORM}/common" && patch --batch --fuzz=1 \
-            --no-backup-if-mismatch -R -p1 <"${COMMON_FEATURE_PATCH_FILES[index]}") ||
-            cleanup_status=1
-    done
-    COMMON_FEATURE_PATCHES_APPLIED=0
     return "${cleanup_status}"
 }
 
@@ -383,8 +388,9 @@ cleanup_sources() {
     local build_status=$?
     local cleanup_status=0
     trap - EXIT
-    reverse_applied_patches || cleanup_status=1
+    reverse_common_feature_patches || cleanup_status=1
     remove_temporary_nomount || cleanup_status=1
+    reverse_susfs_patches || cleanup_status=1
     remove_temporary_kernelsu || cleanup_status=1
     restore_msm_state || cleanup_status=1
     verify_source_state || cleanup_status=1
