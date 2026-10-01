@@ -47,6 +47,7 @@ main() {
     local strip_tool="${clang_bin}/llvm-strip"
     local objcopy_tool="${clang_bin}/llvm-objcopy"
     local system_map="${dist_dir}/System.map"
+    local kernel_config="${OUT_DIR:?OUT_DIR is required}/msm-kernel/.config"
     local early_list="${dist_dir}/modules.load"
     local vendor_list="${dist_dir}/vendor_dlkm.modules.load"
     local system_list="${dist_dir}/system_dlkm.modules.load"
@@ -62,6 +63,7 @@ main() {
 
     command -v depmod >/dev/null 2>&1 || die "required command not found: depmod"
     [[ -s "${system_map}" ]] || die "System.map not found: ${system_map}"
+    [[ -s "${kernel_config}" ]] || die "kernel config not found: ${kernel_config}"
     for source_module in "${early_list}" "${vendor_list}" "${system_list}"; do
         [[ -s "${source_module}" ]] || die "module list not found: ${source_module}"
     done
@@ -75,18 +77,15 @@ main() {
     recovery_list="${work_dir}/modules.load.recovery"
     raw_inventory="${work_dir}/modules.inventory.raw"
     normalize_module_lists "${early_list}" >"${normal_list}"
-    # The Samsung sensor HAL starts before the vendor_dlkm load path has
-    # consistently brought up the ADSP/FastRPC stack.  If that race is lost,
-    # sensors-hal times out waiting for the sensors QMI service and keeps an
-    # empty sensor list for the remainder of the boot.  Keep the remoteproc,
-    # ADSP loader and FastRPC entry points in the vendor ramdisk load list;
-    # depmod supplies their dependency order from the complete module set
-    # staged below.
-    for module_name in "${EARLY_ADSP_MODULES[@]}"; do
-        resolve_module "${dist_dir}" "${module_name}" >/dev/null
-        grep -Fqx "${module_name}" "${normal_list}" ||
-            printf '%s\n' "${module_name}" >>"${normal_list}"
-    done
+    # The AOSP sensor HAL can start before vendor_dlkm loads ADSP/FastRPC.
+    # Load these entry points from vendor_boot only for CONFIG_AOSP builds.
+    if grep -qx 'CONFIG_AOSP=y' "${kernel_config}"; then
+        for module_name in "${EARLY_ADSP_MODULES[@]}"; do
+            resolve_module "${dist_dir}" "${module_name}" >/dev/null
+            grep -Fqx "${module_name}" "${normal_list}" ||
+                printf '%s\n' "${module_name}" >>"${normal_list}"
+        done
+    fi
     find "${dist_dir}" -maxdepth 1 -type f -name '*.ko' -printf '%f\n' \
         | sort -u >"${raw_inventory}"
     normalize_module_lists "${raw_inventory}" >"${recovery_list}"
