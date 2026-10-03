@@ -27,7 +27,7 @@ combined into one ambiguous image.
 ## ✨ Features
 
 - The `vanilla` build mode does not include KernelSU-Next or SUSFS.
-- The `susfs` build mode adds KernelSU-Next and SUSFS 2.2.0 for Android 13 / Linux 5.15.
+- The `susfs` build mode adds KernelSU-Next and SUSFS 2.3.0 for Android 13 / Linux 5.15.
 - Baseband Guard monitors unauthorized writes to protected partition devices.
 - DroidSpaces support enables Linux containers through namespaces, IPC, netfilter, and matching DLKM modules.
 - NTSync provides kernel synchronization primitives for Wine, Winlator, and GameHub.

@@ -3,9 +3,11 @@
 These patches are applied only by `./build.sh <device> susfs` and are reverted
 when the build exits.
 
-1. `0001-kernelsu-next-3.4.0-susfs-2.3.0.patch` adds the KernelSU-Next-side
-   SUSFS integration. It is rebased on KernelSU-Next 3.4.0 and connects the
+1. `0001-kernelsu-next-85171fb-susfs-2.3.0.patch` adds the KernelSU-Next-side
+   SUSFS integration. It is rebased on the pinned KernelSU-Next dev commit and connects the
    v2.3 post-exec path to the scoped `ksu_driver_su` session FD.
+   The KernelSU-Next `avc_spoof` feature controls the SUSFS AVC audit hook in
+   this mode, with no second kprobe installed.
 2. `0002-susfs-2.3.0-android13-5.15.patch` adds the kernel-side SUSFS 2.3.0
    implementation for the Android 13 / Linux 5.15 common tree.
 
@@ -20,13 +22,14 @@ contexts in common tree `ca8bcd58fe1a`. The embedded `fs/susfs.c`,
 `include/linux/susfs.h`, and `include/linux/susfs_def.h` come from that SUSFS
 revision, including the SUS_KSTAT `f_flags` fix.
 
-The build script pins the KernelSU-Next `v3.4.0` tag to:
+The build script pins the KernelSU-Next `dev` branch snapshot from
+2026-10-03 to:
 
 ```text
-1a879d6a866f80b1fa1c1009a2ffa747873cbb5e
+85171fb99ef33b652d3b09849637adb37537873f
 ```
 
-The integration preserves the 3.4.0 version-tag, bundled-LKM, SELinux wrapper,
+The integration preserves the upstream version-tag, bundled-LKM, SELinux wrapper,
 non-root ambient-capability, and scoped driver-FD changes while replacing its
 syscall-hook path with the Android 13 / Linux 5.15 SUSFS manual hooks.
 
