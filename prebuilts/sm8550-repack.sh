@@ -13,7 +13,8 @@ sm8550_prepare_boot() (
 
 sm8550_decode_vendor_fragment() {
   local stock="$1" fragment="$2" fragment_count="$3" output="$4";
-  local page_size header_size ramdisk_size fragment_size offset;
+  local page_size header_size ramdisk_size fragment_size offset magic;
+  SM8550_RECOVERED_FRAGMENT=false;
   if cpio -it -F "$fragment" >/dev/null 2>&1; then
     cp -f "$fragment" "$output";
     return;
@@ -27,6 +28,8 @@ sm8550_decode_vendor_fragment() {
   # sole table fragment. magiskboot extracts only the table size, dropping the
   # last compressed byte; it then reports lz4_lg and cannot decompress it.
   [ "$fragment_count" -eq 1 ] || return 1;
+  magic="$("$BIN/busybox" od -An -tx1 -N 4 "$fragment" | "$BIN/busybox" tr -d '[:space:]')" || return 1;
+  [ "$magic" = 02214c18 ] || return 1;
   page_size="$("$BIN/busybox" od -An -tu4 -j 12 -N 4 "$stock" | "$BIN/busybox" tr -d '[:space:]')" || return 1;
   header_size="$("$BIN/busybox" od -An -tu4 -j 2096 -N 4 "$stock" | "$BIN/busybox" tr -d '[:space:]')" || return 1;
   ramdisk_size="$("$BIN/busybox" od -An -tu4 -j 24 -N 4 "$stock" | "$BIN/busybox" tr -d '[:space:]')" || return 1;
@@ -41,12 +44,13 @@ sm8550_decode_vendor_fragment() {
   cat "$output.tail" >> "$output.compressed" || return 1;
   rm -f "$output.tail";
   "$BIN/magiskboot" decompress "$output.compressed" "$output" || return 1;
-  rm -f "$output.compressed";
+  rm -f "$output.compressed" || return 1;
+  SM8550_RECOVERED_FRAGMENT=true;
 }
 
 sm8550_prepare_vendor_boot() (
   local work="$1" block="$2" modules="$3" output="$4";
-  local fragment platform="" file name status entry fragment_count=0;
+  local fragment platform="" platform_recovered=false file name status entry fragment_count=0;
   mkdir -p "$work" && cd "$work" || exit 1;
   dd if="$block" of=stock.img bs=1048576 || exit 1;
   # Keep compressed components intact so unrelated v4 fragments do not change.
@@ -69,6 +73,7 @@ sm8550_prepare_vendor_boot() (
         exit 1;
       };
       platform="$fragment";
+      platform_recovered="$SM8550_RECOVERED_FRAGMENT";
       cp -f candidate.cpio platform.cpio || exit 1;
     fi;
   done;
@@ -104,7 +109,14 @@ sm8550_prepare_vendor_boot() (
   done;
   set -- "$@" "add 0644 first_stage_ramdisk/fstab.qcom $work/fstab.qcom";
   "$BIN/magiskboot" cpio platform.cpio "$@" || exit 1;
-  cp -f platform.cpio "$platform" || exit 1;
+  if [ "$platform_recovered" = true ]; then
+    # The truncated stock fragment is misidentified as lz4_lg during repack.
+    # Supply a compressed component so magiskboot keeps lz4_legacy unchanged.
+    "$BIN/magiskboot" compress=lz4_legacy platform.cpio "$platform.recompressed" || exit 1;
+    mv -f "$platform.recompressed" "$platform" || exit 1;
+  else
+    cp -f platform.cpio "$platform" || exit 1;
+  fi;
   PATCHVBMETAFLAG=false "$BIN/magiskboot" repack stock.img "$output";
 )
 
