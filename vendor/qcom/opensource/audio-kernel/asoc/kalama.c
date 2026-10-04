@@ -99,7 +99,6 @@ struct msm_asoc_mach_data {
 };
 
 static bool is_initial_boot;
-static bool codec_reg_done;
 static struct snd_soc_card snd_soc_card_kalama_msm;
 static int dmic_0_1_gpio_cnt;
 static int dmic_2_3_gpio_cnt;
@@ -2586,7 +2585,6 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 		return ret;
 	}
 done:
-	codec_reg_done = true;
 	msm_common_dai_link_init(rtd);
 
 	return ret;
@@ -2997,8 +2995,6 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret == -EPROBE_DEFER) {
-		if (codec_reg_done)
-			ret = -EINVAL;
 #if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
 		if (++defer_count > MAX_DEFER_COUNT)
 			check_external_device(&pdev->dev);
