@@ -1,9 +1,9 @@
 # SUSFS 2.3.0 build-time patches
 
-These patches are applied only by `./build.sh <device> susfs` and are reverted
+These patches are applied only by `./build.sh susfs <oneui|aosp>` and are reverted
 when the build exits.
 
-1. `0001-kernelsu-next-85171fb-susfs-2.3.0.patch` adds the KernelSU-Next-side
+1. `0001-kernelsu-next-4c706b5-susfs-2.3.0.patch` adds the KernelSU-Next-side
    SUSFS integration. It is rebased on the pinned KernelSU-Next dev commit and connects the
    v2.3 post-exec path to the scoped `ksu_driver_su` session FD.
    The KernelSU-Next `avc_spoof` feature controls the SUSFS AVC audit hook in
@@ -23,10 +23,10 @@ contexts in common tree `ca8bcd58fe1a`. The embedded `fs/susfs.c`,
 revision, including the SUS_KSTAT `f_flags` fix.
 
 The build script pins the KernelSU-Next `dev` branch snapshot from
-2026-10-03 to:
+2026-10-14 to:
 
 ```text
-85171fb99ef33b652d3b09849637adb37537873f
+4c706b5938665866ebe16944a481a7b91e3396af
 ```
 
 The integration preserves the upstream version-tag, bundled-LKM, SELinux wrapper,
