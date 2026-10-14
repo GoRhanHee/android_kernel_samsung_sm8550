@@ -91,8 +91,8 @@ static void adsp_load_fw(struct work_struct *adsp_ldr_work)
 	struct rproc *rproc;
 
 	if (!pdev) {
-		dev_err(&pdev->dev, "%s: Platform device null\n", __func__);
-		goto fail;
+		pr_err("%s: Platform device null\n", __func__);
+		return;
 	}
 
 	if (!pdev->dev.of_node) {
@@ -105,13 +105,6 @@ static void adsp_load_fw(struct work_struct *adsp_ldr_work)
 	if (!priv) {
 		dev_err(&pdev->dev,
 		" %s: Private data get failed\n", __func__);
-		goto fail;
-	}
-
-	rc = of_property_read_u32(pdev->dev.of_node, adsp_dt, &adsp_state);
-	if (rc) {
-		dev_err(&pdev->dev,
-			"%s: ADSP state = %x\n", __func__, adsp_state);
 		goto fail;
 	}
 
@@ -130,6 +123,14 @@ static void adsp_load_fw(struct work_struct *adsp_ldr_work)
 
 	rproc = priv->pil_h;
 	if (!strcmp(rproc->name, "modem")) {
+		rc = of_property_read_u32(pdev->dev.of_node, adsp_dt,
+					  &adsp_state);
+		if (rc) {
+			dev_err(&pdev->dev, "%s: failed to read ADSP state: %d\n",
+				__func__, rc);
+			goto fail;
+		}
+
 		if (adsp_state == SPF_SUBSYS_DOWN) {
 			rc = rproc_boot(priv->pil_h);
 			if (IS_ERR(priv->pil_h) || rc) {
@@ -153,8 +154,8 @@ load_adsp:
 		if (adsp_state == SPF_SUBSYS_DOWN) {
 			rc = rproc_boot(priv->pil_h);
 			if (rc) {
-				dev_err(&pdev->dev, "%s: pil get failed,\n",
-					__func__);
+				dev_err(&pdev->dev, "%s: ADSP boot failed: %d\n",
+					__func__, rc);
 #if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
 				sdp_boot_print("%s: ADSP loadig is failed = %d\n",
 					__func__, rc);
@@ -220,7 +221,7 @@ static ssize_t adsp_ssr_store(struct kobject *kobj,
 	rproc_shutdown(adsp_dev);
 	adsp_loader_do(adsp_private);
 
-	dev_dbg(&pdev->dev, "%s :: ADSP restarted\n", __func__);
+	dev_dbg(&pdev->dev, "%s :: ADSP restart queued\n", __func__);
 	return count;
 }
 
