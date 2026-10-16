@@ -67,6 +67,11 @@ patch_dlkm_fstab() {
 
 ui_print "- ROM profile: @ROM_VARIANT@";
 
+# Prevent partial installation from live Android before writing any partition.
+if [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ]; then
+  abort "Live Android installation is not supported for DLKM partitions. Use recovery or fastbootd.";
+fi;
+
 BOOT_BLOCK="$BLOCK";
 VENDOR_BOOT_BLOCK="";
 for partition in "vendor_boot$SLOT" vendor_boot; do
