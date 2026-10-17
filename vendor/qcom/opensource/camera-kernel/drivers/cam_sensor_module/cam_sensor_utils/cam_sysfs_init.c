@@ -2887,6 +2887,19 @@ ssize_t rear_flash_store(struct device *dev,
 			struct device_attribute *attr, const char *buf,
 			size_t count)
 {
+#if defined(CONFIG_SAMSUNG_PMIC_FLASH) && IS_REACHABLE(CONFIG_LEDS_S2MPB02)
+	/* Use the S2MPB02 level table on projects with an S2MPB02 torch. */
+	switch (cam_sec_get_project()) {
+	case CAM_SEC_PROJECT_DM1Q:
+	case CAM_SEC_PROJECT_DM2Q:
+	case CAM_SEC_PROJECT_DM3Q:
+	case CAM_SEC_PROJECT_Q5Q:
+		s2mpb02_store(buf);
+		return count;
+	default:
+		break;
+	}
+#endif
 #if defined(CONFIG_SAMSUNG_PMIC_FLASH)
 	flash_power_store(dev, attr, buf, count);
 #elif IS_REACHABLE(CONFIG_LEDS_S2MPB02)
