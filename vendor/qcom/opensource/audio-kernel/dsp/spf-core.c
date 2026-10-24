@@ -20,6 +20,7 @@
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/jiffies.h>
+#include <linux/workqueue.h>
 #include <ipc/gpr-lite.h>
 #include <dsp/spf-core.h>
 #include <dsp/digital-cdc-rsc-mgr.h>
@@ -28,6 +29,7 @@
 #endif
 
 #define APM_STATE_READY_TIMEOUT_MS    10000
+#define APM_CHILD_RETRY_DELAY_MS 1000
 #define Q6_READY_TIMEOUT_MS 1000
 #define Q6_CLOSE_ALL_TIMEOUT_MS 5000
 #define APM_CMD_GET_SPF_STATE 0x01001021
@@ -49,7 +51,8 @@ struct spf_core_private {
 	struct mutex lock;
         struct spf_core *spf_core_drv;
         bool is_initial_boot;
-        struct work_struct add_chld_dev_work;
+	bool stopping;
+	struct delayed_work add_chld_dev_work;
 };
 
 static struct spf_core_private *spf_core_priv;
@@ -301,8 +304,9 @@ static int spf_core_probe(struct gpr_device *adev)
 	core->adev = adev;
 	init_waitqueue_head(&core->wait);
 	spf_core_priv->spf_core_drv = core;
-	if (spf_core_priv->is_initial_boot)
-		schedule_work(&spf_core_priv->add_chld_dev_work);
+	if (READ_ONCE(spf_core_priv->is_initial_boot) &&
+	    !READ_ONCE(spf_core_priv->stopping))
+		schedule_delayed_work(&spf_core_priv->add_chld_dev_work, 0);
 	mutex_unlock(&spf_core_priv->lock);
 
 	return 0;
@@ -340,27 +344,32 @@ static struct gpr_driver qcom_spf_core_driver = {
 
 static void spf_core_add_child_devices(struct work_struct *work)
 {
+	struct spf_core_private *priv = container_of(to_delayed_work(work),
+				struct spf_core_private, add_chld_dev_work);
 	int ret;
-        pr_err("%s:enumarate machine driver\n", __func__);
 
-	if(spf_core_is_apm_ready()) {
-		dev_err(spf_core_priv->dev, "%s: apm is up\n",
-			__func__);
-	} else {
-		dev_err(spf_core_priv->dev, "%s: apm is not up\n",
-			__func__);
+	if (READ_ONCE(priv->stopping) || !READ_ONCE(priv->is_initial_boot))
+		return;
+
+	pr_info("%s: enumerate machine driver\n", __func__);
+
+	if (!spf_core_is_apm_ready()) {
+		dev_warn(priv->dev, "%s: APM is not ready; retrying\n", __func__);
 		sdp_boot_print("%s: apm is not up\n", __func__);
+		if (!READ_ONCE(priv->stopping))
+			schedule_delayed_work(&priv->add_chld_dev_work,
+				msecs_to_jiffies(APM_CHILD_RETRY_DELAY_MS));
 		return;
 	}
 
-	ret = of_platform_populate(spf_core_priv->dev->of_node,
-			NULL, NULL, spf_core_priv->dev);
-	if (ret)
-		dev_err(spf_core_priv->dev, "%s: failed to add child nodes, ret=%d\n",
+	ret = of_platform_populate(priv->dev->of_node, NULL, NULL, priv->dev);
+	if (ret) {
+		dev_err(priv->dev, "%s: failed to add child nodes, ret=%d\n",
 			__func__, ret);
+		return;
+	}
 
-        spf_core_priv->is_initial_boot = false;
-
+	WRITE_ONCE(priv->is_initial_boot, false);
 }
 
 static int spf_core_platform_driver_probe(struct platform_device *pdev)
@@ -376,7 +385,8 @@ static int spf_core_platform_driver_probe(struct platform_device *pdev)
 
 	mutex_init(&spf_core_priv->lock);
 
-	INIT_WORK(&spf_core_priv->add_chld_dev_work, spf_core_add_child_devices);
+	INIT_DELAYED_WORK(&spf_core_priv->add_chld_dev_work,
+			  spf_core_add_child_devices);
 
 	spf_core_priv->is_initial_boot = true;
 	ret = gpr_driver_register(&qcom_spf_core_driver);
@@ -402,6 +412,8 @@ static int spf_core_platform_driver_probe(struct platform_device *pdev)
 static int spf_core_platform_driver_remove(struct platform_device *pdev)
 {
 	//snd_event_client_deregister(&pdev->dev);
+	WRITE_ONCE(spf_core_priv->stopping, true);
+	cancel_delayed_work_sync(&spf_core_priv->add_chld_dev_work);
         gpr_driver_unregister(&qcom_spf_core_driver);
 	spf_core_priv = NULL;
     digital_cdc_rsc_mgr_exit();
