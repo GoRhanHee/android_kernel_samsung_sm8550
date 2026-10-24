@@ -3105,44 +3105,34 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..9c8055f224e70c8d9a1baf3105e9e2c3
  static struct ksu_event_queue sulog_queue;
  
  // Compat bridge for ksu_toolkit (SULog)
-@@ -143,25 +131,25 @@ static struct user_arg_ptr ksu_sulog_user_argv(const char __user *const __user *
+@@ -143,26 +131,6 @@ static struct user_arg_ptr ksu_sulog_user_argv(const char __user *const __user *
      return argv;
  }
  
 -static const char __user *ksu_sulog_get_user_arg_ptr(struct user_arg_ptr argv, int nr)
-+static const char __user *get_user_arg_ptr(struct user_arg_ptr argv, int nr)
- {
+-{
 -    const char __user *native;
-+	const char __user *native;
- 
- #ifdef CONFIG_COMPAT
+-
+-#ifdef CONFIG_COMPAT
 -    if (unlikely(argv.is_compat)) {
 -        compat_uptr_t compat;
-+	if (unlikely(argv.is_compat)) {
-+		compat_uptr_t compat;
- 
+-
 -        if (get_user(compat, argv.ptr.compat + nr))
 -            return ERR_PTR(-EFAULT);
-+		if (get_user(compat, argv.ptr.compat + nr))
-+			return ERR_PTR(-EFAULT);
- 
+-
 -        return compat_ptr(compat);
 -    }
-+		return compat_ptr(compat);
-+	}
- #endif
- 
+-#endif
+-
 -    if (get_user(native, argv.ptr.native + nr))
 -        return ERR_PTR(-EFAULT);
-+	if (get_user(native, argv.ptr.native + nr))
-+		return ERR_PTR(-EFAULT);
- 
+-
 -    return native;
-+	return native;
- }
+-}
  
  static void ksu_sulog_fill_task_info(struct ksu_sulog_event *event, __u16 event_type, int retval)
-@@ -192,6 +180,28 @@ static __u32 ksu_sulog_copy_empty_string(char *dst)
+ {
+@@ -192,6 +160,28 @@ static __u32 ksu_sulog_copy_empty_string(char *dst)
      return 1;
  }
  
@@ -3171,7 +3161,7 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..9c8055f224e70c8d9a1baf3105e9e2c3
  static __u32 ksu_sulog_copy_filename(const char __user *filename_user, char *dst, __u32 dst_len)
  {
      long ret;
-@@ -214,9 +224,8 @@ static __u32 ksu_sulog_copy_filename(const char __user *filename_user, char *dst
+@@ -214,9 +204,8 @@ static __u32 ksu_sulog_copy_filename(const char __user *filename_user, char *dst
      return ret + 1;
  }
  
@@ -3182,7 +3172,7 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..9c8055f224e70c8d9a1baf3105e9e2c3
      char arg[KSU_SULOG_MAX_ARG_CHUNK];
      __u32 used = 0;
      int i;
-@@ -235,7 +244,7 @@ static __u32 ksu_sulog_flatten_argv(const char __user *const __user *argv_user,
+@@ -235,7 +224,7 @@ static __u32 ksu_sulog_flatten_argv(const char __user *const __user *argv_user,
          if (fatal_signal_pending(current))
              break;
  
@@ -3191,7 +3181,7 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..9c8055f224e70c8d9a1baf3105e9e2c3
          if (!arg_user)
              break;
          if (IS_ERR(arg_user))
-@@ -271,8 +280,8 @@ static __u32 ksu_sulog_flatten_argv(const char __user *const __user *argv_user,
+@@ -271,8 +260,8 @@ static __u32 ksu_sulog_flatten_argv(const char __user *const __user *argv_user,
      return used + 1;
  }
  
@@ -3202,7 +3192,7 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..9c8055f224e70c8d9a1baf3105e9e2c3
  {
      struct ksu_sulog_pending_event *pending = NULL;
      struct ksu_sulog_event *event;
-@@ -283,6 +292,7 @@ static struct ksu_sulog_pending_event *ksu_sulog_capture(__u16 event_type, const
+@@ -283,6 +272,7 @@ static struct ksu_sulog_pending_event *ksu_sulog_capture(__u16 event_type, const
      __u32 remaining;
      char *filename_buf;
      char *argv_buf;
@@ -3210,7 +3200,7 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..9c8055f224e70c8d9a1baf3105e9e2c3
      if (!ksu_sulog_is_enabled())
          return NULL;
  
-@@ -299,7 +309,7 @@ static struct ksu_sulog_pending_event *ksu_sulog_capture(__u16 event_type, const
+@@ -299,7 +289,7 @@ static struct ksu_sulog_pending_event *ksu_sulog_capture(__u16 event_type, const
  
      remaining = KSU_SULOG_MAX_PAYLOAD_LEN - sizeof(*event);
      filename_buf = (char *)payload + sizeof(*event);
@@ -3219,7 +3209,7 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..9c8055f224e70c8d9a1baf3105e9e2c3
      if (!filename_len)
          goto out_free_payload;
  
-@@ -364,16 +374,10 @@ static void ksu_sulog_free_pending(struct ksu_sulog_pending_event *pending)
+@@ -364,16 +354,10 @@ static void ksu_sulog_free_pending(struct ksu_sulog_pending_event *pending)
      kfree(pending);
  }
  
