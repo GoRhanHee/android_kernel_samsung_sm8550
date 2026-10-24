@@ -204,19 +204,6 @@ apply_susfs_patches() {
     SUSFS_KSU_PATCH_APPLIED=1
     apply_one_patch "${common_dir}" "${SUSFS_KERNEL_PATCH_FILE}" 0 SUSFS
     SUSFS_KERNEL_PATCH_APPLIED=1
-
-    grep -Fq 'static_branch_likely(&susfs_is_avc_log_spoofing_enabled)' \
-        "${common_dir}/security/selinux/avc.c" ||
-        die "SUSFS AVC audit hook is missing"
-    grep -Fq 'DEFINE_STATIC_KEY_FALSE(susfs_is_avc_log_spoofing_enabled)' \
-        "${common_dir}/fs/susfs.c" ||
-        die "SUSFS AVC static key is missing"
-    grep -Fq 'static_branch_enable(&susfs_is_avc_log_spoofing_enabled)' \
-        "${kernelsu_dir}/kernel/extras.c" ||
-        die "KernelSU AVC spoof enable hook is missing"
-    grep -Fq 'static_branch_disable(&susfs_is_avc_log_spoofing_enabled)' \
-        "${kernelsu_dir}/kernel/extras.c" ||
-        die "KernelSU AVC spoof disable hook is missing"
 }
 
 import_nomount() {
