@@ -2519,10 +2519,22 @@ index 6e3c4de492282eea9a2c0c812024d8664073ee5a..76ed4f31f1cd1b8fdfe1e9a3d718e189
      // retry forced features which failed at second stage
      ksu_feature_apply_forced();
 diff --git a/kernel/runtime/ksud.h b/kernel/runtime/ksud.h
-index 09384deff44cfb11c9520bfee3d85125f2864fe4..70c6756291149294ca4356e8a69c60d4b0e81198 100644
+index 09384deff44cfb11c9520bfee3d85125f2864fe4..985f441fa740928001fc2f8102c00c9ea2d73f62 100644
 --- a/kernel/runtime/ksud.h
 +++ b/kernel/runtime/ksud.h
-@@ -8,8 +8,41 @@
+@@ -2,14 +2,55 @@
+ #define __KSU_H_KSUD
+ 
+ #include <asm/syscall.h>
++#include <linux/compat.h>
++#include <linux/compiler.h>
++#include <linux/err.h>
++#include <linux/errno.h>
++#include <linux/types.h>
++#include <linux/uaccess.h>
+ 
+ #define KSUD_PATH "/data/adb/ksud"
+ 
  void ksu_ksud_init();
  void ksu_ksud_exit();
  
@@ -2541,7 +2553,7 @@ index 09384deff44cfb11c9520bfee3d85125f2864fe4..70c6756291149294ca4356e8a69c60d4
 +#endif
 +    } ptr;
 +};
-+
+ 
 +static inline const char __user *get_user_arg_ptr(struct user_arg_ptr argv, int nr)
 +{
 +    const char __user *native;
@@ -2555,18 +2567,20 @@ index 09384deff44cfb11c9520bfee3d85125f2864fe4..70c6756291149294ca4356e8a69c60d4
 +
 +        return compat_ptr(compat);
 +    }
-+#endif
+ #endif
 +
 +    if (get_user(native, argv.ptr.native + nr))
 +        return ERR_PTR(-EFAULT);
 +
 +    return native;
 +}
- 
++
++struct filename;
++
 +int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
 +                             struct user_arg_ptr *argv,
 +                             struct user_arg_ptr *envp, int *flags);
- #endif
++#endif
 diff --git a/kernel/runtime/ksud_integration.c b/kernel/runtime/ksud_integration.c
 index 1a7ba9ffa7d95518c03730d93801ae0f118eac87..a22154e6f1041d63289d13eb8c066e8c4bec3b74 100644
 --- a/kernel/runtime/ksud_integration.c
@@ -3083,7 +3097,7 @@ index 158f94555d8a35eb2fe025bda2cb19344d3f0617..7048d71f57274d084ff8d37ee45e0e7f
 +
  #endif
 diff --git a/kernel/sulog/event.c b/kernel/sulog/event.c
-index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..9c8055f224e70c8d9a1baf3105e9e2c38af9a971 100644
+index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..f3b878c16f335f595e5de3a3ed4582f0c39bbdc5 100644
 --- a/kernel/sulog/event.c
 +++ b/kernel/sulog/event.c
 @@ -25,18 +25,6 @@
@@ -3105,10 +3119,28 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..9c8055f224e70c8d9a1baf3105e9e2c3
  static struct ksu_event_queue sulog_queue;
  
  // Compat bridge for ksu_toolkit (SULog)
-@@ -143,26 +131,6 @@ static struct user_arg_ptr ksu_sulog_user_argv(const char __user *const __user *
-     return argv;
- }
- 
+@@ -125,44 +113,6 @@
+     __u32 uid;
+     __u32 euid;
+ };
+-
+-static struct user_arg_ptr ksu_sulog_user_argv(const char __user *const __user *argv_user)
+-{
+-    struct user_arg_ptr argv;
+-
+-#ifdef CONFIG_COMPAT
+-    if (unlikely(in_compat_syscall())) {
+-        argv.is_compat = true;
+-        argv.ptr.compat = (const compat_uptr_t __user *)argv_user;
+-        return argv;
+-    }
+-
+-    argv.is_compat = false;
+-#endif
+-    argv.ptr.native = argv_user;
+-    return argv;
+-}
+-
 -static const char __user *ksu_sulog_get_user_arg_ptr(struct user_arg_ptr argv, int nr)
 -{
 -    const char __user *native;
@@ -3132,47 +3164,51 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..9c8055f224e70c8d9a1baf3105e9e2c3
  
  static void ksu_sulog_fill_task_info(struct ksu_sulog_event *event, __u16 event_type, int retval)
  {
-@@ -192,6 +160,28 @@ static __u32 ksu_sulog_copy_empty_string(char *dst)
+@@ -192,31 +142,24 @@
      return 1;
  }
  
+-static __u32 ksu_sulog_copy_filename(const char __user *filename_user, char *dst, __u32 dst_len)
+-{
+-    long ret;
 +static __u32 ksu_sulog_copy_filename_kernel(const char *filename, char *dst, __u32 dst_len)
 +{
-+    long ret;
-+
-+    if (!dst_len)
-+        return 0;
-+
++    size_t len;
+ 
+     if (!dst_len)
+         return 0;
+ 
+-    if (!filename_user)
 +    if (!filename)
-+        return ksu_sulog_copy_empty_string(dst);
-+
-+    ret = strncpy(dst, filename, dst_len);
-+    if (ret <= 0)
-+        return ksu_sulog_copy_empty_string(dst);
-+
-+    if (ret >= dst_len) {
-+        dst[dst_len - 1] = '\0';
-+        return dst_len;
-+    }
-+
-+    return ret + 1;
+         return ksu_sulog_copy_empty_string(dst);
+ 
+-    ret = strncpy_from_user_nofault(dst, (const void __user *)untagged_addr((unsigned long)filename_user), dst_len);
+-    if (ret <= 0)
+-        return ksu_sulog_copy_empty_string(dst);
+-
+-    if (ret >= dst_len) {
+-        dst[dst_len - 1] = '\0';
+-        return dst_len;
+-    }
+-
+-    return ret + 1;
+-}
+-
+-static __u32 ksu_sulog_flatten_argv(const char __user *const __user *argv_user, char *dst, __u32 dst_len)
+-{
+-    struct user_arg_ptr argv = ksu_sulog_user_argv(argv_user);
++    len = strnlen(filename, dst_len - 1);
++    memcpy(dst, filename, len);
++    dst[len] = '\0';
++    return len + 1;
 +}
 +
- static __u32 ksu_sulog_copy_filename(const char __user *filename_user, char *dst, __u32 dst_len)
- {
-     long ret;
-@@ -214,9 +204,8 @@ static __u32 ksu_sulog_copy_filename(const char __user *filename_user, char *dst
-     return ret + 1;
- }
- 
--static __u32 ksu_sulog_flatten_argv(const char __user *const __user *argv_user, char *dst, __u32 dst_len)
 +static __u32 ksu_sulog_flatten_argv(struct user_arg_ptr *argv_user, char *dst, __u32 dst_len)
- {
--    struct user_arg_ptr argv = ksu_sulog_user_argv(argv_user);
++{
      char arg[KSU_SULOG_MAX_ARG_CHUNK];
      __u32 used = 0;
      int i;
-@@ -235,7 +224,7 @@ static __u32 ksu_sulog_flatten_argv(const char __user *const __user *argv_user,
+@@ -235,7 +178,7 @@
          if (fatal_signal_pending(current))
              break;
  
@@ -3181,7 +3217,7 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..9c8055f224e70c8d9a1baf3105e9e2c3
          if (!arg_user)
              break;
          if (IS_ERR(arg_user))
-@@ -271,8 +260,8 @@ static __u32 ksu_sulog_flatten_argv(const char __user *const __user *argv_user,
+@@ -271,8 +214,8 @@
      return used + 1;
  }
  
@@ -3192,7 +3228,7 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..9c8055f224e70c8d9a1baf3105e9e2c3
  {
      struct ksu_sulog_pending_event *pending = NULL;
      struct ksu_sulog_event *event;
-@@ -283,6 +272,7 @@ static struct ksu_sulog_pending_event *ksu_sulog_capture(__u16 event_type, const
+@@ -283,6 +226,7 @@
      __u32 remaining;
      char *filename_buf;
      char *argv_buf;
@@ -3200,7 +3236,7 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..9c8055f224e70c8d9a1baf3105e9e2c3
      if (!ksu_sulog_is_enabled())
          return NULL;
  
-@@ -299,7 +289,7 @@ static struct ksu_sulog_pending_event *ksu_sulog_capture(__u16 event_type, const
+@@ -299,7 +243,7 @@
  
      remaining = KSU_SULOG_MAX_PAYLOAD_LEN - sizeof(*event);
      filename_buf = (char *)payload + sizeof(*event);
@@ -3209,7 +3245,7 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..9c8055f224e70c8d9a1baf3105e9e2c3
      if (!filename_len)
          goto out_free_payload;
  
-@@ -364,16 +354,10 @@ static void ksu_sulog_free_pending(struct ksu_sulog_pending_event *pending)
+@@ -364,16 +308,10 @@
      kfree(pending);
  }
  
@@ -3221,10 +3257,11 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..9c8055f224e70c8d9a1baf3105e9e2c3
 -
 -struct ksu_sulog_pending_event *ksu_sulog_capture_sucompat(const char __user *filename_user,
 -                                                           const char __user *const __user *argv_user, gfp_t gfp)
+-{
+-    return ksu_sulog_capture(KSU_SULOG_EVENT_SUCOMPAT, filename_user, argv_user, gfp);
 +struct ksu_sulog_pending_event *ksu_sulog_capture_sucompat(const char *filename,
 +                                                           struct user_arg_ptr *argv_user, gfp_t gfp)
- {
--    return ksu_sulog_capture(KSU_SULOG_EVENT_SUCOMPAT, filename_user, argv_user, gfp);
++{
 +    return ksu_sulog_capture(KSU_SULOG_EVENT_SUCOMPAT, filename, argv_user, gfp);
  }
  
