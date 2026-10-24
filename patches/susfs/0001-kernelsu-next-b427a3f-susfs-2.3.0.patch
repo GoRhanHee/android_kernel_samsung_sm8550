@@ -1509,7 +1509,7 @@ index 6274c47dadf9d94081170a77f5fd70544dbcb16b..e784aba5ff4c961ba97395bd3b2d5296
  
  #include "arch.h"
  #include "policy/allowlist.h"
-@@ -21,255 +24,269 @@
+@@ -21,255 +24,249 @@
  #include "klog.h" // IWYU pragma: keep
  #include "runtime/ksud.h"
  #include "feature/sucompat.h"
@@ -1607,8 +1607,7 @@ index 6274c47dadf9d94081170a77f5fd70544dbcb16b..e784aba5ff4c961ba97395bd3b2d5296
  }
  
 -long ksu_handle_faccessat_sucompat(int orig_nr, struct pt_regs *regs)
-+static const char __user *get_user_arg_ptr(struct user_arg_ptr argv, int nr)
- {
+-{
 -	const char __user **filename_user, *orig_filename;
 -	long ret;
 -	const struct cred *old_cred;
@@ -1641,24 +1640,6 @@ index 6274c47dadf9d94081170a77f5fd70544dbcb16b..e784aba5ff4c961ba97395bd3b2d5296
 -
 -do_orig_facessat:
 -	return ksu_syscall_table[orig_nr](regs);
-+    const char __user *native;
-+
-+#ifdef CONFIG_COMPAT
-+    if (unlikely(argv.is_compat)) {
-+        compat_uptr_t compat;
-+
-+        if (get_user(compat, argv.ptr.compat + nr))
-+            return ERR_PTR(-EFAULT);
-+
-+        return compat_ptr(compat);
-+    }
-+#endif
-+
-+    if (get_user(native, argv.ptr.native + nr))
-+        return ERR_PTR(-EFAULT);
-+
-+    return native;
-+}
 +
 +/*
 + * return 0 -> No further checks should be required afterwards
