@@ -55,8 +55,6 @@ patch_dlkm_fstab() {
       next
     }
     $1 == "vendor_dlkm" || $1 == "system_dlkm" {
-      if (!has_erofs[$1])
-        $3 = "erofs"
       count = split($5, flags, ",")
       value = ""
       for (i = 1; i <= count; i++) {
@@ -65,6 +63,13 @@ patch_dlkm_fstab() {
         value = value (value == "" ? "" : ",") flags[i]
       }
       $5 = value
+      print
+      if (!has_erofs[$1]) {
+        $3 = "erofs"
+        print
+        has_erofs[$1] = 1
+      }
+      next
     }
     { print }
   ' "$fstab" "$fstab" >"$output" || abort "Failed to patch DLKM fstab. Aborting...";
