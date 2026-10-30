@@ -49,7 +49,14 @@ patch_dlkm_fstab() {
   [ -f "$fstab" ] || abort "vendor_boot fstab.qcom was not found. Aborting...";
   awk '
     BEGIN { OFS = "\t" }
+    FNR == NR {
+      if (($1 == "vendor_dlkm" || $1 == "system_dlkm") && $3 == "erofs")
+        has_erofs[$1] = 1
+      next
+    }
     $1 == "vendor_dlkm" || $1 == "system_dlkm" {
+      if (!has_erofs[$1])
+        $3 = "erofs"
       count = split($5, flags, ",")
       value = ""
       for (i = 1; i <= count; i++) {
@@ -60,7 +67,7 @@ patch_dlkm_fstab() {
       $5 = value
     }
     { print }
-  ' "$fstab" >"$output" || abort "Failed to patch DLKM AVB flags. Aborting...";
+  ' "$fstab" "$fstab" >"$output" || abort "Failed to patch DLKM fstab. Aborting...";
   cat "$output" >"$fstab" || abort "Failed to write patched fstab.";
   rm -f "$output" || abort "Failed to remove temporary fstab.";
 }
