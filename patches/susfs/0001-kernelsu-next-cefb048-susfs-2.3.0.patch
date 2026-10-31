@@ -1,5 +1,5 @@
 diff --git a/kernel/Kbuild b/kernel/Kbuild
-index f8fc9a9cd17e7beadbf171e981be328b3b89a1e3..fe00302a423752946163896f3522b29e39188a4f 100644
+index a02fd187706a2aca3bf2dab46387e59ffdf33bd1..09045523272db1c0a96b2adc0bd31e7fa4bf26d2 100644
 --- a/kernel/Kbuild
 +++ b/kernel/Kbuild
 @@ -5,21 +5,7 @@ kernelsu-objs += feature/module_blacklist.o
@@ -24,7 +24,7 @@ index f8fc9a9cd17e7beadbf171e981be328b3b89a1e3..fe00302a423752946163896f3522b29e
  kernelsu-objs += extras.o
  
  kernelsu-objs += infra/file_wrapper.o
-@@ -67,9 +53,6 @@ endif
+@@ -69,9 +55,6 @@ endif
  ifeq ($(CONFIG_KSU_DEBUG),y)
  ccflags-y += -DCONFIG_KSU_DEBUG=1
  endif
@@ -170,7 +170,7 @@ index 05888d7bf2178b82cc1ccbf27d8d1992e99bb6e0..208e7f0ed027f73728bc9282449f00e9
 +
  # Keep a new line here!! Because someone may append config
 diff --git a/kernel/core/init.c b/kernel/core/init.c
-index a5e95e7cf78f3c223c0e288bce225ebf6a829cff..948c155ae898ea1a418cc268e52a25c8ec4fbc94 100644
+index a14faa545164c1eb6aa8875e440730f20a9137f8..2a20d6d7b11b4425fc0f5f8cb0c4c04e27b373ba 100644
 --- a/kernel/core/init.c
 +++ b/kernel/core/init.c
 @@ -5,6 +5,7 @@
@@ -214,7 +214,7 @@ index a5e95e7cf78f3c223c0e288bce225ebf6a829cff..948c155ae898ea1a418cc268e52a25c8
  
  #ifdef CONFIG_KSU_DEBUG
  bool allow_shell = true;
-@@ -99,28 +99,6 @@ int __init kernelsu_init(void)
+@@ -101,28 +101,6 @@ int __init kernelsu_init(void)
  #else
  	pr_info("welcome to KernelSU version " __stringify(KERNEL_SU_VERSION) "\n");
  #endif
@@ -243,14 +243,21 @@ index a5e95e7cf78f3c223c0e288bce225ebf6a829cff..948c155ae898ea1a418cc268e52a25c8
  #ifdef CONFIG_KSU_DEBUG
  	pr_alert("*************************************************************");
  	pr_alert("**     NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE    **");
-@@ -140,86 +118,47 @@ int __init kernelsu_init(void)
+@@ -142,7 +120,9 @@ int __init kernelsu_init(void)
  		return -ENOSYS;
  	}
  
+-	pr_info("initializing symbol resolver\n");
 +#ifdef CONFIG_KSU_SUSFS
 +    susfs_init();
 +#endif // #ifdef KSU_SUSFS
  	ksu_init_symbol_resolver();
+ 
+ 	ret = ksu_selinux_inode_init();
+@@ -152,85 +132,43 @@ int __init kernelsu_init(void)
+ 		return ret;
+ 	}
+ 
 -	ksu_syscall_hook_init();
 -
 -	// Block modules early, before vendor modules are loaded in second stage.
@@ -347,7 +354,7 @@ index a5e95e7cf78f3c223c0e288bce225ebf6a829cff..948c155ae898ea1a418cc268e52a25c8
  
  	// Wait for any in-flight RCU readers (e.g. handler traversing allow_list)
  	synchronize_rcu();
-@@ -233,9 +172,12 @@ void __exit kernelsu_exit(void)
+@@ -244,9 +182,12 @@ void __exit kernelsu_exit(void)
  
  	ksu_shell_su_adb_only_exit();
  	ksu_selinux_hide_exit();
@@ -663,7 +670,7 @@ index 693414198438dac38ac67e39de13a3576169847d..0eccb67d5b220f87a3b0a9ea6e1ddbde
  	pr_info("handle umount for uid: %d, pid: %d\n", new_uid, current->pid);
  
 diff --git a/kernel/feature/selinux_hide.c b/kernel/feature/selinux_hide.c
-index 459f99f920b7b995e8f3b53d7da931dcbd79f932..1b34903f4c78451c4c720be476cd6dec4b1e1e21 100644
+index 2a41b8056d6e2e0a416d37e9fd984b4e7852070a..1b34903f4c78451c4c720be476cd6dec4b1e1e21 100644
 --- a/kernel/feature/selinux_hide.c
 +++ b/kernel/feature/selinux_hide.c
 @@ -1,9 +1,5 @@
@@ -884,9 +891,7 @@ index 459f99f920b7b995e8f3b53d7da931dcbd79f932..1b34903f4c78451c4c720be476cd6dec
 -    tsec = selinux_cred(cred);
 -    return tsec->sid;
 -}
-+DEFINE_STATIC_KEY_FALSE(fake_status_initialize_key);
-+struct page *fake_status = NULL;
- 
+-
 -/*
 - * get the objective security ID of a task
 - */
@@ -913,7 +918,9 @@ index 459f99f920b7b995e8f3b53d7da931dcbd79f932..1b34903f4c78451c4c720be476cd6dec
 -
 -    return sid;
 -}
--
++DEFINE_STATIC_KEY_FALSE(fake_status_initialize_key);
++struct page *fake_status = NULL;
+ 
 -typedef int (*setprocattr_fn)(const char *name, void *value, size_t size);
 -static int __nocfi my_setprocattr(const char *name, void *value, size_t size)
 -{
@@ -1035,7 +1042,7 @@ index 459f99f920b7b995e8f3b53d7da931dcbd79f932..1b34903f4c78451c4c720be476cd6dec
  
      fake_status = new_page;
      pr_info("initialize_fake_status initialized: sequence=%d, policyload=%d, enforcing=%d\n", new_status->sequence,
-@@ -361,120 +88,38 @@ out:
+@@ -361,117 +88,38 @@ out:
      mutex_unlock(&selinux_state.status_lock);
  }
  
@@ -1045,10 +1052,7 @@ index 459f99f920b7b995e8f3b53d7da931dcbd79f932..1b34903f4c78451c4c720be476cd6dec
 +void ksu_selinux_hide_handle_second_stage()
  {
 -    if (likely(current_uid().val >= 10000 && ksu_selinux_hide_enabled)) {
--        void *data;
--        mutex_lock(&selinux_state.status_lock);
--        data = fake_status;
--        mutex_unlock(&selinux_state.status_lock);
+-        void *data = fake_status;
 -        if (data) {
 -            filp->private_data = data;
 -            return 0;
@@ -1099,7 +1103,7 @@ index 459f99f920b7b995e8f3b53d7da931dcbd79f932..1b34903f4c78451c4c720be476cd6dec
 -    if (!context_struct_compute_av_fn) {
 -        pr_warn("context_struct_compute_av not found!\n");
 -    }
- 
+-
 -    context_write = &selinux_write_op[SEL_CONTEXT];
 -    pr_info("selinux_hide: context_write: 0x%lx [%pSb]\n", (unsigned long)*context_write, *context_write);
 -    write_op_fn my = my_write_context;
@@ -1119,7 +1123,7 @@ index 459f99f920b7b995e8f3b53d7da931dcbd79f932..1b34903f4c78451c4c720be476cd6dec
 -        pr_err("selinux_hide: init: patch_text access_write err: %d\n", ret);
 -        goto unhook;
 -    }
--
+ 
 -    ret = ksu_lsm_hook(&selinux_setprocattr_hook);
 -    if (ret) {
 -        pr_err("selinux_hide: init: selinux_setprocattr_hook err: %d\n", ret);
@@ -1174,7 +1178,7 @@ index 459f99f920b7b995e8f3b53d7da931dcbd79f932..1b34903f4c78451c4c720be476cd6dec
  }
  
  static int selinux_hide_feature_get(u64 *value)
-@@ -499,10 +144,11 @@ static int selinux_hide_feature_set(u64 value)
+@@ -496,10 +144,11 @@ static int selinux_hide_feature_set(u64 value)
          }
      } else {
          if (ksu_selinux_hide_running) {
@@ -1187,7 +1191,7 @@ index 459f99f920b7b995e8f3b53d7da931dcbd79f932..1b34903f4c78451c4c720be476cd6dec
      mutex_unlock(&selinux_hide_mutex);
      return ret;
  }
-@@ -514,65 +160,18 @@ static const struct ksu_feature_handler selinux_hide_handler = {
+@@ -511,65 +160,18 @@ static const struct ksu_feature_handler selinux_hide_handler = {
      .set_handler = selinux_hide_feature_set,
  };
  
@@ -1254,7 +1258,7 @@ index 459f99f920b7b995e8f3b53d7da931dcbd79f932..1b34903f4c78451c4c720be476cd6dec
          ksu_selinux_hide_running = false;
      }
      mutex_unlock(&selinux_hide_mutex);
-@@ -597,125 +196,93 @@ void ksu_selinux_hide_drop_backup_if_unused()
+@@ -594,25 +196,24 @@ void ksu_selinux_hide_drop_backup_if_unused()
      mutex_unlock(&selinux_hide_mutex);
  }
  
@@ -1263,7 +1267,7 @@ index 459f99f920b7b995e8f3b53d7da931dcbd79f932..1b34903f4c78451c4c720be476cd6dec
   * Caveat:  Mutates scontext.
   */
 -static int string_to_context_struct(struct policydb *pol, struct policydb *orig_pol, struct sidtab *sidtabp,
--                                    struct sidtab *orig_sidtabp, char *scontext, char *orig_scontext,
+-                                    struct sidtab *orig_sidtabp, char *scontext, const char *source, u32 source_len,
 -                                    struct context *ctx, struct context *orig_ctx, u32 def_sid, int *orig_rc_p)
 +static int string_to_context_struct(struct policydb *pol, struct sidtab *sidtabp, char *scontext, struct context *ctx,
 +                                    u32 def_sid)
@@ -1271,117 +1275,102 @@ index 459f99f920b7b995e8f3b53d7da931dcbd79f932..1b34903f4c78451c4c720be476cd6dec
 -    struct role_datum *role, *orig_role;
 -    struct type_datum *typdatum, *orig_typdatum;
 -    struct user_datum *usrdatum, *orig_usrdatum;
--    char *scontextp, *orig_scontextp, *p, *orig_p, oldc, orig_oldc;
--    int rc = 0, orig_rc = 0;
 +    struct role_datum *role;
 +    struct type_datum *typdatum;
 +    struct user_datum *usrdatum;
-+    char *scontextp, *p, oldc;
+     char *scontextp, *p, oldc;
+-    bool orig_valid = true;
+-    int rc = -EINVAL, orig_rc = -EINVAL;
 +    int rc = 0;
  
      context_init(ctx);
 -    context_init(orig_ctx);
  
-     /* Parse the security context. */
- 
--    orig_rc = rc = -EINVAL;
+-    // split fields once
+-    // look up both policies
++    /* Parse the security context. */
++
 +    rc = -EINVAL;
      scontextp = scontext;
--    orig_scontextp = orig_scontext;
  
      /* Extract the user. */
-     p = scontextp;
--    orig_p = orig_scontextp;
--    while (*p && *p != ':') {
-+    while (*p && *p != ':')
-         p++;
--        orig_p++;
--    }
- 
-     if (*p == 0)
-         goto out;
- 
--    *orig_p++ = *p++ = 0;
-+    *p++ = 0;
+@@ -626,15 +227,10 @@ static int string_to_context_struct(struct policydb *pol, struct policydb *orig_
+     *p++ = 0;
  
      usrdatum = symtab_search(&pol->p_users, scontextp);
--    orig_usrdatum = symtab_search(&orig_pol->p_users, orig_scontextp);
+-    orig_usrdatum = symtab_search(&orig_pol->p_users, scontextp);
      if (!usrdatum)
          goto out;
  
      ctx->user = usrdatum->value;
 -    if (orig_usrdatum)
 -        orig_ctx->user = orig_usrdatum->value;
+-    else
+-        orig_valid = false;
  
      /* Extract role. */
      scontextp = p;
--    orig_scontextp = orig_p;
--    while (*p && *p != ':') {
-+    while (*p && *p != ':')
-         p++;
--        orig_p++;
--    }
- 
-     if (*p == 0)
-         goto out;
- 
--    *orig_p++ = *p++ = 0;
-+    *p++ = 0;
+@@ -647,14 +243,9 @@ static int string_to_context_struct(struct policydb *pol, struct policydb *orig_
+     *p++ = 0;
  
      role = symtab_search(&pol->p_roles, scontextp);
--    orig_role = symtab_search(&orig_pol->p_roles, orig_scontextp);
+-    orig_role = symtab_search(&orig_pol->p_roles, scontextp);
      if (!role)
          goto out;
      ctx->role = role->value;
 -    if (orig_role)
 -        orig_ctx->role = orig_role->value;
+-    else
+-        orig_valid = false;
  
      /* Extract type. */
      scontextp = p;
--    orig_scontextp = orig_p;
--    while (*p && *p != ':') {
-+    while (*p && *p != ':')
-         p++;
--        orig_p++;
--    }
-     oldc = *p;
--    orig_oldc = *orig_p;
--    *orig_p++ = *p++ = 0;
-+    *p++ = 0;
+@@ -664,55 +255,34 @@ static int string_to_context_struct(struct policydb *pol, struct policydb *orig_
+     *p++ = 0;
  
      typdatum = symtab_search(&pol->p_types, scontextp);
--    orig_typdatum = symtab_search(&orig_pol->p_types, orig_scontextp);
+-    orig_typdatum = symtab_search(&orig_pol->p_types, scontextp);
      if (!typdatum || typdatum->attribute)
          goto out;
  
      ctx->type = typdatum->value;
 -    if (orig_typdatum && !orig_typdatum->attribute)
 -        orig_ctx->type = orig_typdatum->value;
+-    else
+-        orig_valid = false;
  
      rc = mls_context_to_sid(pol, oldc, p, ctx, sidtabp, def_sid);
--    orig_rc = mls_context_to_sid(orig_pol, orig_oldc, orig_p, orig_ctx, orig_sidtabp, def_sid);
--    if (rc) {
--        orig_rc = -EINVAL;
+-    if (orig_valid) {
+-        if (oldc) {
+-            size_t offset = p - scontext;
+-
+-            // restore MLS suffix for live policy
+-            memcpy(p, source + offset, source_len - offset);
+-            p[source_len - offset] = '\0';
+-        }
+-        // validate live context with live policy
+-        orig_rc = mls_context_to_sid(orig_pol, oldc, p, orig_ctx, orig_sidtabp, def_sid);
+-        if (!orig_rc && !policydb_context_isvalid(orig_pol, orig_ctx))
+-            orig_rc = -EINVAL;
+-    }
 +    if (rc)
-         goto out;
--    }
++        goto out;
  
-     /* Check the validity of the new context. */
--    orig_rc = rc = -EINVAL;
--    if (policydb_context_isvalid(pol, ctx)) {
--        rc = 0;
--    }
--    if (policydb_context_isvalid(orig_pol, ctx)) {
--        orig_rc = 0;
--    }
+-    if (!rc && !policydb_context_isvalid(pol, ctx))
+-        rc = -EINVAL;
++    /* Check the validity of the new context. */
 +    rc = -EINVAL;
 +    if (!policydb_context_isvalid(pol, ctx))
 +        goto out;
 +    rc = 0;
  out:
-     if (rc)
+-    if (rc) {
++    if (rc)
          context_destroy(ctx);
--    if (orig_rc)
+-        // ignore live result if backup fails
+-        orig_rc = -EINVAL;
+-    }
+-    if (rc || orig_rc)
 -        context_destroy(orig_ctx);
 -    *orig_rc_p = orig_rc;
      return rc;
@@ -1395,9 +1384,9 @@ index 459f99f920b7b995e8f3b53d7da931dcbd79f932..1b34903f4c78451c4c720be476cd6dec
 -    struct selinux_policy *orig_policy;
 -    struct policydb *policydb, *orig_policydb;
 -    struct sidtab *sidtab, *orig_sidtab;
--    char *scontext2, *scontext3, *str = NULL;
+-    char *scontext2;
 -    struct context context, orig_context;
--    int rc = 0, orig_rc = 0;
+-    int rc = 0, orig_rc = -EINVAL;
 -    u32 orig_sid;
 +    struct policydb *policydb;
 +    struct sidtab *sidtab;
@@ -1407,62 +1396,74 @@ index 459f99f920b7b995e8f3b53d7da931dcbd79f932..1b34903f4c78451c4c720be476cd6dec
  
      /* An empty security context is never valid. */
      if (!scontext_len)
-@@ -726,43 +293,23 @@ static int security_context_to_sid_with_policy(struct selinux_policy *policy, co
-     if (!scontext2)
-         return -ENOMEM;
+@@ -725,57 +295,23 @@ static int security_context_to_sid_with_policy(struct selinux_policy *policy, co
  
--    scontext3 = kmemdup_nul(scontext, scontext_len, gfp_flags);
--    if (!scontext3) {
--        kfree(scontext2);
--        return -ENOMEM;
--    }
--
      // removed: if (!selinux_initialized())
      *sid = SECSID_NULL;
 -    if (orig_sid_p)
 -        *orig_sid_p = SECSID_NULL;
  
      // removed: if (force)
+-retry:
 -    rcu_read_lock();
--    orig_policy = rcu_dereference(selinux_state.policy);
--    orig_policydb = &orig_policy->policydb;
--    orig_sidtab = orig_policy->sidtab;
 +    // removed: rcu lock
      policydb = &policy->policydb;
      sidtab = policy->sidtab;
--    rc = string_to_context_struct(policydb, orig_policydb, sidtab, orig_sidtab, scontext2, scontext3, &context,
--                                  &orig_context, def_sid, &orig_rc);
--    if (!rc) {
--        rc = sidtab_context_to_sid(sidtab, &context, sid);
--        // rc should not be frozen
--        context_destroy(&context);
--        // removed: if (rc == -ESTALE)
--        if (!orig_rc) {
--            // sync to global sidtab
--            orig_rc = sidtab_context_to_sid(orig_sidtab, &orig_context, &orig_sid);
--            if (orig_sid_p)
--                *orig_sid_p = orig_sid;
--            context_destroy(&orig_context);
--        }
--    }
--    rcu_read_unlock();
--    if (orig_rc_p)
--        *orig_rc_p = orig_rc;
--    kfree(scontext3);
+-    orig_policy = rcu_dereference(selinux_state.policy);
+-    orig_policydb = &orig_policy->policydb;
+-    orig_sidtab = orig_policy->sidtab;
+-
+-    // parse both policies together
+-    orig_rc = -EINVAL;
+-    rc = string_to_context_struct(policydb, orig_policydb, sidtab, orig_sidtab, scontext2, scontext, scontext_len,
+-                                  &context, &orig_context, def_sid, &orig_rc);
 +    rc = string_to_context_struct(policydb, sidtab, scontext2, &context, def_sid);
-+    if (rc)
+     if (rc)
+-        goto out_unlock;
+-
+-    // update backup sidtab first
 +        goto out;
-+    rc = sidtab_context_to_sid(sidtab, &context, sid);
+     rc = sidtab_context_to_sid(sidtab, &context, sid);
 +    // rc should not be frozen
 +    if (rc)
 +        goto out;
 +    // removed: if (rc == -ESTALE)
-+    context_destroy(&context);
+     context_destroy(&context);
+-    if (rc) {
+-        if (!orig_rc)
+-            context_destroy(&orig_context);
+-        // backup sidtab is not reloaded
+-        orig_rc = rc;
+-        goto out_unlock;
+-    }
+-
+-    if (orig_rc)
+-        goto out_unlock;
+-
+-    // only sync valid contexts
+-    // sync to live sidtab
+-    orig_rc = sidtab_context_to_sid(orig_sidtab, &orig_context, &orig_sid);
+-    context_destroy(&orig_context);
+-    if (!orig_rc && orig_sid_p)
+-        *orig_sid_p = orig_sid;
+-    if (orig_rc == -ESTALE) {
+-        // retry after live policy reload
+-        rcu_read_unlock();
+-        memcpy(scontext2, scontext, scontext_len);
+-        scontext2[scontext_len] = '\0';
+-        goto retry;
+-    }
+-out_unlock:
+-    rcu_read_unlock();
+-    if (orig_rc_p)
+-        *orig_rc_p = orig_rc;
 +out:
      kfree(scontext2);
-     kfree(str);
++    kfree(str);
      return rc;
-@@ -835,7 +382,7 @@ static int sidtab_entry_to_string(struct policydb *p, struct sidtab *sidtab, str
+ }
+ 
+@@ -846,7 +382,7 @@ static int sidtab_entry_to_string(struct policydb *p, struct sidtab *sidtab, str
      return rc;
  }
  
@@ -1471,7 +1472,7 @@ index 459f99f920b7b995e8f3b53d7da931dcbd79f932..1b34903f4c78451c4c720be476cd6dec
                                                 u32 *scontext_len)
  {
      struct policydb *policydb;
-@@ -1208,7 +755,7 @@ static void context_struct_compute_av(struct policydb *policydb, struct context
+@@ -1219,7 +755,7 @@ static void context_struct_compute_av(struct policydb *policydb, struct context
      type_attribute_bounds_av(policydb, scontext, tcontext, tclass, avd);
  }
  
@@ -1480,13 +1481,13 @@ index 459f99f920b7b995e8f3b53d7da931dcbd79f932..1b34903f4c78451c4c720be476cd6dec
                                                           struct av_decision *avd)
  {
      struct policydb *policydb;
-@@ -1255,3 +802,4 @@ allow:
+@@ -1266,3 +802,4 @@ allow:
      avd->allowed = 0xffffffff;
      goto out;
  }
 +#endif
 diff --git a/kernel/feature/sucompat.c b/kernel/feature/sucompat.c
-index 6274c47dadf9d94081170a77f5fd70544dbcb16b..e784aba5ff4c961ba97395bd3b2d529658608085 100644
+index 6274c47dadf9d94081170a77f5fd70544dbcb16b..c88fe9abea999acf5c9753a563413ba0dc8645e7 100644
 --- a/kernel/feature/sucompat.c
 +++ b/kernel/feature/sucompat.c
 @@ -1,6 +1,3 @@
@@ -1988,7 +1989,7 @@ index 5e2cfe11ba85b81a1f060365795183e5e8daeba0..a4a6a7de34673d789b8269531ea96bfd
 +#endif
 \ No newline at end of file
 diff --git a/kernel/hook/setuid_hook.c b/kernel/hook/setuid_hook.c
-index 3cccc7800ec343071cad8485afcf77e2dfb8e6c9..132d880239f1ae2e063dd86d004b589d88edbe77 100644
+index 214f8cbb4248e82416cd5af1e72f07f65a9dd6f1..132d880239f1ae2e063dd86d004b589d88edbe77 100644
 --- a/kernel/hook/setuid_hook.c
 +++ b/kernel/hook/setuid_hook.c
 @@ -11,6 +11,8 @@
@@ -2000,7 +2001,7 @@ index 3cccc7800ec343071cad8485afcf77e2dfb8e6c9..132d880239f1ae2e063dd86d004b589d
  
  #include "policy/allowlist.h"
  #include "hook/setuid_hook.h"
-@@ -18,40 +20,116 @@
+@@ -18,37 +20,116 @@
  #include "manager/manager_identity.h"
  #include "infra/seccomp_cache.h"
  #include "supercall/supercall.h"
@@ -2014,23 +2015,28 @@ index 3cccc7800ec343071cad8485afcf77e2dfb8e6c9..132d880239f1ae2e063dd86d004b589d
 +extern struct work_struct susfs_extra_works;
 +
 +static inline void ksu_handle_extra_susfs_work(void)
-+{
+ {
+-    // we rely on the fact that zygote always call setresuid(3) with same uids
 +    if (work_pending(&susfs_extra_works))
 +        return;
 +
 +    schedule_work(&susfs_extra_works);
 +}
-+
+ 
+-    if (unlikely(is_uid_manager(new_uid))) {
+-        spin_lock_irq(&current->sighand->siglock);
+-        ksu_seccomp_allow_cache(current->seccomp.filter, __NR_reboot);
+-        ksu_set_task_tracepoint_flag(current);
+-        spin_unlock_irq(&current->sighand->siglock);
 +static int handle_zygote_setresuid(uid_t ruid)
- {
--    // we rely on the fact that zygote always call setresuid(3) with same uids
++{
 +    // Check if spawned process is isolated service first, and force to do umount if so
 +    if (is_isolated_process(ruid)) {
 +        susfs_set_current_proc_no_su();
 +        susfs_set_current_proc_umounted();
 +        goto do_umount;
 +    }
-+
+ 
 +    // - Since ksu maanger app uid is excluded in allow_list_arr, so ksu_uid_should_umount(manager_uid)
 +    //   will always return true, that's why we need to explicitly check if new_uid belongs to
 +    //   ksu manager.
@@ -2038,10 +2044,20 @@ index 3cccc7800ec343071cad8485afcf77e2dfb8e6c9..132d880239f1ae2e063dd86d004b589d
 +    if (likely(ksu_is_manager_appid_valid()) && unlikely(is_uid_manager(ruid))) {
 +        disable_seccomp();
 +        pr_info("install fd for manager: %d\n", ruid);
-+        ksu_install_fd();
-+        return 0;
-+    }
-+
+         ksu_install_fd();
+         return 0;
+     }
+ 
+-    if (ksu_is_allow_uid_for_current(new_uid)) {
+-        if (current->seccomp.mode == SECCOMP_MODE_FILTER &&
+-            current->seccomp.filter) {
+-            spin_lock_irq(&current->sighand->siglock);
+-            ksu_seccomp_allow_cache(current->seccomp.filter, __NR_reboot);
+-            spin_unlock_irq(&current->sighand->siglock);
+-        }
+-        ksu_set_task_tracepoint_flag(current);
+-    } else {
+-        ksu_clear_task_tracepoint_flag_if_needed(current);
 +    // App profiles now cover webview zygote as well.
 +    if (likely(is_appuid(ruid) && ksu_uid_should_umount(ruid))) {
 +        susfs_set_current_proc_no_su();
@@ -2062,21 +2078,14 @@ index 3cccc7800ec343071cad8485afcf77e2dfb8e6c9..132d880239f1ae2e063dd86d004b589d
 +    {
 +        // Handle kernel umount
 +        ksu_handle_umount(current_uid().val, ruid);
- 
--    pr_info("handle_setresuid from %d to %d\n", old_uid, new_uid);
++
 +        // Handle extra susfs work
 +        ksu_handle_extra_susfs_work();
 +    }
- 
--    if (unlikely(is_uid_manager(new_uid))) {
--        spin_lock_irq(&current->sighand->siglock);
--        ksu_seccomp_allow_cache(current->seccomp.filter, __NR_reboot);
--        ksu_set_task_tracepoint_flag(current);
--        spin_unlock_irq(&current->sighand->siglock);
++
 +    return 0;
 +}
- 
--        pr_info("install fd for manager: %d\n", new_uid);
++
 +static int handle_zygote_next_setresuid(uid_t ruid)
 +{
 +    if (is_isolated_process(ruid)) {
@@ -2084,25 +2093,17 @@ index 3cccc7800ec343071cad8485afcf77e2dfb8e6c9..132d880239f1ae2e063dd86d004b589d
 +        susfs_set_current_proc_umounted();
 +        susfs_set_current_proc_umounted_for_zygote_next();
 +        goto do_susfs_work;
-+    }
-+
+     }
+ 
+-    // Handle kernel umount
+-    ksu_handle_umount(old_uid, new_uid);
 +    if (likely(ksu_is_manager_appid_valid()) && unlikely(is_uid_manager(ruid))) {
 +        disable_seccomp();
 +        pr_info("install fd for manager: %d\n", ruid);
-         ksu_install_fd();
-         return 0;
-     }
- 
--    if (ksu_is_allow_uid_for_current(new_uid)) {
--        if (current->seccomp.mode == SECCOMP_MODE_FILTER &&
--            current->seccomp.filter) {
--            spin_lock_irq(&current->sighand->siglock);
--            ksu_seccomp_allow_cache(current->seccomp.filter, __NR_reboot);
--            spin_unlock_irq(&current->sighand->siglock);
--        }
--        ksu_set_task_tracepoint_flag(current);
--    } else {
--        ksu_clear_task_tracepoint_flag_if_needed(current);
++        ksu_install_fd();
++        return 0;
++    }
++
 +    if (likely(is_appuid(ruid) && ksu_uid_should_umount(ruid))) {
 +        susfs_set_current_proc_no_su();
 +        susfs_set_current_proc_umounted();
@@ -2113,10 +2114,8 @@ index 3cccc7800ec343071cad8485afcf77e2dfb8e6c9..132d880239f1ae2e063dd86d004b589d
 +    if (ksu_is_allow_uid_for_current(ruid)) {
 +        disable_seccomp();
 +        return 0;
-     }
- 
--    // Handle kernel umount
--    ksu_handle_umount(old_uid, new_uid);
++    }
++
 +    susfs_set_current_proc_no_su();
 +    return 0;
 +
@@ -2186,10 +2185,10 @@ index bee25c125580c77b66e110a711f69331cc7b8ff9..1a94f49e8bc863bb36f6f657534a867e
          cb = kzalloc(sizeof(*cb), GFP_KERNEL);
          if (cb) {
 diff --git a/kernel/policy/allowlist.c b/kernel/policy/allowlist.c
-index fbb32376e6c2316a156163073c04c761b2e779db..fcc754df2317695d166ae45f4481597e2dff6b21 100644
+index fe487ea47acdd8dce79317a6924e1b440dd45111..5a97f1f3a7983969e86e3d5ebfe87200426fef1a 100644
 --- a/kernel/policy/allowlist.c
 +++ b/kernel/policy/allowlist.c
-@@ -306,10 +306,7 @@ bool ksu_uid_should_umount(uid_t uid)
+@@ -294,10 +294,7 @@ bool ksu_uid_should_umount(uid_t uid)
  {
      struct app_profile *profile;
      bool res;
@@ -2553,7 +2552,7 @@ index 09384deff44cfb11c9520bfee3d85125f2864fe4..985f441fa740928001fc2f8102c00c9e
 +#endif
 +    } ptr;
 +};
- 
++
 +static inline const char __user *get_user_arg_ptr(struct user_arg_ptr argv, int nr)
 +{
 +    const char __user *native;
@@ -2567,7 +2566,7 @@ index 09384deff44cfb11c9520bfee3d85125f2864fe4..985f441fa740928001fc2f8102c00c9e
 +
 +        return compat_ptr(compat);
 +    }
- #endif
++#endif
 +
 +    if (get_user(native, argv.ptr.native + nr))
 +        return ERR_PTR(-EFAULT);
@@ -2576,13 +2575,13 @@ index 09384deff44cfb11c9520bfee3d85125f2864fe4..985f441fa740928001fc2f8102c00c9e
 +}
 +
 +struct filename;
-+
+ 
 +int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
 +                             struct user_arg_ptr *argv,
 +                             struct user_arg_ptr *envp, int *flags);
-+#endif
+ #endif
 diff --git a/kernel/runtime/ksud_integration.c b/kernel/runtime/ksud_integration.c
-index 1a7ba9ffa7d95518c03730d93801ae0f118eac87..a22154e6f1041d63289d13eb8c066e8c4bec3b74 100644
+index a4fb4138f491c8d9e00ace1fec51387bc931931d..a22154e6f1041d63289d13eb8c066e8c4bec3b74 100644
 --- a/kernel/runtime/ksud_integration.c
 +++ b/kernel/runtime/ksud_integration.c
 @@ -11,7 +11,6 @@
@@ -2776,9 +2775,11 @@ index 1a7ba9ffa7d95518c03730d93801ae0f118eac87..a22154e6f1041d63289d13eb8c066e8c
  {
      struct file *file = fget(fd);
      if (!file) {
-@@ -490,11 +473,11 @@ int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *v
+@@ -488,12 +471,13 @@ int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *v
+ {
+     if (*type == EV_KEY && *code == KEY_VOLUMEDOWN) {
          int val = *value;
-         pr_info("KEY_VOLUMEDOWN val: %d\n", val);
++        pr_info("KEY_VOLUMEDOWN val: %d\n", val);
          if (val) {
 +            /* input_handle_event() holds a spinlock; leave disabling to post-fs-data. */
 +            if (is_volumedown_enough(volumedown_pressed_count))
@@ -2791,7 +2792,7 @@ index 1a7ba9ffa7d95518c03730d93801ae0f118eac87..a22154e6f1041d63289d13eb8c066e8c
          }
      }
  
-@@ -509,12 +492,11 @@ bool ksu_is_safe_mode()
+@@ -508,12 +492,11 @@ bool ksu_is_safe_mode()
          return true;
      }
  
@@ -2808,7 +2809,7 @@ index 1a7ba9ffa7d95518c03730d93801ae0f118eac87..a22154e6f1041d63289d13eb8c066e8c
  
      pr_info("volumedown_pressed_count: %d\n", volumedown_pressed_count);
      if (is_volumedown_enough(volumedown_pressed_count)) {
-@@ -527,66 +509,13 @@ bool ksu_is_safe_mode()
+@@ -526,66 +509,13 @@ bool ksu_is_safe_mode()
      return false;
  }
  
@@ -2879,7 +2880,7 @@ index 1a7ba9ffa7d95518c03730d93801ae0f118eac87..a22154e6f1041d63289d13eb8c066e8c
      if (file) {
          if (is_init_rc(file)) {
              pr_info("stat init.rc");
-@@ -596,85 +525,20 @@ static long ksu_sys_fstat(const struct pt_regs *regs)
+@@ -595,84 +525,20 @@ static long ksu_sys_fstat(const struct pt_regs *regs)
          fput(file);
      }
  
@@ -2940,8 +2941,7 @@ index 1a7ba9ffa7d95518c03730d93801ae0f118eac87..a22154e6f1041d63289d13eb8c066e8c
 +        pr_info("adding rc len: %lld -> %lld (static=%zu module=%zu)", orig_size, *kstat_size_ptr, ksu_rc_len, module_rc_len);
      }
 -    input_hook_stopped = true;
--    bool ret = schedule_work(&stop_input_hook_work);
--    pr_info("unregister input kprobe: %d!\n", ret);
+-    schedule_work(&stop_input_hook_work);
  }
  
  // ksud: module support
@@ -3079,10 +3079,10 @@ index 1a76dbd784767c5a819bde5e8dc46d83152f4272..4c43f830a5a45a48d408be0b127f60a5
 +    susfs_set_sid(KERNEL_PRIV_APP_DOMAIN, &susfs_priv_app_sid);
 +}
 diff --git a/kernel/selinux/selinux.h b/kernel/selinux/selinux.h
-index 158f94555d8a35eb2fe025bda2cb19344d3f0617..7048d71f57274d084ff8d37ee45e0e7f0b92b7c5 100644
+index b1918a426a91ffe7520e7b6a29ee5e1872e4ba6e..9ad9635aa4d49ca0bbc468ec982944d928429265 100644
 --- a/kernel/selinux/selinux.h
 +++ b/kernel/selinux/selinux.h
-@@ -42,4 +42,13 @@ void escape_to_root_for_adb_root();
+@@ -55,4 +55,13 @@ static inline int ksu_selinux_inode_init(void)
  
  extern u32 ksu_file_sid;
  
@@ -3119,11 +3119,10 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..f3b878c16f335f595e5de3a3ed4582f0
  static struct ksu_event_queue sulog_queue;
  
  // Compat bridge for ksu_toolkit (SULog)
-@@ -125,44 +113,6 @@
-     __u32 uid;
+@@ -126,44 +114,6 @@ struct ksu_sulog_identity {
      __u32 euid;
  };
--
+ 
 -static struct user_arg_ptr ksu_sulog_user_argv(const char __user *const __user *argv_user)
 -{
 -    struct user_arg_ptr argv;
@@ -3161,54 +3160,51 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..f3b878c16f335f595e5de3a3ed4582f0
 -
 -    return native;
 -}
- 
+-
  static void ksu_sulog_fill_task_info(struct ksu_sulog_event *event, __u16 event_type, int retval)
  {
-@@ -192,31 +142,24 @@
+     event->version = KSU_SULOG_EVENT_VERSION;
+@@ -192,31 +142,24 @@ static __u32 ksu_sulog_copy_empty_string(char *dst)
      return 1;
  }
  
 -static __u32 ksu_sulog_copy_filename(const char __user *filename_user, char *dst, __u32 dst_len)
--{
--    long ret;
 +static __u32 ksu_sulog_copy_filename_kernel(const char *filename, char *dst, __u32 dst_len)
-+{
+ {
+-    long ret;
 +    size_t len;
  
      if (!dst_len)
          return 0;
  
 -    if (!filename_user)
+-        return ksu_sulog_copy_empty_string(dst);
+-
+-    ret = strncpy_from_user_nofault(dst, (const void __user *)untagged_addr((unsigned long)filename_user), dst_len);
+-    if (ret <= 0)
 +    if (!filename)
          return ksu_sulog_copy_empty_string(dst);
  
--    ret = strncpy_from_user_nofault(dst, (const void __user *)untagged_addr((unsigned long)filename_user), dst_len);
--    if (ret <= 0)
--        return ksu_sulog_copy_empty_string(dst);
--
 -    if (ret >= dst_len) {
 -        dst[dst_len - 1] = '\0';
 -        return dst_len;
 -    }
 -
 -    return ret + 1;
--}
--
--static __u32 ksu_sulog_flatten_argv(const char __user *const __user *argv_user, char *dst, __u32 dst_len)
--{
--    struct user_arg_ptr argv = ksu_sulog_user_argv(argv_user);
 +    len = strnlen(filename, dst_len - 1);
 +    memcpy(dst, filename, len);
 +    dst[len] = '\0';
 +    return len + 1;
-+}
-+
+ }
+ 
+-static __u32 ksu_sulog_flatten_argv(const char __user *const __user *argv_user, char *dst, __u32 dst_len)
 +static __u32 ksu_sulog_flatten_argv(struct user_arg_ptr *argv_user, char *dst, __u32 dst_len)
-+{
+ {
+-    struct user_arg_ptr argv = ksu_sulog_user_argv(argv_user);
      char arg[KSU_SULOG_MAX_ARG_CHUNK];
      __u32 used = 0;
      int i;
-@@ -235,7 +178,7 @@
+@@ -235,7 +178,7 @@ static __u32 ksu_sulog_flatten_argv(const char __user *const __user *argv_user,
          if (fatal_signal_pending(current))
              break;
  
@@ -3217,7 +3213,7 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..f3b878c16f335f595e5de3a3ed4582f0
          if (!arg_user)
              break;
          if (IS_ERR(arg_user))
-@@ -271,8 +214,8 @@
+@@ -271,8 +214,8 @@ static __u32 ksu_sulog_flatten_argv(const char __user *const __user *argv_user,
      return used + 1;
  }
  
@@ -3228,7 +3224,7 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..f3b878c16f335f595e5de3a3ed4582f0
  {
      struct ksu_sulog_pending_event *pending = NULL;
      struct ksu_sulog_event *event;
-@@ -283,6 +226,7 @@
+@@ -283,6 +226,7 @@ static struct ksu_sulog_pending_event *ksu_sulog_capture(__u16 event_type, const
      __u32 remaining;
      char *filename_buf;
      char *argv_buf;
@@ -3236,7 +3232,7 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..f3b878c16f335f595e5de3a3ed4582f0
      if (!ksu_sulog_is_enabled())
          return NULL;
  
-@@ -299,7 +243,7 @@
+@@ -299,7 +243,7 @@ static struct ksu_sulog_pending_event *ksu_sulog_capture(__u16 event_type, const
  
      remaining = KSU_SULOG_MAX_PAYLOAD_LEN - sizeof(*event);
      filename_buf = (char *)payload + sizeof(*event);
@@ -3245,7 +3241,7 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..f3b878c16f335f595e5de3a3ed4582f0
      if (!filename_len)
          goto out_free_payload;
  
-@@ -364,16 +308,10 @@
+@@ -364,16 +308,10 @@ static void ksu_sulog_free_pending(struct ksu_sulog_pending_event *pending)
      kfree(pending);
  }
  
@@ -3257,11 +3253,10 @@ index 17375e1c86f2ebd91424947a1345bdbc39fd42ba..f3b878c16f335f595e5de3a3ed4582f0
 -
 -struct ksu_sulog_pending_event *ksu_sulog_capture_sucompat(const char __user *filename_user,
 -                                                           const char __user *const __user *argv_user, gfp_t gfp)
--{
--    return ksu_sulog_capture(KSU_SULOG_EVENT_SUCOMPAT, filename_user, argv_user, gfp);
 +struct ksu_sulog_pending_event *ksu_sulog_capture_sucompat(const char *filename,
 +                                                           struct user_arg_ptr *argv_user, gfp_t gfp)
-+{
+ {
+-    return ksu_sulog_capture(KSU_SULOG_EVENT_SUCOMPAT, filename_user, argv_user, gfp);
 +    return ksu_sulog_capture(KSU_SULOG_EVENT_SUCOMPAT, filename, argv_user, gfp);
  }
  
@@ -3292,10 +3287,10 @@ index 866fb6ad95cdad932f9e63785aeac0fcf655ce0f..b0cdcc489f41bcb5d7928fcb6d823da6
  int ksu_sulog_emit_grant_root(int retval, __u32 uid, __u32 euid, gfp_t gfp);
  
 diff --git a/kernel/supercall/dispatch.c b/kernel/supercall/dispatch.c
-index a109293d6b6bf3fa3d65073a3f0c97b2c2a245a6..ba667846b84f2461de274c6200661632eaa9892b 100644
+index 48a82e1b4d20d812be99b01bf7d12f2f2f94322d..1df51d8174051391ad7e34ce154655c575cc43e7 100644
 --- a/kernel/supercall/dispatch.c
 +++ b/kernel/supercall/dispatch.c
-@@ -7,6 +7,8 @@
+@@ -8,6 +8,8 @@
  #include <linux/uaccess.h>
  #include <linux/version.h>
  #include <linux/thread_info.h>
@@ -3304,7 +3299,7 @@ index a109293d6b6bf3fa3d65073a3f0c97b2c2a245a6..ba667846b84f2461de274c6200661632
  #include "uapi/supercall.h"
  #include "supercall/internal.h"
  #include "arch.h" // IWYU pragma: keep
-@@ -19,7 +21,6 @@
+@@ -20,7 +22,6 @@
  #include "manager/manager_identity.h"
  #include "selinux/selinux.h"
  #include "infra/file_wrapper.h"
@@ -3312,7 +3307,7 @@ index a109293d6b6bf3fa3d65073a3f0c97b2c2a245a6..ba667846b84f2461de274c6200661632
  #include "policy/app_profile.h"
  #include "sulog/event.h"
  #include "sulog/fd.h"
-@@ -60,13 +61,12 @@ static int do_get_info(void __user *arg)
+@@ -61,13 +62,12 @@ static int do_get_info(void __user *arg)
      if (is_manager()) {
          cmd.flags |= KSU_GET_INFO_FLAG_MANAGER;
      }
@@ -3330,7 +3325,7 @@ index a109293d6b6bf3fa3d65073a3f0c97b2c2a245a6..ba667846b84f2461de274c6200661632
      cmd.features = KSU_FEATURE_MAX;
      cmd.uapi_version = KERNEL_SU_UAPI_VERSION;
  
-@@ -92,9 +92,9 @@ static int do_get_info_legacy(void __user *arg)
+@@ -93,9 +93,9 @@ static int do_get_info_legacy(void __user *arg)
      if (is_manager()) {
          cmd.flags |= KSU_GET_INFO_FLAG_MANAGER;
      }
@@ -3343,7 +3338,7 @@ index a109293d6b6bf3fa3d65073a3f0c97b2c2a245a6..ba667846b84f2461de274c6200661632
      cmd.features = KSU_FEATURE_MAX;
  
      if (copy_to_user(arg, &cmd, sizeof(cmd))) {
-@@ -122,12 +122,8 @@ static int do_report_event(void __user *arg)
+@@ -123,12 +123,8 @@ static int do_report_event(void __user *arg)
          services_started = false;
          if (!post_fs_data_lock) {
              post_fs_data_lock = true;
@@ -3358,7 +3353,7 @@ index a109293d6b6bf3fa3d65073a3f0c97b2c2a245a6..ba667846b84f2461de274c6200661632
          }
          break;
      }
-@@ -135,12 +131,9 @@ static int do_report_event(void __user *arg)
+@@ -136,12 +132,9 @@ static int do_report_event(void __user *arg)
          static bool boot_complete_lock = false;
          if (!boot_complete_lock) {
              boot_complete_lock = true;
@@ -3374,7 +3369,7 @@ index a109293d6b6bf3fa3d65073a3f0c97b2c2a245a6..ba667846b84f2461de274c6200661632
          }
          break;
      }
-@@ -394,7 +387,6 @@ static int do_set_app_profile(void __user *arg)
+@@ -395,7 +388,6 @@ static int do_set_app_profile(void __user *arg)
      ret = ksu_set_app_profile(&cmd.profile);
      if (!ret) {
          ksu_persistent_allow_list();
@@ -3382,7 +3377,7 @@ index a109293d6b6bf3fa3d65073a3f0c97b2c2a245a6..ba667846b84f2461de274c6200661632
      }
      return ret;
  }
-@@ -477,49 +469,32 @@ static int do_manage_mark(void __user *arg)
+@@ -478,49 +470,32 @@ static int do_manage_mark(void __user *arg)
      }
  
      switch (cmd.operation) {
@@ -3453,7 +3448,7 @@ index a109293d6b6bf3fa3d65073a3f0c97b2c2a245a6..ba667846b84f2461de274c6200661632
      }
      if (copy_to_user(arg, &cmd, sizeof(cmd))) {
          pr_err("manage_mark: copy_to_user failed\n");
-@@ -529,6 +504,151 @@ static int do_manage_mark(void __user *arg)
+@@ -530,6 +505,151 @@ static int do_manage_mark(void __user *arg)
      return 0;
  }
  
@@ -3605,7 +3600,7 @@ index a109293d6b6bf3fa3d65073a3f0c97b2c2a245a6..ba667846b84f2461de274c6200661632
  static int do_nuke_ext4_sysfs(void __user *arg)
  {
      struct ksu_nuke_ext4_sysfs_cmd cmd;
-@@ -721,11 +841,7 @@ static int do_get_hook_mode(void __user *arg)
+@@ -722,11 +842,7 @@ static int do_get_hook_mode(void __user *arg)
  {
      struct ksu_get_hook_mode_cmd cmd = {0};
  
