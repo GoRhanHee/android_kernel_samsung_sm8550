@@ -13,8 +13,8 @@ export CLANG_TOOLCHAIN_DIR="${KERNEL_PLATFORM}/prebuilts/clang/host/linux-x86/cl
 export CLANG_BIN="${CLANG_TOOLCHAIN_DIR}/bin/clang"
 export KSU_NEXT_REF="7ccf61479621f240c0d968ef46f1b167b6ceb500"
 export KSU_SETUP_URL="https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/${KSU_NEXT_REF}/kernel/setup.sh"
-# NoMount v2.2.0
-export NOMOUNT_REF="bf1847f98fed382369c43bfd652cd93774b9b8e3"
+# NoMount v2.3.0
+export NOMOUNT_REF="7914458ca71dfa3a8c162fa97fdb69332db7a690"
 export NOMOUNT_SETUP_URL="https://raw.githubusercontent.com/maxsteeel/nomount/${NOMOUNT_REF}/kernel/setup.sh"
 
 export SUSFS_REF="c1d1da42b74771944207ec45aaceff9c57e84985"
