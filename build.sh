@@ -17,9 +17,9 @@ export KSU_SETUP_URL="https://raw.githubusercontent.com/KernelSU-Next/KernelSU-N
 export NOMOUNT_REF="bf1847f98fed382369c43bfd652cd93774b9b8e3"
 export NOMOUNT_SETUP_URL="https://raw.githubusercontent.com/maxsteeel/nomount/${NOMOUNT_REF}/kernel/setup.sh"
 
-export SUSFS_REF="0b5f96716cb2fc7b035dce2f06cb8a51e1b9b108"
-export SUSFS_KSU_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0001-kernelsu-next-7ccf614-susfs-2.3.0.patch"
-export SUSFS_KERNEL_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0002-susfs-2.3.0-android13-5.15-0b5f967.patch"
+export SUSFS_REF="c1d1da42b74771944207ec45aaceff9c57e84985"
+export SUSFS_KSU_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0001-kernelsu-next-7ccf614-susfs-2.4.0.patch"
+export SUSFS_KERNEL_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0002-susfs-2.4.0-android13-5.15-c1d1da4.patch"
 export BASE_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/gorhanhee_defconfig"
 export AOSP_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/aosp_defconfig"
 export KSU_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/ksu_defconfig"
@@ -31,7 +31,7 @@ Usage: ${SCRIPT_NAME} [vanilla|ksun|susfs] [oneui|aosp]
 
   vanilla  Build without KernelSU-Next or SUSFS (default)
   ksun     Build with KernelSU-Next dev (${KSU_NEXT_REF})
-  susfs    Build with KernelSU-Next dev (${KSU_NEXT_REF}) and SUSFS 2.3.0
+  susfs    Build with KernelSU-Next dev (${KSU_NEXT_REF}) and SUSFS 2.4.0
 
   oneui    Build for OneUI (default)
   aosp     Build for AOSP
