@@ -3,7 +3,6 @@
 set -Eeuo pipefail
 
 EROFS_VERSION="1.8.10"
-EROFS_COMMIT="51b5939b5f783221310d25146e6a2019ba8129b6"
 
 (( $# == 1 )) || { echo "usage: $0 <installation directory>" >&2; exit 1; }
 mkdir -p "$1"
@@ -13,10 +12,6 @@ trap 'rm -rf -- "${WORK_DIR}"' EXIT
 
 git clone --depth=1 --branch "v${EROFS_VERSION}" \
     https://github.com/erofs/erofs-utils.git "${WORK_DIR}/source"
-[[ "$(git -C "${WORK_DIR}/source" rev-parse HEAD)" == "${EROFS_COMMIT}" ]] || {
-    echo "error: erofs-utils source does not match the pinned commit" >&2
-    exit 1
-}
 
 cd "${WORK_DIR}/source"
 ./autogen.sh

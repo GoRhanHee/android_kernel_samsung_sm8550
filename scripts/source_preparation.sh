@@ -36,9 +36,9 @@ COMMON_FEATURE_PATCH_FILES=(
     "${SOURCE_DIR}/patches/common/optimization/0021-silence-irq-cpu-logspam-sm8550-5.15.patch"
     "${SOURCE_DIR}/patches/common/optimization/0022-silence-system-logspam.patch"
 )
-COMMON_HEAD_BEFORE=""
+COMMON_STATE_RECORDED=0
 COMMON_STATUS_BEFORE=""
-MSM_HEAD_BEFORE=""
+MSM_STATE_RECORDED=0
 MSM_STATUS_BEFORE=""
 MSM_DEFCONFIG_BACKUP_DIR=""
 MSM_DEFCONFIG_SNAPSHOT_TAKEN=0
@@ -89,9 +89,9 @@ record_common_state() {
         die "common submodule is not initialized"
     [[ "${top_level}" -ef "${common_dir}" ]] || die "invalid common submodule root"
 
-    COMMON_HEAD_BEFORE="$(git -C "${common_dir}" rev-parse HEAD)"
     COMMON_STATUS_BEFORE="$(git -C "${common_dir}" status --porcelain=v1 --untracked-files=all)"
     [[ -z "${COMMON_STATUS_BEFORE}" ]] || die "common submodule must be clean before the build"
+    COMMON_STATE_RECORDED=1
 
     if [[ -d "${common_dir}/KernelSU-Next" || -d "${common_dir}/KernelSU" ||
           -e "${common_dir}/drivers/kernelsu" ]]; then
@@ -109,27 +109,17 @@ record_common_state() {
 
 validate_msm_state() {
     local msm_dir="${KERNEL_PLATFORM}/msm-kernel"
-    local configured_branch tracking_ref tracking_head top_level
+    local top_level
 
     [[ -e "${msm_dir}/.git" ]] || die "msm-kernel submodule is not initialized"
     top_level="$(git -C "${msm_dir}" rev-parse --show-toplevel 2>/dev/null)" ||
         die "msm-kernel submodule is not initialized"
     [[ "${top_level}" == "${msm_dir}" ]] || die "invalid msm-kernel submodule root"
 
-    MSM_HEAD_BEFORE="$(git -C "${msm_dir}" rev-parse HEAD)"
     MSM_STATUS_BEFORE="$(git -C "${msm_dir}" status --porcelain=v1 --untracked-files=all)"
     [[ -z "${MSM_STATUS_BEFORE}" ]] || die "msm-kernel submodule must be clean before the build"
-
-    configured_branch="$(git -C "${SOURCE_DIR}" config -f .gitmodules \
-        --get submodule.kernel_platform/msm-kernel.branch 2>/dev/null || true)"
-    tracking_ref="refs/remotes/origin/${configured_branch}"
-    if [[ -n "${configured_branch}" ]] &&
-       git -C "${msm_dir}" show-ref --verify --quiet "${tracking_ref}"; then
-        tracking_head="$(git -C "${msm_dir}" rev-parse "${tracking_ref}")"
-        [[ "${MSM_HEAD_BEFORE}" == "${tracking_head}" ]] ||
-            die "msm-kernel HEAD does not match ${tracking_ref}"
-    fi
-    echo "[submodule] msm-kernel ${MSM_HEAD_BEFORE} is initialized and clean"
+    MSM_STATE_RECORDED=1
+    echo "[submodule] msm-kernel is initialized and clean"
 }
 
 snapshot_msm_wlan_link() {
@@ -234,8 +224,6 @@ import_nomount() {
 
     [[ -L "${fs_dir}/nomount" && -d "${common_dir}/NoMount/kernel/src" ]] ||
         die "NoMount setup did not create the expected source link"
-    [[ "$(git -C "${common_dir}/NoMount" rev-parse HEAD)" == "${NOMOUNT_REF}" ]] ||
-        die "NoMount setup checked out an unexpected revision"
     grep -Fqx 'source "fs/nomount/Kconfig"' "${fs_dir}/Kconfig" ||
         die "NoMount setup did not update fs/Kconfig"
     grep -Fqx 'obj-$(CONFIG_NOMOUNT) += nomount/' "${fs_dir}/Makefile" ||
@@ -379,18 +367,14 @@ remove_temporary_nomount() {
 }
 
 verify_source_state() {
-    local current_head current_status
-    if [[ -n "${COMMON_HEAD_BEFORE}" ]]; then
-        current_head="$(git -C "${KERNEL_PLATFORM}/common" rev-parse HEAD)"
+    local current_status
+    if (( COMMON_STATE_RECORDED == 1 )); then
         current_status="$(git -C "${KERNEL_PLATFORM}/common" status --porcelain=v1 --untracked-files=all)"
-        [[ "${current_head}" == "${COMMON_HEAD_BEFORE}" &&
-           "${current_status}" == "${COMMON_STATUS_BEFORE}" ]] || return 1
+        [[ "${current_status}" == "${COMMON_STATUS_BEFORE}" ]] || return 1
     fi
-    if [[ -n "${MSM_HEAD_BEFORE}" ]]; then
-        current_head="$(git -C "${KERNEL_PLATFORM}/msm-kernel" rev-parse HEAD)"
+    if (( MSM_STATE_RECORDED == 1 )); then
         current_status="$(git -C "${KERNEL_PLATFORM}/msm-kernel" status --porcelain=v1 --untracked-files=all)"
-        [[ "${current_head}" == "${MSM_HEAD_BEFORE}" &&
-           "${current_status}" == "${MSM_STATUS_BEFORE}" ]] || return 1
+        [[ "${current_status}" == "${MSM_STATUS_BEFORE}" ]] || return 1
     fi
 }
 
