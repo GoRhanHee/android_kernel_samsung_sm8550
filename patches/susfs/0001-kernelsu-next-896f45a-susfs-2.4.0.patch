@@ -3711,7 +3711,7 @@ index a4fb4138f491c8d9e00ace1fec51387bc931931d..1a2fb61cf9d54736aebb60d67c087519
          free_module_rc();
      }
 diff --git a/kernel/selinux/rules.c b/kernel/selinux/rules.c
-index 515245f4d07ad0004fe857eb303d541f85e65a7b..be2282554ed33b6b93b6c5f027fb578fcd5a4aec 100644
+index 3dadf7faa48c066bfff03825db768ddd63320c69..d67c793aa46e0b34490ee94a8751a5bda68da162 100644
 --- a/kernel/selinux/rules.c
 +++ b/kernel/selinux/rules.c
 @@ -27,17 +27,17 @@ extern int avc_ss_reset(u32 seqno);
@@ -3750,7 +3750,7 @@ index 515245f4d07ad0004fe857eb303d541f85e65a7b..be2282554ed33b6b93b6c5f027fb578f
      ksu_type(db, KERNEL_SU_DOMAIN, "domain");
      ksu_permissive(db, KERNEL_SU_DOMAIN);
      ksu_typeattribute(db, KERNEL_SU_DOMAIN, "mlstrustedsubject");
-@@ -172,7 +168,9 @@ void apply_kernelsu_rules()
+@@ -175,7 +171,9 @@ void apply_kernelsu_rules()
      synchronize_rcu();
      ksu_destroy_sepolicy(old_pol);
  
@@ -3761,7 +3761,7 @@ index 515245f4d07ad0004fe857eb303d541f85e65a7b..be2282554ed33b6b93b6c5f027fb578f
  out_unlock:
      mutex_unlock(&selinux_state.policy_mutex);
  }
-@@ -544,15 +542,11 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
+@@ -547,15 +545,11 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
  
      // Return value ignored: the policy is published either way.
      ksu_policydb_fixup_len(db, "handle_sepolicy");

@@ -220,6 +220,16 @@ import_nomount() {
     cp -a -- "${fs_dir}/Kconfig" "${fs_dir}/Makefile" "${NOMOUNT_BACKUP_DIR}/"
     curl -fLSs --retry 3 -o "${setup_script}" "${NOMOUNT_SETUP_URL}"
     NOMOUNT_IMPORT_STARTED=1
+    # A pinned commit can remain available by SHA after it leaves every branch
+    # and tag. Fetch it explicitly before setup.sh tries to check it out.
+    git init --quiet "${common_dir}/NoMount"
+    # Fetch-triggered background maintenance can race the EXIT trap's removal
+    # of this temporary repository.
+    git -C "${common_dir}/NoMount" config maintenance.auto false
+    git -C "${common_dir}/NoMount" config gc.auto 0
+    git -C "${common_dir}/NoMount" remote add origin https://github.com/maxsteeel/nomount
+    git -C "${common_dir}/NoMount" fetch --depth=1 origin "${NOMOUNT_REF}"
+    git -C "${common_dir}/NoMount" checkout --quiet --detach FETCH_HEAD
     (cd "${common_dir}" && bash "${setup_script}" "${NOMOUNT_REF}")
 
     [[ -L "${fs_dir}/nomount" && -d "${common_dir}/NoMount/kernel/src" ]] ||

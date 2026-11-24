@@ -11,14 +11,14 @@ export TOOLCHAIN_VERSION="r614150"
 export TOOLCHAIN_URL="https://github.com/GoRhanHee/samsung_sm8550_toolchain/releases/download/clang23-ndk26d/toolchain-clang23-ndk26d.tar.xz"
 export CLANG_TOOLCHAIN_DIR="${KERNEL_PLATFORM}/prebuilts/clang/host/linux-x86/clang-${TOOLCHAIN_VERSION}"
 export CLANG_BIN="${CLANG_TOOLCHAIN_DIR}/bin/clang"
-export KSU_NEXT_REF="7ccf61479621f240c0d968ef46f1b167b6ceb500"
+export KSU_NEXT_REF="896f45a78c0806cfd585c4e14e6989f867b143d7"
 export KSU_SETUP_URL="https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/${KSU_NEXT_REF}/kernel/setup.sh"
-# NoMount v2.3.0
-export NOMOUNT_REF="7914458ca71dfa3a8c162fa97fdb69332db7a690"
+# NoMount v2.3.1
+export NOMOUNT_REF="6849f00a342b80338fb4398765f75f014dbcd557"
 export NOMOUNT_SETUP_URL="https://raw.githubusercontent.com/maxsteeel/nomount/${NOMOUNT_REF}/kernel/setup.sh"
 
 export SUSFS_REF="c1d1da42b74771944207ec45aaceff9c57e84985"
-export SUSFS_KSU_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0001-kernelsu-next-7ccf614-susfs-2.4.0.patch"
+export SUSFS_KSU_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0001-kernelsu-next-896f45a-susfs-2.4.0.patch"
 export SUSFS_KERNEL_PATCH_FILE="${SOURCE_DIR}/patches/susfs/0002-susfs-2.4.0-android13-5.15-c1d1da4.patch"
 export BASE_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/gorhanhee_defconfig"
 export AOSP_DEFCONFIG_FILE="${SOURCE_DIR}/custom_defconfigs/aosp_defconfig"
